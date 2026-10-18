@@ -927,14 +927,31 @@ app.get('/api/admin/update/check', requireAdmin, async (req, res) => {
   }
 
   const manifestUrl = process.env.UPDATE_MANIFEST_URL || '';
-  const githubRepo = process.env.GITHUB_REPO || '';
+  const githubRepo = process.env.GITHUB_REPO || 'gaga050819/Test-for-everyone';
 
   try {
     let remoteData = null;
-    if (manifestUrl) {
-      const resp = await fetch(manifestUrl, { headers: { 'User-Agent': 'SecureExam-Updater' } });
+
+    if (manifestUrl && manifestUrl.includes('raw.githubusercontent.com')) {
+      const match = manifestUrl.match(/raw\.githubusercontent\.com\/([^/]+\/[^/]+)\/[^/]+\/(.+)/);
+      if (match) {
+        const apiUrl = `https://api.github.com/repos/${match[1]}/contents/${match[2]}`;
+        const resp = await fetch(apiUrl, {
+          headers: { 'User-Agent': 'SecureExam-Updater', 'Accept': 'application/vnd.github.v3.raw' }
+        });
+        if (resp.ok) remoteData = await resp.json();
+      }
+    }
+
+    if (!remoteData && githubRepo) {
+      const apiUrl = `https://api.github.com/repos/${githubRepo}/contents/version.json`;
+      const resp = await fetch(apiUrl, {
+        headers: { 'User-Agent': 'SecureExam-Updater', 'Accept': 'application/vnd.github.v3.raw' }
+      });
       if (resp.ok) remoteData = await resp.json();
-    } else if (githubRepo) {
+    }
+
+    if (!remoteData && githubRepo) {
       const resp = await fetch(`https://api.github.com/repos/${githubRepo}/releases/latest`, {
         headers: { 'User-Agent': 'SecureExam-Updater' }
       });
