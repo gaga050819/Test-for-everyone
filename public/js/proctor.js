@@ -583,7 +583,7 @@ export class ProctorEngine {
   checkSplitScreen(isImmediate = false) {
     if (!this.isRunning || this.isCompleted || this.isBypassed) return;
     if (this.isInputFocused) return;
-    if (this.isIPhone) return; 
+    if (this.isIPhone) return; // iPhones do not support split-screen; avoid false positives on Safari toolbars
 
     const isLandscape = window.innerWidth > window.innerHeight;
     const screenH = isLandscape
@@ -790,7 +790,6 @@ export class ProctorEngine {
     this._initDragBlocker();
     this._initShakeDetector();
     this._initCameraMonitor();
-    this._initMicrophoneMonitor();
     this._injectScreenshotPoisonLayer();
   }
 
@@ -1084,113 +1083,7 @@ export class ProctorEngine {
     document.body.appendChild(dot);
   }
 
-  async _initMicrophoneMonitor() {
-    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) return;
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
-      this._audioStream = stream;
-      const AudioContextClass = window.AudioContext || window.webkitAudioContext;
-      if (!AudioContextClass) return;
-      this._audioContext = new AudioContextClass();
-      if (this._audioContext.state === 'suspended') {
-        const resumeAudio = () => {
-          if (this._audioContext && this._audioContext.state === 'suspended') {
-            this._audioContext.resume();
-          }
-          window.removeEventListener('click', resumeAudio);
-          window.removeEventListener('keydown', resumeAudio);
-        };
-        window.addEventListener('click', resumeAudio, { once: true });
-        window.addEventListener('keydown', resumeAudio, { once: true });
-      }
-      this._audioSource = this._audioContext.createMediaStreamSource(stream);
-      this._audioAnalyser = this._audioContext.createAnalyser();
-      this._audioAnalyser.fftSize = 256;
-      this._audioAnalyser.smoothingTimeConstant = 0.8;
-      this._audioSource.connect(this._audioAnalyser);
 
-      const bufferLength = this._audioAnalyser.frequencyBinCount;
-      const dataArray = new Uint8Array(bufferLength);
-
-      let consecutiveLoudSamples = 0;
-      let lastAudioIncidentTime = 0;
-
-      this._showMicIndicator();
-
-      this._audioInterval = setInterval(() => {
-        if (!this.isRunning || this.isCompleted) return;
-        this._audioAnalyser.getByteFrequencyData(dataArray);
-        let sum = 0;
-        for (let i = 0; i < bufferLength; i++) {
-          sum += dataArray[i];
-        }
-        const average = sum / bufferLength;
-
-        if (average > 38) {
-          consecutiveLoudSamples++;
-          if (consecutiveLoudSamples >= 4) {
-            const now = Date.now();
-            if (now - lastAudioIncidentTime > 12000) {
-              lastAudioIncidentTime = now;
-              this.recordIncident({
-                category: 'cheating_attempt',
-                type: 'audio_noise_detected',
-                message: 'Аудіомонітор: зафіксовано сторонні розмови або підозрілий шум у приміщенні',
-                penalty: 4,
-                severity: 'warning'
-              });
-              if (this.options && this.options.onWarning) {
-                this.options.onWarning({
-                  title: 'Зафіксовано шум / розмови',
-                  message: 'Система виявила сторонній голос або шум. Будь ласка, зберігайте тишу під час складання тесту.',
-                  severity: 'warning'
-                });
-              }
-            }
-          }
-        } else {
-          consecutiveLoudSamples = Math.max(0, consecutiveLoudSamples - 1);
-        }
-      }, 350);
-    } catch (err) {
-      this.recordIncident({
-        category: 'device_state',
-        type: 'microphone_unavailable',
-        message: 'Аудіомонітор мікрофона не активовано або відхилено доступ',
-        penalty: 0,
-        severity: 'info'
-      });
-    }
-  }
-
-  _showMicIndicator() {
-    if (document.getElementById('micIndicator')) return;
-    const dot = document.createElement('div');
-    dot.id = 'micIndicator';
-    dot.title = 'Аудіомонітор мікрофона активний';
-    dot.style.cssText = [
-      'position:fixed',
-      'top:max(calc(env(safe-area-inset-top, 0px) + 12px), 20px)',
-      'right:max(calc(env(safe-area-inset-right, 0px) + 28px), 32px)',
-      'z-index:9998',
-      'width:8px', 'height:8px', 'border-radius:50%',
-      'background:#10b981', 'pointer-events:none',
-      'box-shadow:0 0 0 0 rgba(16,185,129,0.6)',
-      'animation:micPulse 2.2s infinite'
-    ].join(';');
-
-    const style = document.createElement('style');
-    style.id = 'micIndicatorStyle';
-    style.textContent = `
-      @keyframes micPulse {
-        0%   { box-shadow: 0 0 0 0 rgba(16,185,129,0.6); }
-        70%  { box-shadow: 0 0 0 6px rgba(16,185,129,0); }
-        100% { box-shadow: 0 0 0 0 rgba(16,185,129,0); }
-      }
-    `;
-    document.head.appendChild(style);
-    document.body.appendChild(dot);
-  }
 
   sendProgress(questionIndex, totalQuestions) {
     if (this.ws && this.ws.readyState === WebSocket.OPEN) {
@@ -1492,19 +1385,6 @@ export class ProctorEngine {
     if (camDot) camDot.remove();
     const camOverlay = document.getElementById('cameraBlockedOverlay');
     if (camOverlay) camOverlay.remove();
-    if (this._audioInterval) clearInterval(this._audioInterval);
-    if (this._audioStream) {
-      this._audioStream.getTracks().forEach(t => t.stop());
-      this._audioStream = null;
-    }
-    if (this._audioContext) {
-      try { this._audioContext.close(); } catch {}
-      this._audioContext = null;
-    }
-    const micDot = document.getElementById('micIndicator');
-    if (micDot) micDot.remove();
-    const micStyle = document.getElementById('micIndicatorStyle');
-    if (micStyle) micStyle.remove();
     if (this.watermarkCanvas && this.watermarkCanvas.parentNode) {
       this.watermarkCanvas.parentNode.removeChild(this.watermarkCanvas);
     }
