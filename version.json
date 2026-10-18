@@ -3,5 +3,5 @@
   "name": "SecureExam",
   "githubRepo": "gaga050819/Test-for-everyone",
   "updateManifestUrl": "https://raw.githubusercontent.com/gaga050819/Test-for-everyone/main/version.json",
-  "changelog": "Оновлення 1.0.3: покращено стабільність системи, оптимізовано роботу з класами та додано нові тести з географії."
+  "changelog": "Оновлення 1.0.3: плавний індикатор завантаження, відображення КБ/МБ та надійний автоперезапуск сервера."
 }
