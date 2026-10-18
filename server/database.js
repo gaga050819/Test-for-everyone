@@ -138,6 +138,23 @@ export class JsonFileDatabaseAdapter extends DatabaseAdapter {
     return Object.values(this.data.tests);
   }
 
+  async getActiveTestId() {
+    if (this.data.activeTestId && this.data.tests[this.data.activeTestId]) {
+      return this.data.activeTestId;
+    }
+    const firstId = Object.keys(this.data.tests)[0];
+    return firstId || 'demo-test-1';
+  }
+
+  async setActiveTestId(testId) {
+    if (this.data.tests[testId]) {
+      this.data.activeTestId = testId;
+      await this.persist();
+      return true;
+    }
+    return false;
+  }
+
   async createTest(testData) {
     const id = testData.id || ('test_' + Math.random().toString(36).substring(2, 9));
     const newTest = {
