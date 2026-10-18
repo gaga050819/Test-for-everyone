@@ -148,8 +148,15 @@ function Extract-ArchiveWithFallbacks {
     return (Test-Path -LiteralPath $targetFile)
 }
 
-# Зчитування конфігурації .env для токена ngrok
+# Якщо .env немає — пробуємо скопіювати з .env.flash
 $envFile = Join-Path $scriptDir ".env"
+$envFlash = Join-Path $scriptDir ".env.flash"
+if (-not (Test-Path -LiteralPath $envFile) -and (Test-Path -LiteralPath $envFlash)) {
+    Copy-Item -LiteralPath $envFlash -Destination $envFile -Force
+    Write-Host "[+] Файл .env скопійовано автоматично." -ForegroundColor Green
+}
+
+# Зчитування конфігурації .env для токена ngrok
 $envNgrokToken = $null
 if (Test-Path -LiteralPath $envFile) {
     try {
