@@ -1015,33 +1015,61 @@ body {
 }
 
 .pixel-icon {
-  width: 40px;
-  height: 40px;
+  width: 24px;
+  height: 24px;
   vertical-align: middle;
   display: inline-block;
   flex-shrink: 0;
   object-fit: contain;
 }
 .pixel-icon.inline {
-  width: 18px;
-  height: 18px;
-  margin-right: 6px;
-  vertical-align: -3px;
+  width: 16px;
+  height: 16px;
+  margin-right: 5px;
+  vertical-align: -2.5px;
 }
 .pixel-icon.large {
   width: 40px;
   height: 40px;
 }
 .pixel-icon.brand {
-  width: 28px;
-  height: 28px;
+  width: 22px;
+  height: 22px;
 }
+.theme-toggle .pixel-icon {
+  width: 18px !important;
+  height: 18px !important;
+}
+.toggle-pw-btn .pixel-icon {
+  width: 18px !important;
+  height: 18px !important;
+}
+.rule-icon .pixel-icon {
+  width: 26px !important;
+  height: 26px !important;
+}
+.admin-tab-btn .pixel-icon {
+  width: 16px !important;
+  height: 16px !important;
+}
+.cam-card-icon .pixel-icon,
 .pixel-icon.photo,
 .pixel-icon.camera,
-.cam-card-icon .pixel-icon,
 img[src*="camera.svg"] {
   width: 40px !important;
   height: 40px !important;
+}
+.timer-icon .pixel-icon {
+  width: 14px !important;
+  height: 14px !important;
+}
+.tag-badge .pixel-icon {
+  width: 13px !important;
+  height: 13px !important;
+}
+button[id^="close"] .pixel-icon {
+  width: 18px !important;
+  height: 18px !important;
 }
 
 #qrModal { animation: fadeInModal 0.2s ease; }
