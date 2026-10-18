@@ -583,7 +583,7 @@ export class ProctorEngine {
   checkSplitScreen(isImmediate = false) {
     if (!this.isRunning || this.isCompleted || this.isBypassed) return;
     if (this.isInputFocused) return;
-    if (this.isIPhone) return; // iPhones do not support split-screen; avoid false positives on Safari toolbars
+    if (this.isIPhone) return; 
 
     const isLandscape = window.innerWidth > window.innerHeight;
     const screenH = isLandscape
