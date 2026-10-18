@@ -1120,6 +1120,14 @@ app.post('/api/admin/update/apply', requireAdmin, async (req, res) => {
           if (entry.isDirectory()) {
             if (!fs.existsSync(dPath)) fs.mkdirSync(dPath, { recursive: true });
             await applyFiles(sPath, dPath);
+          } else if (entry.name === 'start_win10.ps1') {
+            const raw = fs.readFileSync(sPath);
+            const bom = Buffer.from([0xEF, 0xBB, 0xBF]);
+            if (raw[0] !== 0xEF || raw[1] !== 0xBB || raw[2] !== 0xBF) {
+              fs.writeFileSync(dPath, Buffer.concat([bom, raw]));
+            } else {
+              fs.writeFileSync(dPath, raw);
+            }
           } else {
             fs.copyFileSync(sPath, dPath);
           }
