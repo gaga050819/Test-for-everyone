@@ -112,24 +112,18 @@
         </div>
 
         <div class="card-panel" style="background: var(--bg-elevated); padding: 14px 16px; margin-bottom: 16px; border: 1px solid var(--border);">
-          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
-            <label class="form-label" style="margin: 0; font-size: 13px; font-weight: 700; color: var(--text); display: flex; align-items: center; gap: 6px;">
-              <img src="/img/icons/folder.svg" class="pixel-icon inline" alt=""> Пошук та вибір тесту
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+            <label class="form-label" style="margin: 0; font-size: 11px; font-weight: 700; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.05em; display: flex; align-items: center; gap: 6px;">
+              <img src="/img/icons/folder.svg" class="pixel-icon inline" alt=""> Призначений тест від викладача
             </label>
-            <span id="testsCountBadge" class="tag-badge approved" style="font-size: 10px;">16 тем</span>
+            <span class="tag-badge approved" style="font-size: 10px;">Активний</span>
           </div>
 
-          <div style="display: flex; flex-direction: column; gap: 8px;">
-            <input type="text" id="testTopicSearchInput" class="form-input" style="font-size: 12px; padding: 8px 12px;" placeholder="🔍 Пошук за темою підручника (наприклад: Німеччина, Азія, США)...">
-            <select id="topicFilterSelect" class="form-input" style="font-size: 12px; padding: 7px 10px; cursor: pointer;">
-              <option value="">Усі теми підручника (10 клас)</option>
-            </select>
-            <select id="testSelectInput" class="form-input" style="font-size: 13px; font-weight: 600; cursor: pointer;">
-              <option value="">Завантаження доступних тестів...</option>
-            </select>
+          <div id="activeTestTitleDisplay" style="font-size: 15px; font-weight: 700; color: var(--text); line-height: 1.4; margin-bottom: 10px;">
+            Завантаження призначеного тесту...
           </div>
 
-          <div id="selectedTestInfoBadge" style="font-size: 11px; color: var(--text-muted); margin-top: 10px; display: flex; flex-wrap: wrap; align-items: center; gap: 8px;"></div>
+          <div id="selectedTestInfoBadge" style="font-size: 11px; color: var(--text-muted); display: flex; flex-wrap: wrap; align-items: center; gap: 8px;"></div>
         </div>
 
         <div id="cameraStatusBlock" class="cam-card status-checking">
