@@ -900,34 +900,43 @@
       </div>
     </div>
 
-  <div id="systemUpdateModal" class="modal-backdrop hidden">
-    <div class="modal-card" style="max-width: 480px; width: 90%;">
-      <div class="modal-header" style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--border); padding: 14px 18px;">
-        <h3 style="margin: 0; font-size: 16px; font-weight: 700; display: flex; align-items: center; gap: 8px;">
+  <div id="systemUpdateModal" class="modal-backdrop hidden" style="background: rgba(0, 0, 0, 0.7); backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px); z-index: 10000;">
+    <div class="modal-card" style="max-width: 500px; width: 92%; background: var(--bg); border: 1px solid var(--border); border-radius: 14px; box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5); overflow: hidden;">
+      <div class="modal-header" style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--border); padding: 16px 20px; background: var(--bg-surface);">
+        <h3 style="margin: 0; font-size: 16px; font-weight: 700; display: flex; align-items: center; gap: 8px; color: var(--text);">
           <img src="/img/icons/refresh.svg" class="pixel-icon inline" alt=""> Оновлення системи
         </h3>
-        <button id="closeUpdateModalBtn" class="btn-secondary" style="border: none; padding: 4px 8px; font-size: 14px; cursor: pointer;" type="button">✕</button>
+        <button id="closeUpdateModalBtn" class="btn-secondary" style="border: 1px solid var(--border); border-radius: 6px; padding: 4px 10px; font-size: 14px; cursor: pointer; background: var(--bg);" type="button">✕</button>
       </div>
-      <div style="padding: 18px 20px;">
-        <div style="font-size: 14px; margin-bottom: 12px; color: var(--text);">
-          Бажаєте оновити систему до версії <strong id="modalUpdateVersionDisplay">1.2.0</strong>?
+      <div style="padding: 20px; background: var(--bg);">
+        <div style="font-size: 14px; margin-bottom: 14px; color: var(--text);">
+          Бажаєте оновити систему до версії <strong id="modalUpdateVersionDisplay" style="color: var(--accent);">1.0.1</strong>?
         </div>
-        <div style="background: rgba(16, 185, 129, 0.12); border: 1px solid var(--accent-green); border-radius: var(--radius-sm); padding: 12px 14px; margin-bottom: 14px; font-size: 12px; line-height: 1.5; color: var(--text);">
+        <div style="background: rgba(16, 185, 129, 0.1); border: 1px solid var(--accent-green); border-radius: 8px; padding: 12px 14px; margin-bottom: 14px; font-size: 12px; line-height: 1.5; color: var(--text);">
           🛡️ <strong>Ваші дані залишаться недоторканими:</strong><br>
           Створені вами класи, учні, власні тести та результати проходження тестування <strong>НЕ перезаписуються</strong>. Оновлюється тільки оболонка програми.
         </div>
-        <div id="modalChangelogBlock" style="margin-bottom: 16px; background: var(--bg-surface); padding: 10px 14px; border-radius: var(--radius-sm); border: 1px solid var(--border); font-size: 12px;">
+        <div id="modalChangelogBlock" style="margin-bottom: 16px; background: var(--bg-surface); padding: 12px 14px; border-radius: 8px; border: 1px solid var(--border); font-size: 12px;">
           <div style="font-weight: 700; margin-bottom: 4px; color: var(--text-muted); text-transform: uppercase; font-size: 10px; letter-spacing: 0.05em;">Що нового:</div>
           <div id="modalUpdateChangelogContent" style="color: var(--text); line-height: 1.4;">Завантаження списку змін...</div>
         </div>
-        <div id="modalUpdateProgressArea" class="hidden" style="margin-bottom: 16px; padding: 12px; background: var(--bg-elevated); border-radius: var(--radius-sm); text-align: center;">
-          <div style="display: flex; align-items: center; justify-content: center; gap: 8px; font-weight: 600; font-size: 13px; color: var(--accent);">
-            <img src="/img/icons/hourglass.svg" class="pixel-icon inline" alt=""> <span id="modalUpdateProgressText">Завантаження та встановлення оновлення...</span>
+        <div id="modalUpdateProgressArea" class="hidden" style="margin-bottom: 16px; padding: 16px; background: var(--bg-surface); border: 1px solid var(--border); border-radius: 10px;">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+            <div style="display: flex; align-items: center; gap: 8px; font-weight: 600; font-size: 13px; color: var(--text);">
+              <img src="/img/icons/hourglass.svg" class="pixel-icon inline" alt=""> <span id="modalUpdateProgressText">Завантаження оновлення...</span>
+            </div>
+            <div id="modalUpdatePercentText" style="font-size: 14px; font-weight: 800; color: var(--accent);">0%</div>
           </div>
-          <div style="font-size: 11px; color: var(--text-muted); margin-top: 6px;">Сервер перезавантажиться автоматично. Сторінка оновиться сама.</div>
+          <div style="width: 100%; height: 8px; background: var(--bg-elevated); border-radius: 999px; overflow: hidden; border: 1px solid var(--border);">
+            <div id="modalUpdateProgressBar" style="width: 0%; height: 100%; background: linear-gradient(90deg, var(--accent) 0%, #8b5cf6 100%); transition: width 0.25s ease; border-radius: 999px;"></div>
+          </div>
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 8px;">
+            <span id="modalUpdateDetailText" style="font-size: 11px; color: var(--text-muted);">Підготовка...</span>
+            <span style="font-size: 11px; color: var(--text-muted);">Не закривайте сторінку</span>
+          </div>
         </div>
-        <div id="modalUpdateSuccessArea" class="hidden" style="margin-bottom: 16px; padding: 12px; background: rgba(16, 185, 129, 0.15); border-radius: var(--radius-sm); text-align: center; color: var(--accent-green); font-weight: 600; font-size: 13px;">
-          ✓ Оновлення встановлено! Очікування перезапуску сервера...
+        <div id="modalUpdateSuccessArea" class="hidden" style="margin-bottom: 16px; padding: 14px; background: rgba(16, 185, 129, 0.15); border: 1px solid var(--accent-green); border-radius: 8px; text-align: center; color: var(--accent-green); font-weight: 600; font-size: 13px;">
+          ✓ Оновлення встановлено! Сервер перезапускається, оновлюємо сторінку...
         </div>
         <div style="display: flex; justify-content: flex-end; gap: 10px;" id="modalUpdateActions">
           <button id="modalCancelUpdateBtn" class="btn-secondary" type="button">Скасувати</button>
