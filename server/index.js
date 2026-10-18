@@ -224,6 +224,39 @@ app.get('/api/tests', async (req, res) => {
   res.json(list);
 });
 
+app.get('/api/active-test', async (req, res) => {
+  const activeId = await db.getActiveTestId();
+  const test = await db.getTest(activeId);
+  if (!test) {
+    const all = await db.getAllTests();
+    if (!all[0]) return res.status(404).json({ error: 'No tests' });
+    return res.json({
+      id: all[0].id,
+      title: all[0].title,
+      durationMinutes: all[0].durationMinutes || 15,
+      questionsCount: (all[0].questions || []).length,
+      topic: all[0].topic || '',
+      subject: all[0].subject || ''
+    });
+  }
+  res.json({
+    id: test.id,
+    title: test.title,
+    durationMinutes: test.durationMinutes || 15,
+    questionsCount: (test.questions || []).length,
+    topic: test.topic || '',
+    subject: test.subject || ''
+  });
+});
+
+app.post('/api/admin/active-test', requireAuth, async (req, res) => {
+  const { testId } = req.body;
+  if (!testId) return res.status(400).json({ error: 'testId required' });
+  const ok = await db.setActiveTestId(testId);
+  if (!ok) return res.status(404).json({ error: 'Test not found' });
+  res.json({ success: true, activeTestId: testId });
+});
+
 app.get('/api/classes', async (req, res) => {
   const classes = await db.getAllClasses();
   res.json(classes.map(c => ({
