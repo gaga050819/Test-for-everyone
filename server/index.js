@@ -1049,6 +1049,7 @@ app.post('/api/admin/update/apply', requireAdmin, async (req, res) => {
       if (!response.ok) throw new Error('Помилка завантаження архіву оновлення (' + response.status + ')');
 
       const contentLength = parseInt(response.headers.get('content-length') || '0', 10);
+      const approxTotalBytes = contentLength > 0 ? contentLength : 480 * 1024;
       let receivedBytes = 0;
       const fileStream = fs.createWriteStream(zipPath);
 
@@ -1059,20 +1060,23 @@ app.post('/api/admin/update/apply', requireAdmin, async (req, res) => {
           if (done) break;
           fileStream.write(value);
           receivedBytes += value.length;
-          if (contentLength > 0) {
-            const p = Math.min(65, 15 + Math.floor((receivedBytes / contentLength) * 50));
-            updateProgress.percent = p;
-            const mbRec = (receivedBytes / (1024 * 1024)).toFixed(1);
-            const mbTot = (contentLength / (1024 * 1024)).toFixed(1);
-            updateProgress.stage = `Завантаження архіву (${Math.floor((receivedBytes / contentLength) * 100)}%)...`;
-            updateProgress.detail = `${mbRec} МБ з ${mbTot} МБ`;
+
+          const p = Math.min(68, 15 + Math.floor((receivedBytes / Math.max(receivedBytes, approxTotalBytes)) * 53));
+          updateProgress.percent = p;
+
+          let sizeStr = '';
+          if (receivedBytes < 1048576) {
+            const kbRec = Math.round(receivedBytes / 1024);
+            const kbTot = Math.round(approxTotalBytes / 1024);
+            sizeStr = `${kbRec} КБ з ~${kbTot} КБ`;
           } else {
-            const mbRec = (receivedBytes / (1024 * 1024)).toFixed(1);
-            const simulated = Math.min(65, 15 + Math.floor(receivedBytes / (400 * 1024)));
-            updateProgress.percent = simulated;
-            updateProgress.stage = `Завантаження архіву (${simulated}%)...`;
-            updateProgress.detail = `Отримано ${mbRec} МБ`;
+            const mbRec = (receivedBytes / 1048576).toFixed(2);
+            const mbTot = (approxTotalBytes / 1048576).toFixed(2);
+            sizeStr = `${mbRec} МБ з ~${mbTot} МБ`;
           }
+
+          updateProgress.stage = `Завантаження архіву (${p}%)...`;
+          updateProgress.detail = `Завантажено ${sizeStr}`;
         }
         await new Promise(r => fileStream.end(r));
       } else {
@@ -1154,26 +1158,14 @@ app.post('/api/admin/update/apply', requireAdmin, async (req, res) => {
     setTimeout(async () => {
       try {
         const cp = await import('child_process');
-        const batWin10 = path.join(rootDir, 'START_WIN10.bat');
-        const batDefault = path.join(rootDir, 'START.bat');
-        const batPath = fs.existsSync(batWin10) ? batWin10 : (fs.existsSync(batDefault) ? batDefault : null);
-
-        if (batPath) {
-          const psCmd = `Start-Sleep -Seconds 2; Set-Location -LiteralPath '${rootDir.replace(/'/g, "''")}'; Start-Process -FilePath '${batPath.replace(/'/g, "''")}' -WorkingDirectory '${rootDir.replace(/'/g, "''")}'`;
-          cp.spawn('powershell.exe', ['-NoProfile', '-Command', psCmd], {
-            detached: true,
-            stdio: 'ignore'
-          }).unref();
-        } else {
-          const scriptPath = path.join(rootDir, 'server', 'index.js');
-          const psCmd = `Start-Sleep -Seconds 2; Set-Location -LiteralPath '${rootDir.replace(/'/g, "''")}'; Start-Process -FilePath '${process.argv[0].replace(/'/g, "''")}' -ArgumentList '"${scriptPath.replace(/'/g, "''")}"' -WorkingDirectory '${rootDir.replace(/'/g, "''")}'`;
-          cp.spawn('powershell.exe', ['-NoProfile', '-Command', psCmd], {
-            detached: true,
-            stdio: 'ignore'
-          }).unref();
-        }
+        const serverPath = path.join(__dirname, 'index.js');
+        const psCmd = `Start-Sleep -Seconds 2; Set-Location -LiteralPath '${rootDir.replace(/'/g, "''")}'; $active = Get-NetTCPConnection -LocalPort 3500 -ErrorAction SilentlyContinue; if (-not $active) { Start-Process -FilePath 'node.exe' -ArgumentList '\"${serverPath.replace(/'/g, "''")}\"' -WorkingDirectory '${rootDir.replace(/'/g, "''")}' -WindowStyle Hidden }`;
+        cp.spawn('powershell.exe', ['-NoProfile', '-Command', psCmd], {
+          detached: true,
+          stdio: 'ignore'
+        }).unref();
       } catch {}
-      process.exit(0);
+      process.exit(100);
     }, 1000);
 
   } catch (err) {
