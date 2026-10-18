@@ -1,7 +1,8 @@
 {
-  "version": "1.0.4",
+  "version": "1.0.5",
   "name": "SecureExam",
   "githubRepo": "gaga050819/Test-for-everyone",
   "updateManifestUrl": "https://raw.githubusercontent.com/gaga050819/Test-for-everyone/main/version.json",
-  "changelog": "Оновлення 1.0.3: нові якісніші фото і покращення лаунчера."
+  "changelog": "Оновлення 1.0.5: виправлено відображення тесту, додано відсутні іконки, оптимізовано розміри кнопок.",
+  "lastUpdated": 1792349523056
 }
