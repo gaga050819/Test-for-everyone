@@ -598,6 +598,8 @@ function updateSelectedBadge() {
     selectedTestId = cur.id;
     const welcomeTitle = document.getElementById('welcomeTitle');
     if (welcomeTitle) welcomeTitle.textContent = cur.title;
+    const activeTestTitleDisplay = document.getElementById('activeTestTitleDisplay');
+    if (activeTestTitleDisplay) activeTestTitleDisplay.textContent = cur.title;
     if (selectedTestInfoBadge) {
       selectedTestInfoBadge.innerHTML = `
         <span class="tag-badge approved"><img src="/img/icons/folder.svg" class="pixel-icon inline" alt=""> ${escapeHtml(cur.topic || 'Географія 10 клас')}</span>
@@ -616,16 +618,27 @@ async function loadAvailableTests() {
     availableTests = await res.json();
     if (!availableTests || availableTests.length === 0) return;
 
+    try {
+      const activeRes = await fetch('/api/active-test');
+      if (activeRes.ok) {
+        const activeData = await activeRes.json();
+        if (activeData && activeData.id && availableTests.some(t => t.id === activeData.id)) {
+          selectedTestId = activeData.id;
+        }
+      }
+    } catch {}
+
     const urlParams = new URLSearchParams(window.location.search);
     const paramTestId = urlParams.get('test');
     if (paramTestId && availableTests.some(t => t.id === paramTestId)) {
       selectedTestId = paramTestId;
-    } else if (availableTests[0]) {
+    } else if (!selectedTestId && availableTests[0]) {
       selectedTestId = availableTests[0].id;
     }
 
     populateTopicFilter();
     renderTestOptions();
+    updateSelectedBadge();
 
     if (testSelectInput) {
       testSelectInput.addEventListener('change', updateSelectedBadge);
