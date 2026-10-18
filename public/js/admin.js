@@ -2559,17 +2559,40 @@ async function applySystemUpdate() {
   if (!cachedUpdateData) return;
   const progressArea = document.getElementById('modalUpdateProgressArea');
   const progressText = document.getElementById('modalUpdateProgressText');
+  const percentText = document.getElementById('modalUpdatePercentText');
+  const progressBar = document.getElementById('modalUpdateProgressBar');
+  const detailText = document.getElementById('modalUpdateDetailText');
   const successArea = document.getElementById('modalUpdateSuccessArea');
   const actionsArea = document.getElementById('modalUpdateActions');
   const confirmBtn = document.getElementById('modalConfirmUpdateBtn');
   const cancelBtn = document.getElementById('modalCancelUpdateBtn');
   const closeBtn = document.getElementById('closeUpdateModalBtn');
 
+  if (actionsArea) actionsArea.classList.add('hidden');
   if (progressArea) progressArea.classList.remove('hidden');
-  if (progressText) progressText.textContent = 'Створення резервної копії та завантаження оновлення...';
+  if (successArea) successArea.classList.add('hidden');
+  if (progressBar) progressBar.style.width = '5%';
+  if (percentText) percentText.textContent = '5%';
+  if (progressText) progressText.textContent = 'Створення резервної копії...';
+  if (detailText) detailText.textContent = 'Підготовка даних';
   if (confirmBtn) confirmBtn.disabled = true;
   if (cancelBtn) cancelBtn.disabled = true;
   if (closeBtn) closeBtn.disabled = true;
+
+  let progressInterval = setInterval(async () => {
+    try {
+      const pRes = await adminFetch('/api/admin/update/progress');
+      if (pRes.ok) {
+        const pData = await pRes.json();
+        if (pData && typeof pData.percent === 'number') {
+          if (progressBar) progressBar.style.width = Math.max(5, pData.percent) + '%';
+          if (percentText) percentText.textContent = pData.percent + '%';
+          if (progressText && pData.stage) progressText.textContent = pData.stage;
+          if (detailText && pData.detail) detailText.textContent = pData.detail;
+        }
+      }
+    } catch {}
+  }, 250);
 
   try {
     const res = await adminFetch('/api/admin/update/apply', {
@@ -2580,17 +2603,28 @@ async function applySystemUpdate() {
       })
     });
 
+    clearInterval(progressInterval);
+
     if (!res.ok) {
       const errData = await res.json().catch(() => ({}));
       throw new Error(errData.error || 'Помилка під час встановлення оновлення');
     }
 
-    if (progressArea) progressArea.classList.add('hidden');
-    if (successArea) successArea.classList.remove('hidden');
+    if (progressBar) progressBar.style.width = '100%';
+    if (percentText) percentText.textContent = '100%';
+    if (progressText) progressText.textContent = 'Оновлення завершено!';
+    if (detailText) detailText.textContent = 'Сервер перезапускається...';
 
-    pollServerHealthAndReload();
+    setTimeout(() => {
+      if (progressArea) progressArea.classList.add('hidden');
+      if (successArea) successArea.classList.remove('hidden');
+      pollServerHealthAndReload();
+    }, 600);
+
   } catch (err) {
+    clearInterval(progressInterval);
     if (progressArea) progressArea.classList.add('hidden');
+    if (actionsArea) actionsArea.classList.remove('hidden');
     if (confirmBtn) confirmBtn.disabled = false;
     if (cancelBtn) cancelBtn.disabled = false;
     if (closeBtn) closeBtn.disabled = false;
@@ -2606,12 +2640,14 @@ function pollServerHealthAndReload() {
       const res = await fetch('/api/health', { cache: 'no-store' });
       if (res.ok) {
         clearInterval(interval);
-        window.location.reload();
+        setTimeout(() => {
+          window.location.reload();
+        }, 500);
       }
     } catch {}
-    if (attempts > 30) {
+    if (attempts > 50) {
       clearInterval(interval);
       window.location.reload();
     }
-  }, 1200);
+  }, 1000);
 }
