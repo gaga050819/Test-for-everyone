@@ -1,4 +1,4 @@
-﻿[Console]::OutputEncoding = [System.Text.Encoding]::UTF8
+[Console]::OutputEncoding = [System.Text.Encoding]::UTF8
 $OutputEncoding = [System.Text.Encoding]::UTF8
 $Host.UI.RawUI.WindowTitle = "SecureExam - Сервер тестування"
 
@@ -358,7 +358,18 @@ try {
 } catch {}
 
 try {
-    & node "server/index.js"
+    while ($true) {
+        & node "server/index.js"
+        $serverExitCode = $LASTEXITCODE
+        if ($serverExitCode -eq 100) {
+            Write-Host "==========================================================" -ForegroundColor Cyan
+            Write-Host "[ОНОВЛЕННЯ] Сервер перезапускається після оновлення..." -ForegroundColor Cyan
+            Write-Host "==========================================================" -ForegroundColor Cyan
+            Start-Sleep -Seconds 1
+            continue
+        }
+        break
+    }
 } catch {
     Write-Host "[ПОМИЛКА] Помилка запуску сервера: $_" -ForegroundColor Red
 } finally {
@@ -368,8 +379,8 @@ try {
     Get-Process -Name "ngrok" -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue
 }
 
-if ($LASTEXITCODE -ne 0) {
-    Write-Host "[УВАГА] Сервер завершив роботу з кодом: $LASTEXITCODE" -ForegroundColor Yellow
+if ($serverExitCode -and $serverExitCode -ne 0 -and $serverExitCode -ne 100) {
+    Write-Host "[УВАГА] Сервер завершив роботу з кодом: $serverExitCode" -ForegroundColor Yellow
     Read-Host "Натисніть Enter для завершення..."
 }
 
