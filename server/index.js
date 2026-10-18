@@ -901,6 +901,17 @@ function isNewerVersion(remote, local) {
   return rPat > lPat;
 }
 
+function readLocalAnnouncement() {
+  try {
+    const vPath = path.join(__dirname, '..', 'version.json');
+    if (fs.existsSync(vPath)) {
+      const v = JSON.parse(fs.readFileSync(vPath, 'utf-8'));
+      return v.announcement || null;
+    }
+  } catch {}
+  return null;
+}
+
 app.get('/api/admin/update/check', requireAdmin, async (req, res) => {
   const currentVersion = readLocalVersion();
   const simulate = req.query.simulate === '1' || process.env.SIMULATE_UPDATE === 'true';
@@ -938,25 +949,49 @@ app.get('/api/admin/update/check', requireAdmin, async (req, res) => {
       }
     }
 
+    const localAnnouncement = readLocalAnnouncement();
+    const effectiveAnnouncement = (remoteData && remoteData.announcement && remoteData.announcement.enabled)
+      ? remoteData.announcement
+      : (localAnnouncement && localAnnouncement.enabled ? localAnnouncement : null);
+
     if (remoteData && remoteData.version) {
       const hasUpdate = isNewerVersion(remoteData.version, currentVersion);
+      const repo = githubRepo || 'gaga050819/Test-for-everyone';
+      const dlUrl = remoteData.downloadUrl || (repo ? `https://github.com/${repo}/archive/refs/heads/main.zip` : '');
       return res.json({
         hasUpdate,
         currentVersion,
         latestVersion: remoteData.version,
         changelog: remoteData.changelog || 'Планове оновлення системи',
-        downloadUrl: remoteData.downloadUrl || ''
+        downloadUrl: dlUrl,
+        announcement: effectiveAnnouncement
       });
     }
   } catch {}
 
+  const fallbackAnnouncement = readLocalAnnouncement();
   res.json({
     hasUpdate: false,
     currentVersion,
     latestVersion: currentVersion,
     changelog: '',
-    downloadUrl: ''
+    downloadUrl: '',
+    announcement: fallbackAnnouncement && fallbackAnnouncement.enabled ? fallbackAnnouncement : null
   });
+});
+
+app.post('/api/admin/announcement', requireAdmin, async (req, res) => {
+  const { announcement } = req.body;
+  const vPath = path.join(__dirname, '..', 'version.json');
+  let vObj = { version: '1.0.0', name: 'SecureExam' };
+  try {
+    if (fs.existsSync(vPath)) vObj = JSON.parse(fs.readFileSync(vPath, 'utf-8'));
+    vObj.announcement = announcement;
+    fs.writeFileSync(vPath, JSON.stringify(vObj, null, 2), 'utf-8');
+    return res.json({ success: true, announcement: vObj.announcement });
+  } catch (err) {
+    return res.status(500).json({ error: err.message });
+  }
 });
 
 app.post('/api/admin/update/apply', requireAdmin, async (req, res) => {
