@@ -594,20 +594,22 @@ function renderTestOptions() {
 
 function updateSelectedBadge() {
   const cur = availableTests.find(t => t.id === (testSelectInput ? testSelectInput.value : selectedTestId));
+  const activeTestTitleDisplay = document.getElementById('activeTestTitleDisplay');
   if (cur) {
     selectedTestId = cur.id;
     const welcomeTitle = document.getElementById('welcomeTitle');
     if (welcomeTitle) welcomeTitle.textContent = cur.title;
-    const activeTestTitleDisplay = document.getElementById('activeTestTitleDisplay');
     if (activeTestTitleDisplay) activeTestTitleDisplay.textContent = cur.title;
     if (selectedTestInfoBadge) {
       selectedTestInfoBadge.innerHTML = `
-        <span class="tag-badge approved"><img src="/img/icons/folder.svg" class="pixel-icon inline" alt=""> ${escapeHtml(cur.topic || 'Географія 10 клас')}</span>
+        <span class="tag-badge approved"><img src="/img/icons/folder.svg" class="pixel-icon inline" alt=""> ${escapeHtml(cur.topic || 'Загальний тест')}</span>
         <span class="tag-badge" style="background: var(--bg-surface); border: 1px solid var(--border);"><img src="/img/icons/timer.svg" class="pixel-icon inline" alt=""> ${cur.durationMinutes} хв</span>
         <span class="tag-badge" style="background: var(--bg-surface); border: 1px solid var(--border);"><img src="/img/icons/report.svg" class="pixel-icon inline" alt=""> ${cur.questionsCount} питань</span>
-        <span class="tag-badge" style="background: rgba(99,102,241,0.08); color: var(--accent); border: 1px solid rgba(99,102,241,0.2);">Бойко, Брайчевський (10 клас)</span>
       `;
     }
+  } else {
+    if (activeTestTitleDisplay) activeTestTitleDisplay.textContent = 'Очікуємо призначення тесту від викладача...';
+    if (selectedTestInfoBadge) selectedTestInfoBadge.innerHTML = '';
   }
 }
 
@@ -632,8 +634,8 @@ async function loadAvailableTests() {
     const paramTestId = urlParams.get('test');
     if (paramTestId && availableTests.some(t => t.id === paramTestId)) {
       selectedTestId = paramTestId;
-    } else if (!selectedTestId && availableTests[0]) {
-      selectedTestId = availableTests[0].id;
+    } else if (!selectedTestId || !availableTests.some(t => t.id === selectedTestId)) {
+      if (availableTests[0]) selectedTestId = availableTests[0].id;
     }
 
     populateTopicFilter();
