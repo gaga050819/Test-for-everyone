@@ -1,0 +1,16 @@
+{
+  "name": "anti-cheat-exam-system",
+  "version": "1.0.0",
+  "type": "module",
+  "main": "server/index.js",
+  "scripts": {
+    "start": "node server/index.js",
+    "dev": "node --watch server/index.js",
+    "tunnel": "ngrok http 3500",
+    "tunnel:cloudflare": "cloudflared tunnel --url http://localhost:3500"
+  },
+  "dependencies": {
+    "express": "^4.21.2",
+    "ws": "^8.18.0"
+  }
+}
