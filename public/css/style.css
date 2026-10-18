@@ -711,9 +711,14 @@ body {
   gap: 12px;
 }
 .cam-card-icon {
-  font-size: 22px;
+  font-size: 40px;
   flex-shrink: 0;
   line-height: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
 }
 .cam-card-title {
   font-size: 13px;
@@ -1010,20 +1015,18 @@ body {
 }
 
 .pixel-icon {
-  width: 18px;
-  height: 18px;
+  width: 28px;
+  height: 28px;
   vertical-align: middle;
-  image-rendering: pixelated;
-  image-rendering: crisp-edges;
   display: inline-block;
   flex-shrink: 0;
   object-fit: contain;
 }
 .pixel-icon.inline {
-  width: 14px;
-  height: 14px;
+  width: 16px;
+  height: 16px;
   margin-right: 4px;
-  vertical-align: -2px;
+  vertical-align: -3px;
 }
 .pixel-icon.large {
   width: 36px;
@@ -1032,6 +1035,13 @@ body {
 .pixel-icon.brand {
   width: 22px;
   height: 22px;
+}
+.pixel-icon.photo,
+.pixel-icon.camera,
+.cam-card-icon .pixel-icon,
+img[src*="camera.svg"] {
+  width: 40px !important;
+  height: 40px !important;
 }
 
 #qrModal { animation: fadeInModal 0.2s ease; }
