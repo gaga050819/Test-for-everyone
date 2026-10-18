@@ -1,7 +1,7 @@
 {
-  "version": "1.0.3",
+  "version": "1.0.4",
   "name": "SecureExam",
   "githubRepo": "gaga050819/Test-for-everyone",
   "updateManifestUrl": "https://raw.githubusercontent.com/gaga050819/Test-for-everyone/main/version.json",
-  "changelog": "Оновлення 1.0.3: плавний індикатор завантаження, відображення КБ/МБ та надійний автоперезапуск сервера."
+  "changelog": "Оновлення 1.0.3: нові якісніші фото і покращення лаунчера."
 }
