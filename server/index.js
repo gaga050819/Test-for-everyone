@@ -994,10 +994,34 @@ app.post('/api/admin/announcement', requireAdmin, async (req, res) => {
   }
 });
 
+app.get('/api/health', (req, res) => {
+  res.json({ ok: true, version: readLocalVersion(), timestamp: Date.now() });
+});
+
+let updateProgress = {
+  active: false,
+  percent: 0,
+  stage: '',
+  detail: '',
+  error: null
+};
+
+app.get('/api/admin/update/progress', requireAdmin, (req, res) => {
+  res.json(updateProgress);
+});
+
 app.post('/api/admin/update/apply', requireAdmin, async (req, res) => {
   const { targetVersion, downloadUrl } = req.body;
   const currentVersion = readLocalVersion();
   const rootDir = path.join(__dirname, '..');
+
+  updateProgress = {
+    active: true,
+    percent: 5,
+    stage: 'Створення резервної копії даних...',
+    detail: 'Збереження data.json та .env',
+    error: null
+  };
 
   try {
     const backupDir = path.join(__dirname, 'backups');
@@ -1017,10 +1041,48 @@ app.post('/api/admin/update/apply', requireAdmin, async (req, res) => {
       const zipPath = path.join(rootDir, 'update_temp.zip');
       const tempExtractDir = path.join(rootDir, 'temp_update');
 
+      updateProgress.percent = 15;
+      updateProgress.stage = 'Підключення до GitHub...';
+      updateProgress.detail = 'Очікування відповіді сервера';
+
       const response = await fetch(downloadUrl);
-      if (!response.ok) throw new Error('Помилка завантаження архіву оновлення');
-      const arrayBuffer = await response.arrayBuffer();
-      fs.writeFileSync(zipPath, Buffer.from(arrayBuffer));
+      if (!response.ok) throw new Error('Помилка завантаження архіву оновлення (' + response.status + ')');
+
+      const contentLength = parseInt(response.headers.get('content-length') || '0', 10);
+      let receivedBytes = 0;
+      const fileStream = fs.createWriteStream(zipPath);
+
+      if (response.body && response.body.getReader) {
+        const reader = response.body.getReader();
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          fileStream.write(value);
+          receivedBytes += value.length;
+          if (contentLength > 0) {
+            const p = Math.min(65, 15 + Math.floor((receivedBytes / contentLength) * 50));
+            updateProgress.percent = p;
+            const mbRec = (receivedBytes / (1024 * 1024)).toFixed(1);
+            const mbTot = (contentLength / (1024 * 1024)).toFixed(1);
+            updateProgress.stage = `Завантаження архіву (${Math.floor((receivedBytes / contentLength) * 100)}%)...`;
+            updateProgress.detail = `${mbRec} МБ з ${mbTot} МБ`;
+          } else {
+            const mbRec = (receivedBytes / (1024 * 1024)).toFixed(1);
+            const simulated = Math.min(65, 15 + Math.floor(receivedBytes / (400 * 1024)));
+            updateProgress.percent = simulated;
+            updateProgress.stage = `Завантаження архіву (${simulated}%)...`;
+            updateProgress.detail = `Отримано ${mbRec} МБ`;
+          }
+        }
+        await new Promise(r => fileStream.end(r));
+      } else {
+        const arrayBuffer = await response.arrayBuffer();
+        fs.writeFileSync(zipPath, Buffer.from(arrayBuffer));
+      }
+
+      updateProgress.percent = 70;
+      updateProgress.stage = 'Розпакування архіву оновлення...';
+      updateProgress.detail = 'Вилучення оновлених файлів';
 
       if (fs.existsSync(tempExtractDir)) {
         fs.rmSync(tempExtractDir, { recursive: true, force: true });
@@ -1036,6 +1098,10 @@ app.post('/api/admin/update/apply', requireAdmin, async (req, res) => {
         sourceFolder = path.join(tempExtractDir, subItems[0]);
       }
 
+      updateProgress.percent = 85;
+      updateProgress.stage = 'Встановлення системних файлів...';
+      updateProgress.detail = 'Копіювання компонентів';
+
       async function applyFiles(src, dest) {
         const entries = fs.readdirSync(src, { withFileTypes: true });
         for (const entry of entries) {
@@ -1043,7 +1109,7 @@ app.post('/api/admin/update/apply', requireAdmin, async (req, res) => {
           const dPath = path.join(dest, entry.name);
           const rel = path.relative(rootDir, dPath).replace(/\\/g, '/').toLowerCase();
 
-          if (rel === 'server/data.json' || rel === '.env' || rel.startsWith('node_modules') || rel.startsWith('server/backups') || rel === 'update_temp.zip' || rel.startsWith('temp_update')) {
+          if (rel === 'server/data.json' || rel === '.env' || rel.startsWith('.env') || rel.startsWith('node_modules') || rel.startsWith('server/backups') || rel === 'update_temp.zip' || rel.startsWith('temp_update')) {
             continue;
           }
 
@@ -1064,7 +1130,7 @@ app.post('/api/admin/update/apply', requireAdmin, async (req, res) => {
       } catch {}
     }
 
-    const newVer = targetVersion || '1.2.0';
+    const newVer = targetVersion || '1.0.1';
     const vPath = path.join(rootDir, 'version.json');
     let vObj = { version: newVer, name: 'SecureExam' };
     try {
@@ -1073,6 +1139,11 @@ app.post('/api/admin/update/apply', requireAdmin, async (req, res) => {
       vObj.lastUpdated = Date.now();
     } catch {}
     fs.writeFileSync(vPath, JSON.stringify(vObj, null, 2), 'utf-8');
+
+    updateProgress.percent = 100;
+    updateProgress.stage = 'Оновлення завершено! Перезапуск сервера...';
+    updateProgress.detail = 'Перезавантаження сторінки';
+    updateProgress.active = false;
 
     res.json({
       success: true,
@@ -1083,16 +1154,33 @@ app.post('/api/admin/update/apply', requireAdmin, async (req, res) => {
     setTimeout(async () => {
       try {
         const cp = await import('child_process');
-        const cmd = `Start-Sleep -Seconds 2; & "${process.argv[0]}" "${process.argv.slice(1).join('" "')}"`;
-        cp.spawn('powershell.exe', ['-NoProfile', '-Command', cmd], {
-          detached: true,
-          stdio: 'ignore'
-        }).unref();
+        const batWin10 = path.join(rootDir, 'START_WIN10.bat');
+        const batDefault = path.join(rootDir, 'START.bat');
+        const batPath = fs.existsSync(batWin10) ? batWin10 : (fs.existsSync(batDefault) ? batDefault : null);
+
+        if (batPath) {
+          const psCmd = `Start-Sleep -Seconds 2; Set-Location -LiteralPath '${rootDir.replace(/'/g, "''")}'; Start-Process -FilePath '${batPath.replace(/'/g, "''")}' -WorkingDirectory '${rootDir.replace(/'/g, "''")}'`;
+          cp.spawn('powershell.exe', ['-NoProfile', '-Command', psCmd], {
+            detached: true,
+            stdio: 'ignore'
+          }).unref();
+        } else {
+          const scriptPath = path.join(rootDir, 'server', 'index.js');
+          const psCmd = `Start-Sleep -Seconds 2; Set-Location -LiteralPath '${rootDir.replace(/'/g, "''")}'; Start-Process -FilePath '${process.argv[0].replace(/'/g, "''")}' -ArgumentList '"${scriptPath.replace(/'/g, "''")}"' -WorkingDirectory '${rootDir.replace(/'/g, "''")}'`;
+          cp.spawn('powershell.exe', ['-NoProfile', '-Command', psCmd], {
+            detached: true,
+            stdio: 'ignore'
+          }).unref();
+        }
       } catch {}
       process.exit(0);
-    }, 1200);
+    }, 1000);
 
   } catch (err) {
+    updateProgress.active = false;
+    updateProgress.error = err.message;
+    updateProgress.stage = 'Помилка оновлення';
+    updateProgress.detail = err.message;
     res.status(500).json({ error: 'Помилка оновлення: ' + err.message });
   }
 });
