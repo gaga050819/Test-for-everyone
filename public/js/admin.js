@@ -936,6 +936,16 @@ async function loadAdminTestsList() {
     allAdminTests = await res.json();
     if (!allAdminTests || allAdminTests.length === 0) return;
 
+    try {
+      const activeRes = await fetch('/api/active-test');
+      if (activeRes.ok) {
+        const activeData = await activeRes.json();
+        if (activeData && activeData.id && allAdminTests.some(t => t.id === activeData.id)) {
+          selectedAdminTestId = activeData.id;
+        }
+      }
+    } catch {}
+
     populateAdminTopicFilter();
     renderAdminTestSelectorOptions();
   } catch (err) {
@@ -956,6 +966,13 @@ function initMultiTestControls() {
       if (!adminTestSelector.value) return;
       selectedAdminTestId = adminTestSelector.value;
       updateActiveTestBadge();
+      try {
+        await adminFetch('/api/admin/active-test', {
+          method: 'POST',
+          body: JSON.stringify({ testId: selectedAdminTestId })
+        });
+        showAdminToast('Активний тест змінено для всіх учнів', true);
+      } catch {}
       await loadAdminTest();
       await loadTestAnalytics(selectedAdminTestId);
       await loadAdminLeaderboard(selectedAdminTestId);
