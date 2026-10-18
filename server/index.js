@@ -249,7 +249,7 @@ app.get('/api/active-test', async (req, res) => {
   });
 });
 
-app.post('/api/admin/active-test', requireAuth, async (req, res) => {
+app.post('/api/admin/active-test', requireAdmin, async (req, res) => {
   const { testId } = req.body;
   if (!testId) return res.status(400).json({ error: 'testId required' });
   const ok = await db.setActiveTestId(testId);
