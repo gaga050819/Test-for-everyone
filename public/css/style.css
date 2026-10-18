@@ -1015,26 +1015,26 @@ body {
 }
 
 .pixel-icon {
-  width: 28px;
-  height: 28px;
+  width: 40px;
+  height: 40px;
   vertical-align: middle;
   display: inline-block;
   flex-shrink: 0;
   object-fit: contain;
 }
 .pixel-icon.inline {
-  width: 16px;
-  height: 16px;
-  margin-right: 4px;
+  width: 18px;
+  height: 18px;
+  margin-right: 6px;
   vertical-align: -3px;
 }
 .pixel-icon.large {
-  width: 36px;
-  height: 36px;
+  width: 40px;
+  height: 40px;
 }
 .pixel-icon.brand {
-  width: 22px;
-  height: 22px;
+  width: 28px;
+  height: 28px;
 }
 .pixel-icon.photo,
 .pixel-icon.camera,
