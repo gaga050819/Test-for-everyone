@@ -1,4 +1,4 @@
-[Console]::OutputEncoding = [System.Text.Encoding]::UTF8
+﻿[Console]::OutputEncoding = [System.Text.Encoding]::UTF8
 $OutputEncoding = [System.Text.Encoding]::UTF8
 $Host.UI.RawUI.WindowTitle = "SecureExam - Сервер тестування"
 
@@ -225,7 +225,7 @@ if (-not $nodeCmd) {
 
 if (-not $nodeCmd) {
     Write-Host "[ПОМИЛКА] Не вдалося встановити Node.js. Спробуйте запустити від імені адміністратора або встановіть вручну з https://nodejs.org" -ForegroundColor Red
-    Read-Host "Натисніть Enter для виходу..."
+    Read-Host 'Натисніть Enter для виходу...'
     exit 1
 }
 
@@ -310,7 +310,7 @@ if (-not (Test-Path -LiteralPath $nodeModulesDir)) {
     & npm install
     if ($LASTEXITCODE -ne 0) {
         Write-Host "[ПОМИЛКА] Не вдалося встановити бібліотеки." -ForegroundColor Red
-        Read-Host "Натисніть Enter для виходу..."
+        Read-Host 'Натисніть Enter для виходу...'
         exit 1
     }
 }
@@ -326,7 +326,7 @@ if ($ngrokCmd) {
             Write-Host "         Для глобального доступу через інтернет потрібен безкоштовний токен:" -ForegroundColor Gray
             Write-Host "         1. Отримайте токен на https://dashboard.ngrok.com" -ForegroundColor Gray
             Write-Host "         2. Додайте у файл .env рядок: NGROK_AUTHTOKEN=ваш_токен" -ForegroundColor Gray
-            Write-Host "         Локальний доступ (Wi-Fi та цей ПК) працює без обмежень." -ForegroundColor Gray
+            Write-Host '         Локальний доступ: Wi-Fi та локальна мережа без обмежень.' -ForegroundColor Gray
             $ngrokProcess = $null
         } else {
             Write-Host "[+] Фоновий процес ngrok активний." -ForegroundColor Green
@@ -381,6 +381,6 @@ try {
 
 if ($serverExitCode -and $serverExitCode -ne 0 -and $serverExitCode -ne 100) {
     Write-Host "[УВАГА] Сервер завершив роботу з кодом: $serverExitCode" -ForegroundColor Yellow
-    Read-Host "Натисніть Enter для завершення..."
+    Read-Host 'Натисніть Enter для завершення...'
 }
 
