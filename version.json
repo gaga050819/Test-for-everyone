@@ -1,6 +1,7 @@
 {
-  "version": "1.0.0",
+  "version": "1.0.1",
   "name": "SecureExam",
   "githubRepo": "gaga050819/Test-for-everyone",
-  "updateManifestUrl": "https://raw.githubusercontent.com/gaga050819/Test-for-everyone/main/version.json"
+  "updateManifestUrl": "https://raw.githubusercontent.com/gaga050819/Test-for-everyone/main/version.json",
+  "changelog": "Оновлення 1.0.1: покращено стабільність системи, оптимізовано роботу з класами та додано нові тести з географії."
 }
