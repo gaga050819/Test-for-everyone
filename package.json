@@ -1,6 +1,7 @@
 {
   "name": "anti-cheat-exam-system",
   "version": "1.0.0",
+  "license": "Apache-2.0",
   "type": "module",
   "main": "server/index.js",
   "scripts": {

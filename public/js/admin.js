@@ -53,7 +53,7 @@ const tunnelStatusText = document.getElementById('tunnelStatusText');
 const tunnelUrlInput = document.getElementById('tunnelUrlInput');
 const copyTunnelUrlBtn = document.getElementById('copyTunnelUrlBtn');
 
-const ADMIN_PASS = '05081988';
+let adminToken = localStorage.getItem('admin_token') || '';
 
 const passwordGate = document.getElementById('passwordGate');
 const adminContent = document.getElementById('adminContent');
@@ -62,38 +62,83 @@ const unlockAdminBtn = document.getElementById('unlockAdminBtn');
 const pwErrorMsg = document.getElementById('pwErrorMsg');
 const togglePwBtn = document.getElementById('togglePwBtn');
 
-function tryUnlock() {
-  if (adminPasswordInput.value === ADMIN_PASS) {
-    passwordGate.style.display = 'none';
-    adminContent.style.display = '';
-    init();
-  } else {
-    pwErrorMsg.textContent = 'Невірний пароль';
-    adminPasswordInput.classList.add('error');
-    adminPasswordInput.value = '';
-    setTimeout(() => adminPasswordInput.classList.remove('error'), 350);
+async function tryUnlock() {
+  const val = (adminPasswordInput.value || '').trim();
+  if (!val) return;
+  try {
+    const res = await fetch('/api/admin/login', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ password: val })
+    });
+    if (res.ok) {
+      const data = await res.json();
+      adminToken = data.token;
+      localStorage.setItem('admin_token', adminToken);
+      passwordGate.style.display = 'none';
+      adminContent.style.display = '';
+      init();
+    } else {
+      pwErrorMsg.textContent = 'Невірний пароль';
+      adminPasswordInput.classList.add('error');
+      adminPasswordInput.value = '';
+      setTimeout(() => adminPasswordInput.classList.remove('error'), 350);
+    }
+  } catch (err) {
+    pwErrorMsg.textContent = 'Помилка підключення до сервера';
   }
 }
 
-unlockAdminBtn.addEventListener('click', tryUnlock);
-adminPasswordInput.addEventListener('keydown', e => {
-  if (e.key === 'Enter') tryUnlock();
-  pwErrorMsg.textContent = '';
-});
-togglePwBtn.addEventListener('click', () => {
-  const hidden = adminPasswordInput.type === 'password';
-  adminPasswordInput.type = hidden ? 'text' : 'password';
-  togglePwBtn.innerHTML = `<img src="/img/icons/${hidden ? 'eye-closed' : 'eye'}.svg" class="pixel-icon" alt="">`;
-});
+if (unlockAdminBtn) unlockAdminBtn.addEventListener('click', tryUnlock);
+if (adminPasswordInput) {
+  adminPasswordInput.addEventListener('keydown', e => {
+    if (e.key === 'Enter') tryUnlock();
+    if (pwErrorMsg) pwErrorMsg.textContent = '';
+  });
+}
+if (togglePwBtn && adminPasswordInput) {
+  togglePwBtn.addEventListener('click', () => {
+    const hidden = adminPasswordInput.type === 'password';
+    adminPasswordInput.type = hidden ? 'text' : 'password';
+    togglePwBtn.innerHTML = `<img src="/img/icons/${hidden ? 'eye-closed' : 'eye'}.svg" class="pixel-icon" alt="">`;
+  });
+}
 
+if (adminToken) {
+  fetch('/api/admin/verify-token', {
+    headers: { 'x-admin-token': adminToken }
+  }).then(res => {
+    if (res.ok) {
+      if (passwordGate) passwordGate.style.display = 'none';
+      if (adminContent) adminContent.style.display = '';
+      init();
+    } else {
+      localStorage.removeItem('admin_token');
+      adminToken = '';
+      if (passwordGate) passwordGate.style.display = 'flex';
+      if (adminContent) adminContent.style.display = 'none';
+    }
+  }).catch(() => {
+    if (passwordGate) passwordGate.style.display = 'none';
+    if (adminContent) adminContent.style.display = '';
+    init();
+  });
+}
 
 async function adminFetch(url, options = {}) {
   const headers = {
-    'x-admin-token': ADMIN_PASS,
+    'x-admin-token': adminToken,
     'Content-Type': 'application/json',
     ...(options.headers || {})
   };
-  return fetch(url, { ...options, headers });
+  const res = await fetch(url, { ...options, headers });
+  if (res.status === 401) {
+    localStorage.removeItem('admin_token');
+    adminToken = '';
+    if (passwordGate) passwordGate.style.display = 'flex';
+    if (adminContent) adminContent.style.display = 'none';
+  }
+  return res;
 }
 
 function init() {
@@ -285,6 +330,8 @@ function init() {
   initLiveRadarControls();
   initClassesControls();
   initSystemUpdateControls();
+  initSessionsExport();
+  initImportQuestionsControls();
   loadAdminTestsList();
 }
 
@@ -859,12 +906,34 @@ function initTabNavigation() {
 }
 
 const adminTestSearchInput = document.getElementById('adminTestSearchInput');
+const adminTestSearchClearBtn = document.getElementById('adminTestSearchClearBtn');
+const adminSubjectFilter = document.getElementById('adminSubjectFilter');
 const adminTopicFilter = document.getElementById('adminTopicFilter');
+const adminTestSortSelect = document.getElementById('adminTestSortSelect');
+
+function populateAdminSubjectFilter() {
+  if (!adminSubjectFilter) return;
+  const currentVal = adminSubjectFilter.value;
+  const subjects = [...new Set(allAdminTests.map(t => (t.subject || '').trim()).filter(Boolean))].sort((a, b) => a.localeCompare(b, 'uk'));
+  adminSubjectFilter.innerHTML = '<option value="">Усі предмети</option>';
+  subjects.forEach(sb => {
+    const opt = document.createElement('option');
+    opt.value = sb;
+    opt.textContent = sb;
+    if (sb === currentVal) opt.selected = true;
+    adminSubjectFilter.appendChild(opt);
+  });
+}
 
 function populateAdminTopicFilter() {
   if (!adminTopicFilter) return;
   const currentVal = adminTopicFilter.value;
-  const topics = [...new Set(allAdminTests.map(t => t.topic).filter(Boolean))].sort();
+  const selectedSubject = adminSubjectFilter ? adminSubjectFilter.value.trim().toLowerCase() : '';
+  let pool = allAdminTests;
+  if (selectedSubject) {
+    pool = pool.filter(t => (t.subject || '').trim().toLowerCase() === selectedSubject);
+  }
+  const topics = [...new Set(pool.map(t => (t.topic || '').trim()).filter(Boolean))].sort((a, b) => a.localeCompare(b, 'uk'));
   adminTopicFilter.innerHTML = '<option value="">Усі теми</option>';
   topics.forEach(tp => {
     const opt = document.createElement('option');
@@ -873,23 +942,31 @@ function populateAdminTopicFilter() {
     if (tp === currentVal) opt.selected = true;
     adminTopicFilter.appendChild(opt);
   });
+  if (currentVal && !topics.includes(currentVal)) {
+    adminTopicFilter.value = '';
+  }
 }
 
 function renderAdminTestSelectorOptions() {
   if (!adminTestSelector) return;
   const q = adminTestSearchInput ? adminTestSearchInput.value.trim().toLowerCase() : '';
+  const selectedSubject = adminSubjectFilter ? adminSubjectFilter.value.trim().toLowerCase() : '';
   const selectedTopic = adminTopicFilter ? adminTopicFilter.value.trim().toLowerCase() : '';
   const classFilterEl = document.getElementById('adminClassTestFilter');
   const selectedClassId = classFilterEl ? classFilterEl.value : '';
+  const sortMode = adminTestSortSelect ? adminTestSortSelect.value : 'subject';
 
-  let filtered = allAdminTests;
+  let filtered = allAdminTests.slice();
   if (selectedClassId) {
     const cls = allClasses.find(c => c.id === selectedClassId);
     const assignedIds = cls ? (cls.assignedTests || []).map(t => typeof t === 'string' ? t : t.id) : [];
     filtered = filtered.filter(t => assignedIds.includes(t.id));
   }
+  if (selectedSubject) {
+    filtered = filtered.filter(t => (t.subject || '').trim().toLowerCase() === selectedSubject);
+  }
   if (selectedTopic) {
-    filtered = filtered.filter(t => (t.topic || '').toLowerCase() === selectedTopic);
+    filtered = filtered.filter(t => (t.topic || '').trim().toLowerCase() === selectedTopic);
   }
   if (q) {
     filtered = filtered.filter(t =>
@@ -898,6 +975,20 @@ function renderAdminTestSelectorOptions() {
       (t.subject || '').toLowerCase().includes(q) ||
       (t.tags || []).some(tag => tag.toLowerCase().includes(q))
     );
+  }
+
+  if (sortMode === 'title_asc') {
+    filtered.sort((a, b) => (a.title || '').localeCompare(b.title || '', 'uk'));
+  } else if (sortMode === 'title_desc') {
+    filtered.sort((a, b) => (b.title || '').localeCompare(a.title || '', 'uk'));
+  } else if (sortMode === 'topic') {
+    filtered.sort((a, b) => (a.topic || '').localeCompare(b.topic || '', 'uk') || (a.title || '').localeCompare(b.title || '', 'uk'));
+  } else if (sortMode === 'questions_desc') {
+    filtered.sort((a, b) => ((b.questions || []).length) - ((a.questions || []).length));
+  } else if (sortMode === 'duration_desc') {
+    filtered.sort((a, b) => (b.durationMinutes || 0) - (a.durationMinutes || 0));
+  } else {
+    filtered.sort((a, b) => (a.subject || '').localeCompare(b.subject || '', 'uk') || (a.topic || '').localeCompare(b.topic || '', 'uk') || (a.title || '').localeCompare(b.title || '', 'uk'));
   }
 
   adminTestSelector.innerHTML = '';
@@ -909,13 +1000,36 @@ function renderAdminTestSelectorOptions() {
     return;
   }
 
-  filtered.forEach(t => {
-    const opt = document.createElement('option');
-    opt.value = t.id;
-    const topicLabel = t.topic ? `[${t.topic}] ` : '';
-    opt.textContent = `${topicLabel}${t.title} (${(t.questions || []).length} пит., ${t.durationMinutes || 15} хв)`;
-    adminTestSelector.appendChild(opt);
-  });
+  const distinctSubjects = [...new Set(filtered.map(t => (t.subject || '').trim() || 'Без предмета'))];
+  if (sortMode === 'subject' && distinctSubjects.length > 1) {
+    const grouped = {};
+    filtered.forEach(t => {
+      const s = (t.subject || '').trim() || 'Інші предмети';
+      if (!grouped[s]) grouped[s] = [];
+      grouped[s].push(t);
+    });
+    Object.keys(grouped).sort((a, b) => a.localeCompare(b, 'uk')).forEach(subjName => {
+      const grp = document.createElement('optgroup');
+      grp.label = `📚 ${subjName}`;
+      grouped[subjName].forEach(t => {
+        const opt = document.createElement('option');
+        opt.value = t.id;
+        const topicLabel = t.topic ? `[${t.topic}] ` : '';
+        opt.textContent = `${topicLabel}${t.title} (${(t.questions || []).length} пит., ${t.durationMinutes || 15} хв)`;
+        grp.appendChild(opt);
+      });
+      adminTestSelector.appendChild(grp);
+    });
+  } else {
+    filtered.forEach(t => {
+      const opt = document.createElement('option');
+      opt.value = t.id;
+      const subjLabel = (distinctSubjects.length > 1 && t.subject) ? `[${t.subject}] ` : '';
+      const topicLabel = t.topic ? `[${t.topic}] ` : '';
+      opt.textContent = `${subjLabel}${topicLabel}${t.title} (${(t.questions || []).length} пит., ${t.durationMinutes || 15} хв)`;
+      adminTestSelector.appendChild(opt);
+    });
+  }
 
   if (filtered.some(t => t.id === selectedAdminTestId)) {
     adminTestSelector.value = selectedAdminTestId;
@@ -946,8 +1060,12 @@ async function loadAdminTestsList() {
       }
     } catch {}
 
+    populateAdminSubjectFilter();
     populateAdminTopicFilter();
     renderAdminTestSelectorOptions();
+    if (typeof populateClassSubjectFilter === 'function') {
+      populateClassSubjectFilter();
+    }
   } catch (err) {
     console.error(err);
   }
@@ -981,6 +1099,25 @@ function initMultiTestControls() {
 
   if (adminTestSearchInput) {
     adminTestSearchInput.addEventListener('input', () => {
+      if (adminTestSearchClearBtn) {
+        adminTestSearchClearBtn.style.display = adminTestSearchInput.value ? 'block' : 'none';
+      }
+      renderAdminTestSelectorOptions();
+    });
+  }
+
+  if (adminTestSearchClearBtn) {
+    adminTestSearchClearBtn.addEventListener('click', () => {
+      adminTestSearchInput.value = '';
+      adminTestSearchClearBtn.style.display = 'none';
+      adminTestSearchInput.focus();
+      renderAdminTestSelectorOptions();
+    });
+  }
+
+  if (adminSubjectFilter) {
+    adminSubjectFilter.addEventListener('change', () => {
+      populateAdminTopicFilter();
       renderAdminTestSelectorOptions();
     });
   }
@@ -991,14 +1128,20 @@ function initMultiTestControls() {
     });
   }
 
+  if (adminTestSortSelect) {
+    adminTestSortSelect.addEventListener('change', () => {
+      renderAdminTestSelectorOptions();
+    });
+  }
+
   if (openCreateTestModalBtn) {
     openCreateTestModalBtn.addEventListener('click', () => {
       if (createTestErrorMsg) createTestErrorMsg.textContent = '';
       if (newTestTitleInput) newTestTitleInput.value = '';
       const newTestTopicInput = document.getElementById('newTestTopicInput');
       const newTestSubjectInput = document.getElementById('newTestSubjectInput');
-      if (newTestTopicInput) newTestTopicInput.value = '';
-      if (newTestSubjectInput) newTestSubjectInput.value = 'Географія';
+      if (newTestTopicInput) newTestTopicInput.value = (adminTopicFilter && adminTopicFilter.value) ? adminTopicFilter.value : '';
+      if (newTestSubjectInput) newTestSubjectInput.value = (adminSubjectFilter && adminSubjectFilter.value) ? adminSubjectFilter.value : 'Географія';
       if (newTestDurationInput) newTestDurationInput.value = '15';
       if (createTestModal) createTestModal.classList.remove('hidden');
       if (newTestTitleInput) setTimeout(() => newTestTitleInput.focus(), 50);
@@ -1510,10 +1653,21 @@ function renderQuestionsList() {
     const header = document.createElement('div');
     header.className = 'q-card-header';
 
+    const typeBadgeMap = {
+      single: '<span class="tag-badge" style="font-size:10px;">🔘 Один варіант</span>',
+      multiple: '<span class="tag-badge warning" style="font-size:10px;">☑️ Чекбокси</span>',
+      matching: '<span class="tag-badge approved" style="font-size:10px;">🔗 Відповідність</span>',
+      ordering: '<span class="tag-badge" style="font-size:10px; background:rgba(99,102,241,0.15); color:var(--accent);">🔢 Послідовність</span>'
+    };
+    const badgeHtml = typeBadgeMap[q.type || 'single'] || typeBadgeMap.single;
+
     const titleBox = document.createElement('div');
     titleBox.style.flex = '1';
     titleBox.innerHTML = `
-      <div style="font-size: 11px; text-transform: uppercase; letter-spacing: 0.05em; color: var(--accent); font-weight: 700; margin-bottom: 4px;">Питання #${idx + 1} (ID: ${q.id})</div>
+      <div style="display:flex; align-items:center; gap:8px; margin-bottom:4px;">
+        <span style="font-size: 11px; text-transform: uppercase; letter-spacing: 0.05em; color: var(--accent); font-weight: 700;">Питання #${idx + 1} (ID: ${q.id})</span>
+        ${badgeHtml}
+      </div>
       <div class="q-card-title">${escapeHtml(q.text)}</div>
       <div style="font-size: 11px; color: var(--text-muted); margin-top: 4px; display: inline-flex; align-items: center; gap: 4px;"><img src="/img/icons/timer.svg" class="pixel-icon inline" alt=""> Ліміт: ${q.timeLimitSeconds || 60} сек</div>
     `;
@@ -1549,17 +1703,48 @@ function renderQuestionsList() {
     const optGrid = document.createElement('div');
     optGrid.className = 'q-options-grid';
 
-    (q.options || []).forEach((optText, optIdx) => {
-      const isCorrect = optIdx === q.correct;
-      const pill = document.createElement('div');
-      pill.className = 'q-option-pill' + (isCorrect ? ' correct' : '');
-      pill.innerHTML = `
-        <span>${isCorrect ? '<img src="/img/icons/check.svg" class="pixel-icon inline" alt="">' : '<img src="/img/icons/circle.svg" class="pixel-icon inline" alt="">'}</span>
-        <span style="flex:1;">${escapeHtml(optText)}</span>
-        ${isCorrect ? '<strong style="font-size: 10px; text-transform: uppercase;">[Правильна]</strong>' : ''}
-      `;
-      optGrid.appendChild(pill);
-    });
+    if (q.type === 'matching') {
+      const pairs = Array.isArray(q.matchingPairs) ? q.matchingPairs : [];
+      pairs.forEach((p) => {
+        const pill = document.createElement('div');
+        pill.className = 'q-option-pill';
+        pill.innerHTML = `<span>🔗</span> <span style="flex:1;"><strong>${escapeHtml(p.left)}</strong> ↔ ${escapeHtml(p.right)}</span>`;
+        optGrid.appendChild(pill);
+      });
+    } else if (q.type === 'ordering') {
+      const items = Array.isArray(q.orderingItems) ? q.orderingItems : (q.options || []);
+      items.forEach((item, itIdx) => {
+        const pill = document.createElement('div');
+        pill.className = 'q-option-pill';
+        pill.innerHTML = `<span style="font-weight:700; color:var(--accent);">${itIdx + 1}.</span> <span style="flex:1;">${escapeHtml(item)}</span>`;
+        optGrid.appendChild(pill);
+      });
+    } else if (q.type === 'multiple') {
+      const correctArr = Array.isArray(q.correct) ? q.correct.map(Number) : [Number(q.correct) || 0];
+      (q.options || []).forEach((optText, optIdx) => {
+        const isCorrect = correctArr.includes(optIdx);
+        const pill = document.createElement('div');
+        pill.className = 'q-option-pill' + (isCorrect ? ' correct' : '');
+        pill.innerHTML = `
+          <span>${isCorrect ? '☑️' : '◻️'}</span>
+          <span style="flex:1;">${escapeHtml(optText)}</span>
+          ${isCorrect ? '<strong style="font-size: 10px; text-transform: uppercase;">[Правильна]</strong>' : ''}
+        `;
+        optGrid.appendChild(pill);
+      });
+    } else {
+      (q.options || []).forEach((optText, optIdx) => {
+        const isCorrect = optIdx === q.correct;
+        const pill = document.createElement('div');
+        pill.className = 'q-option-pill' + (isCorrect ? ' correct' : '');
+        pill.innerHTML = `
+          <span>${isCorrect ? '<img src="/img/icons/check.svg" class="pixel-icon inline" alt="">' : '<img src="/img/icons/circle.svg" class="pixel-icon inline" alt="">'}</span>
+          <span style="flex:1;">${escapeHtml(optText)}</span>
+          ${isCorrect ? '<strong style="font-size: 10px; text-transform: uppercase;">[Правильна]</strong>' : ''}
+        `;
+        optGrid.appendChild(pill);
+      });
+    }
 
     card.appendChild(optGrid);
     adminQuestionsList.appendChild(card);
@@ -1572,23 +1757,65 @@ function escapeHtml(text) {
   return div.innerHTML;
 }
 
+function updateQuestionFormVisibility(type) {
+  const optionsSec = document.getElementById('optionsFormSection');
+  const matchingSec = document.getElementById('matchingFormSection');
+  const orderingSec = document.getElementById('orderingFormSection');
+  const optionsTitle = document.getElementById('optionsSectionTitle');
+
+  if (optionsSec) optionsSec.classList.add('hidden');
+  if (matchingSec) matchingSec.classList.add('hidden');
+  if (orderingSec) orderingSec.classList.add('hidden');
+
+  if (type === 'matching') {
+    if (matchingSec) matchingSec.classList.remove('hidden');
+  } else if (type === 'ordering') {
+    if (orderingSec) orderingSec.classList.remove('hidden');
+  } else {
+    if (optionsSec) optionsSec.classList.remove('hidden');
+    if (optionsTitle) {
+      optionsTitle.textContent = type === 'multiple'
+        ? 'Варіанти відповідей (поставте галочки біля ВСІХ правильних) *'
+        : 'Варіанти відповідей (оберіть одну правильну) *';
+    }
+  }
+}
+
 function openAddQuestionModal() {
   editingQuestionId = null;
   qModalTitle.innerHTML = '<img src="/img/icons/plus.svg" class="pixel-icon inline" alt=""> Додати нове питання до тесту';
   qTextInput.value = '';
   qTimeLimitInput.value = '60';
   qModalError.textContent = '';
-  renderOptionInputs(['', '', '', ''], 0);
+  const qTypeSelect = document.getElementById('qTypeSelect');
+  if (qTypeSelect) qTypeSelect.value = 'single';
+  updateQuestionFormVisibility('single');
+  renderOptionInputs(['', '', '', ''], 0, false);
+  renderMatchingInputs([ { left: '', right: '' }, { left: '', right: '' } ]);
+  renderOrderingInputs(['', '', '']);
   questionEditModal.classList.remove('hidden');
 }
 
 function openEditQuestionModal(q) {
   editingQuestionId = q.id;
+  const type = q.type || 'single';
   qModalTitle.innerHTML = `<img src="/img/icons/edit.svg" class="pixel-icon inline" alt=""> Редагування питання ${q.id}`;
   qTextInput.value = q.text || '';
   qTimeLimitInput.value = q.timeLimitSeconds || 60;
   qModalError.textContent = '';
-  renderOptionInputs(q.options || ['', ''], q.correct || 0);
+  const qTypeSelect = document.getElementById('qTypeSelect');
+  if (qTypeSelect) qTypeSelect.value = type;
+  updateQuestionFormVisibility(type);
+
+  if (type === 'matching') {
+    renderMatchingInputs(Array.isArray(q.matchingPairs) && q.matchingPairs.length > 0 ? q.matchingPairs : [ { left: '', right: '' } ]);
+  } else if (type === 'ordering') {
+    const items = Array.isArray(q.orderingItems) && q.orderingItems.length > 0 ? q.orderingItems : (Array.isArray(q.options) ? q.options : ['', '']);
+    renderOrderingInputs(items);
+  } else {
+    renderOptionInputs(q.options || ['', ''], q.correct, type === 'multiple');
+  }
+
   questionEditModal.classList.remove('hidden');
 }
 
@@ -1597,21 +1824,30 @@ function closeQuestionModal() {
   editingQuestionId = null;
 }
 
-function renderOptionInputs(optionsArray, correctIndex = 0) {
+function renderOptionInputs(optionsArray, correctVal = 0, isMultiple = false) {
   optionsFormContainer.innerHTML = '';
   const list = optionsArray.length > 0 ? optionsArray : ['', ''];
+  const correctArr = Array.isArray(correctVal) ? correctVal.map(Number) : [Number(correctVal) || 0];
 
   list.forEach((val, idx) => {
     const row = document.createElement('div');
     row.className = 'opt-form-row';
 
-    const radioLabel = document.createElement('label');
-    radioLabel.className = 'opt-radio-label';
-    const isChecked = idx === correctIndex;
-    radioLabel.innerHTML = `
-      <input type="radio" name="optCorrectRadio" value="${idx}" ${isChecked ? 'checked' : ''}>
-      <span>Правильна</span>
-    `;
+    const checkLabel = document.createElement('label');
+    checkLabel.className = 'opt-radio-label';
+    const isChecked = correctArr.includes(idx);
+
+    if (isMultiple) {
+      checkLabel.innerHTML = `
+        <input type="checkbox" name="optCorrectCheck" value="${idx}" ${isChecked ? 'checked' : ''}>
+        <span>Правильна</span>
+      `;
+    } else {
+      checkLabel.innerHTML = `
+        <input type="radio" name="optCorrectRadio" value="${idx}" ${isChecked ? 'checked' : ''}>
+        <span>Правильна</span>
+      `;
+    }
 
     const input = document.createElement('input');
     input.type = 'text';
@@ -1621,7 +1857,7 @@ function renderOptionInputs(optionsArray, correctIndex = 0) {
     input.placeholder = `Варіант ${idx + 1}`;
     input.value = val;
 
-    row.appendChild(radioLabel);
+    row.appendChild(checkLabel);
     row.appendChild(input);
 
     if (list.length > 2) {
@@ -1633,20 +1869,102 @@ function renderOptionInputs(optionsArray, correctIndex = 0) {
       delBtn.onclick = () => {
         const currentVals = Array.from(optionsFormContainer.querySelectorAll('.opt-val-input')).map(i => i.value);
         currentVals.splice(idx, 1);
-        let checkedIdx = correctIndex;
-        const currentChecked = optionsFormContainer.querySelector('input[name="optCorrectRadio"]:checked');
-        if (currentChecked) {
-          const oldVal = parseInt(currentChecked.value, 10);
-          if (oldVal === idx) checkedIdx = 0;
-          else if (oldVal > idx) checkedIdx = oldVal - 1;
-          else checkedIdx = oldVal;
-        }
-        renderOptionInputs(currentVals, checkedIdx);
+        renderOptionInputs(currentVals, 0, isMultiple);
       };
       row.appendChild(delBtn);
     }
 
     optionsFormContainer.appendChild(row);
+  });
+}
+
+function renderMatchingInputs(pairsArray) {
+  const container = document.getElementById('matchingPairsContainer');
+  if (!container) return;
+  container.innerHTML = '';
+  const list = Array.isArray(pairsArray) && pairsArray.length > 0 ? pairsArray : [{ left: '', right: '' }, { left: '', right: '' }];
+
+  list.forEach((pair, idx) => {
+    const row = document.createElement('div');
+    row.style.display = 'flex';
+    row.style.alignItems = 'center';
+    row.style.gap = '8px';
+
+    row.innerHTML = `
+      <span style="font-size:12px; font-weight:700; width:22px; color:var(--text-muted);">${idx + 1}.</span>
+      <input type="text" class="form-input matching-left-input" placeholder="Елемент зліва (напр. Автор)" value="${escapeHtml(pair.left || '')}" style="flex:1; font-size:12px; padding:7px 10px;">
+      <span style="color:var(--text-muted); font-weight:700;">↔</span>
+      <input type="text" class="form-input matching-right-input" placeholder="Відповідник справа (напр. Твір)" value="${escapeHtml(pair.right || '')}" style="flex:1; font-size:12px; padding:7px 10px;">
+      <button type="button" class="opt-del-btn matching-del-btn" title="Видалити пару"><img src="/img/icons/cross.svg" class="pixel-icon" alt=""></button>
+    `;
+
+    row.querySelector('.matching-del-btn').onclick = () => {
+      if (container.children.length <= 2) {
+        alert('Потрібно залишити щонайменше 2 пари для відповідності');
+        return;
+      }
+      row.remove();
+    };
+
+    container.appendChild(row);
+  });
+}
+
+function renderOrderingInputs(itemsArray) {
+  const container = document.getElementById('orderingItemsContainer');
+  if (!container) return;
+  container.innerHTML = '';
+  const list = Array.isArray(itemsArray) && itemsArray.length > 0 ? itemsArray : ['', '', ''];
+
+  list.forEach((val, idx) => {
+    const row = document.createElement('div');
+    row.style.display = 'flex';
+    row.style.alignItems = 'center';
+    row.style.gap = '8px';
+
+    row.innerHTML = `
+      <span class="ordering-row-idx" style="font-size:12px; font-weight:700; width:22px; color:var(--accent);">${idx + 1}.</span>
+      <input type="text" class="form-input ordering-val-input" placeholder="Етап / подія #${idx + 1}" value="${escapeHtml(val || '')}" style="flex:1; font-size:12px; padding:7px 10px;">
+      <button type="button" class="btn-secondary ordering-up-btn" style="width:28px; height:28px; padding:0; font-size:11px;" title="Вгору">↑</button>
+      <button type="button" class="btn-secondary ordering-down-btn" style="width:28px; height:28px; padding:0; font-size:11px;" title="Вниз">↓</button>
+      <button type="button" class="opt-del-btn ordering-del-btn" title="Видалити крок"><img src="/img/icons/cross.svg" class="pixel-icon" alt=""></button>
+    `;
+
+    row.querySelector('.ordering-up-btn').onclick = () => {
+      const prev = row.previousElementSibling;
+      if (prev) {
+        container.insertBefore(row, prev);
+        updateOrderingIndexes();
+      }
+    };
+
+    row.querySelector('.ordering-down-btn').onclick = () => {
+      const next = row.nextElementSibling;
+      if (next) {
+        container.insertBefore(next, row);
+        updateOrderingIndexes();
+      }
+    };
+
+    row.querySelector('.ordering-del-btn').onclick = () => {
+      if (container.children.length <= 2) {
+        alert('Потрібно залишити щонайменше 2 кроки для послідовності');
+        return;
+      }
+      row.remove();
+      updateOrderingIndexes();
+    };
+
+    container.appendChild(row);
+  });
+}
+
+function updateOrderingIndexes() {
+  const container = document.getElementById('orderingItemsContainer');
+  if (!container) return;
+  Array.from(container.children).forEach((child, idx) => {
+    const idxSpan = child.querySelector('.ordering-row-idx');
+    if (idxSpan) idxSpan.textContent = `${idx + 1}.`;
   });
 }
 
@@ -1678,8 +1996,12 @@ function initTestEditor() {
           found.durationMinutes = durationMinutes;
           found.topic = topic;
           found.subject = subject;
+          populateAdminSubjectFilter();
           populateAdminTopicFilter();
           renderAdminTestSelectorOptions();
+          if (typeof populateClassSubjectFilter === 'function') {
+            populateClassSubjectFilter();
+          }
         }
         saveTestMetaBtn.innerHTML = '<img src="/img/icons/check.svg" class="pixel-icon inline" alt=""> Збережено!';
         setTimeout(() => {
@@ -1854,13 +2176,62 @@ function initTestEditor() {
   if (closeQModalBtn) closeQModalBtn.addEventListener('click', closeQuestionModal);
   if (cancelQModalBtn) cancelQModalBtn.addEventListener('click', closeQuestionModal);
 
+  const qTypeSelect = document.getElementById('qTypeSelect');
+  if (qTypeSelect) {
+    qTypeSelect.addEventListener('change', () => {
+      const selectedType = qTypeSelect.value;
+      updateQuestionFormVisibility(selectedType);
+      if (selectedType === 'single') {
+        const inputs = Array.from(optionsFormContainer.querySelectorAll('.opt-val-input')).map(i => i.value);
+        renderOptionInputs(inputs.length > 0 ? inputs : ['', '', '', ''], 0, false);
+      } else if (selectedType === 'multiple') {
+        const inputs = Array.from(optionsFormContainer.querySelectorAll('.opt-val-input')).map(i => i.value);
+        renderOptionInputs(inputs.length > 0 ? inputs : ['', '', '', ''], [0], true);
+      } else if (selectedType === 'matching') {
+        renderMatchingInputs([{ left: '', right: '' }, { left: '', right: '' }]);
+      } else if (selectedType === 'ordering') {
+        renderOrderingInputs(['', '', '']);
+      }
+    });
+  }
+
   if (addOptionFieldBtn) {
     addOptionFieldBtn.addEventListener('click', () => {
+      const isMulti = qTypeSelect && qTypeSelect.value === 'multiple';
       const inputs = Array.from(optionsFormContainer.querySelectorAll('.opt-val-input')).map(i => i.value);
       inputs.push('');
-      const currentChecked = optionsFormContainer.querySelector('input[name="optCorrectRadio"]:checked');
-      const checkedIdx = currentChecked ? parseInt(currentChecked.value, 10) : 0;
-      renderOptionInputs(inputs, checkedIdx);
+      if (isMulti) {
+        const checked = Array.from(optionsFormContainer.querySelectorAll('input[name="optCorrectCheck"]:checked')).map(c => parseInt(c.value, 10));
+        renderOptionInputs(inputs, checked, true);
+      } else {
+        const currentChecked = optionsFormContainer.querySelector('input[name="optCorrectRadio"]:checked');
+        const checkedIdx = currentChecked ? parseInt(currentChecked.value, 10) : 0;
+        renderOptionInputs(inputs, checkedIdx, false);
+      }
+    });
+  }
+
+  const addMatchingPairBtn = document.getElementById('addMatchingPairBtn');
+  if (addMatchingPairBtn) {
+    addMatchingPairBtn.addEventListener('click', () => {
+      const container = document.getElementById('matchingPairsContainer');
+      if (!container) return;
+      const leftInputs = Array.from(container.querySelectorAll('.matching-left-input')).map(i => i.value);
+      const rightInputs = Array.from(container.querySelectorAll('.matching-right-input')).map(i => i.value);
+      const pairs = leftInputs.map((left, idx) => ({ left, right: rightInputs[idx] || '' }));
+      pairs.push({ left: '', right: '' });
+      renderMatchingInputs(pairs);
+    });
+  }
+
+  const addOrderingItemBtn = document.getElementById('addOrderingItemBtn');
+  if (addOrderingItemBtn) {
+    addOrderingItemBtn.addEventListener('click', () => {
+      const container = document.getElementById('orderingItemsContainer');
+      if (!container) return;
+      const items = Array.from(container.querySelectorAll('.ordering-val-input')).map(i => i.value);
+      items.push('');
+      renderOrderingInputs(items);
     });
   }
 
@@ -1869,36 +2240,84 @@ function initTestEditor() {
       qModalError.textContent = '';
       const text = qTextInput.value.trim();
       const timeLimitSeconds = parseInt(qTimeLimitInput.value, 10) || 60;
-      const optionInputs = Array.from(optionsFormContainer.querySelectorAll('.opt-val-input'));
-      const options = optionInputs.map(i => i.value.trim());
+      const qType = (qTypeSelect && qTypeSelect.value) || 'single';
 
       if (!text) {
         qModalError.textContent = 'Введіть текст питання!';
         return;
       }
-      if (options.length < 2 || options.some(o => !o)) {
-        qModalError.textContent = 'Заповніть текст для кожного варіанта відповіді (мінімум 2)!';
-        return;
-      }
 
-      const checkedRadio = optionsFormContainer.querySelector('input[name="optCorrectRadio"]:checked');
-      if (!checkedRadio) {
-        qModalError.textContent = 'Оберіть правильний варіант відповіді!';
-        return;
+      let payload = {
+        text,
+        type: qType,
+        timeLimitSeconds
+      };
+
+      if (qType === 'matching') {
+        const container = document.getElementById('matchingPairsContainer');
+        const leftInputs = Array.from(container ? container.querySelectorAll('.matching-left-input') : []);
+        const rightInputs = Array.from(container ? container.querySelectorAll('.matching-right-input') : []);
+
+        const pairs = leftInputs.map((li, idx) => ({
+          left: li.value.trim(),
+          right: rightInputs[idx] ? rightInputs[idx].value.trim() : ''
+        })).filter(p => p.left && p.right);
+
+        if (pairs.length < 2) {
+          qModalError.textContent = 'Введіть щонайменше 2 заповнені пари для відповідності!';
+          return;
+        }
+        payload.matchingPairs = pairs;
+      } else if (qType === 'ordering') {
+        const container = document.getElementById('orderingItemsContainer');
+        const items = Array.from(container ? container.querySelectorAll('.ordering-val-input') : [])
+          .map(i => i.value.trim())
+          .filter(Boolean);
+
+        if (items.length < 2) {
+          qModalError.textContent = 'Введіть щонайменше 2 етапи / події у правильній послідовності!';
+          return;
+        }
+        payload.orderingItems = items;
+        payload.correct = items;
+      } else if (qType === 'multiple') {
+        const optionInputs = Array.from(optionsFormContainer.querySelectorAll('.opt-val-input'));
+        const options = optionInputs.map(i => i.value.trim()).filter(Boolean);
+
+        if (options.length < 2) {
+          qModalError.textContent = 'Заповніть щонайменше 2 варіанти відповіді!';
+          return;
+        }
+
+        const checkedBoxes = Array.from(optionsFormContainer.querySelectorAll('input[name="optCorrectCheck"]:checked'));
+        if (checkedBoxes.length === 0) {
+          qModalError.textContent = 'Позначте хоча б один правильний варіант!';
+          return;
+        }
+        const correctIndices = checkedBoxes.map(c => parseInt(c.value, 10)).filter(n => !isNaN(n));
+        payload.options = options;
+        payload.correct = correctIndices;
+      } else {
+        const optionInputs = Array.from(optionsFormContainer.querySelectorAll('.opt-val-input'));
+        const options = optionInputs.map(i => i.value.trim()).filter(Boolean);
+
+        if (options.length < 2) {
+          qModalError.textContent = 'Заповніть щонайменше 2 варіанти відповіді!';
+          return;
+        }
+
+        const checkedRadio = optionsFormContainer.querySelector('input[name="optCorrectRadio"]:checked');
+        if (!checkedRadio) {
+          qModalError.textContent = 'Оберіть правильний варіант відповіді!';
+          return;
+        }
+        payload.options = options;
+        payload.correct = parseInt(checkedRadio.value, 10);
       }
-      const correct = parseInt(checkedRadio.value, 10);
 
       try {
         saveQuestionBtn.disabled = true;
         saveQuestionBtn.textContent = 'Збереження...';
-
-        const payload = {
-          text,
-          options,
-          correct,
-          timeLimitSeconds,
-          type: 'single'
-        };
 
         let res;
         if (editingQuestionId) {
@@ -1930,6 +2349,330 @@ function initTestEditor() {
   }
 }
 
+function initSessionsExport() {
+  const exportCsvBtn = document.getElementById('exportSessionsCsvBtn');
+  const exportPdfBtn = document.getElementById('exportSessionsPdfBtn');
+
+  if (exportCsvBtn) {
+    exportCsvBtn.addEventListener('click', () => {
+      if (!sessions || sessions.length === 0) {
+        showAdminToast('Немає результатів для експорту', false);
+        return;
+      }
+
+      const classFilterEl = document.getElementById('sessionClassFilter');
+      const classVal = classFilterEl ? classFilterEl.value : '';
+      let list = sessions.slice();
+      if (classVal) {
+        list = list.filter(s => s.studentId === classVal);
+      }
+
+      const activeTest = allAdminTests.find(t => t.id === selectedAdminTestId);
+      const testTitle = (activeTest && activeTest.title) ? activeTest.title : 'Тест';
+
+      const headers = [
+        '№',
+        'ПІБ учня',
+        'Клас',
+        'Тест',
+        'Оцінка (1-12)',
+        'Відсоток (%)',
+        'Правильних',
+        'Всього питань',
+        'Час початку',
+        'Час завершення',
+        'Доброчесність (%)',
+        'Порушень',
+        'Статус / Вердикт'
+      ];
+
+      const rows = list.map((s, idx) => {
+        const score12 = s.score12 !== undefined ? s.score12 : (s.totalQuestions > 0 ? Math.min(12, Math.max(1, Math.round((s.rawScore / s.totalQuestions) * 12))) : 1);
+        const percent = s.scorePercentage !== undefined ? `${s.scorePercentage}%` : '--';
+        const start = s.startedAt ? new Date(s.startedAt).toLocaleString('uk-UA') : '--';
+        const finish = s.submittedAt ? new Date(s.submittedAt).toLocaleString('uk-UA') : (s.status === 'in_progress' ? 'У процесі' : '--');
+        const verdict = s.finalVerdict ? (s.finalVerdict.decision || s.status) : s.status;
+
+        return [
+          idx + 1,
+          `"${(s.studentName || '').replace(/"/g, '""')}"`,
+          `"${(s.studentId || '').replace(/"/g, '""')}"`,
+          `"${testTitle.replace(/"/g, '""')}"`,
+          score12,
+          `"${percent}"`,
+          s.rawScore || 0,
+          s.totalQuestions || 0,
+          `"${start}"`,
+          `"${finish}"`,
+          `${s.trustScore}%`,
+          s.incidentsCount || 0,
+          `"${verdict}"`
+        ].join(';');
+      });
+
+      const csvContent = '\uFEFF' + headers.join(';') + '\n' + rows.join('\n');
+      const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      const dateStr = new Date().toISOString().slice(0, 10);
+      link.href = url;
+      link.download = `vidomist_${dateStr}.csv`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+
+      showAdminToast('✓ Відомість експортовано в Excel / CSV!');
+    });
+  }
+
+  if (exportPdfBtn) {
+    exportPdfBtn.addEventListener('click', () => {
+      if (!sessions || sessions.length === 0) {
+        showAdminToast('Немає результатів для друку', false);
+        return;
+      }
+
+      const classFilterEl = document.getElementById('sessionClassFilter');
+      const classVal = classFilterEl ? classFilterEl.value : '';
+      let list = sessions.slice();
+      if (classVal) {
+        list = list.filter(s => s.studentId === classVal);
+      }
+
+      const activeTest = allAdminTests.find(t => t.id === selectedAdminTestId);
+      const testTitle = (activeTest && activeTest.title) ? activeTest.title : 'Тестування';
+      const dateStr = new Date().toLocaleDateString('uk-UA');
+
+      const container = document.getElementById('printableGradebookContainer');
+      if (!container) return;
+
+      let tableRows = '';
+      list.forEach((s, idx) => {
+        const score12 = s.score12 !== undefined ? s.score12 : (s.totalQuestions > 0 ? Math.min(12, Math.max(1, Math.round((s.rawScore / s.totalQuestions) * 12))) : 1);
+        const percent = s.scorePercentage !== undefined ? `${s.scorePercentage}%` : '--';
+        tableRows += `
+          <tr>
+            <td style="text-align:center;">${idx + 1}</td>
+            <td><strong>${escapeHtml(s.studentName || '—')}</strong></td>
+            <td style="text-align:center;">${escapeHtml(s.studentId || '—')}</td>
+            <td style="text-align:center; font-weight: bold; font-size: 13pt;">${score12}</td>
+            <td style="text-align:center;">${percent}</td>
+            <td style="text-align:center;">${s.rawScore || 0} / ${s.totalQuestions || 0}</td>
+            <td style="text-align:center;">${s.trustScore}%</td>
+            <td style="text-align:center;">${s.incidentsCount || 0}</td>
+          </tr>
+        `;
+      });
+
+      container.innerHTML = `
+        <div style="margin-bottom: 20px;">
+          <h2 style="margin: 0 0 6px 0; text-align: center; text-transform: uppercase; font-size: 16pt;">Відомість оцінювання знань учнів</h2>
+          <div style="text-align: center; font-size: 11pt; color: #444; margin-bottom: 14px;">Система контролю знань та академічної доброчесності SecureExam</div>
+          <table style="width: 100%; font-size: 11pt; margin-bottom: 12px;">
+            <tr>
+              <td><strong>Тест:</strong> ${escapeHtml(testTitle)}</td>
+              <td style="text-align: right;"><strong>Дата:</strong> ${dateStr}</td>
+            </tr>
+            <tr>
+              <td><strong>Клас:</strong> ${classVal ? escapeHtml(classVal) : 'Усі класи'}</td>
+              <td style="text-align: right;"><strong>Всього учнів:</strong> ${list.length}</td>
+            </tr>
+          </table>
+          <table class="print-table">
+            <thead>
+              <tr>
+                <th style="width: 35px; text-align: center;">№</th>
+                <th>Прізвище та ім'я учня</th>
+                <th style="width: 70px; text-align: center;">Клас</th>
+                <th style="width: 90px; text-align: center;">Оцінка (12)</th>
+                <th style="width: 80px; text-align: center;">Відсоток</th>
+                <th style="width: 80px; text-align: center;">Бали</th>
+                <th style="width: 80px; text-align: center;">Довіра</th>
+                <th style="width: 80px; text-align: center;">Порушень</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${tableRows}
+            </tbody>
+          </table>
+          <div style="margin-top: 40px; display: flex; justify-content: space-between; font-size: 11pt;">
+            <div>Підпис викладача: _______________________</div>
+            <div>Оцінки внесено до класного журналу: [ &nbsp; ]</div>
+          </div>
+        </div>
+      `;
+
+      window.print();
+    });
+  }
+}
+
+function initImportQuestionsControls() {
+  const openImportModalBtn = document.getElementById('openImportModalBtn');
+  const closeImportModalBtn = document.getElementById('closeImportModalBtn');
+  const cancelImportModalBtn = document.getElementById('cancelImportModalBtn');
+  const importModal = document.getElementById('importQuestionsModal');
+  const importRawTextInput = document.getElementById('importRawTextInput');
+  const importFileInput = document.getElementById('importFileInput');
+  const parseImportWithAiBtn = document.getElementById('parseImportWithAiBtn');
+  const importParsingStatus = document.getElementById('importParsingStatus');
+  const importPreviewContainer = document.getElementById('importPreviewContainer');
+  const importPreviewCount = document.getElementById('importPreviewCount');
+  const importParsedList = document.getElementById('importParsedList');
+  const selectAllImportCheckbox = document.getElementById('selectAllImportCheckbox');
+  const submitImportQuestionsBtn = document.getElementById('submitImportQuestionsBtn');
+
+  let parsedQuestions = [];
+
+  if (openImportModalBtn && importModal) {
+    openImportModalBtn.addEventListener('click', () => {
+      importModal.classList.remove('hidden');
+      if (importParsingStatus) importParsingStatus.textContent = '';
+      if (importPreviewContainer) importPreviewContainer.classList.add('hidden');
+      if (submitImportQuestionsBtn) submitImportQuestionsBtn.classList.add('hidden');
+    });
+  }
+
+  const closeModal = () => {
+    if (importModal) importModal.classList.add('hidden');
+    parsedQuestions = [];
+  };
+
+  if (closeImportModalBtn) closeImportModalBtn.addEventListener('click', closeModal);
+  if (cancelImportModalBtn) cancelImportModalBtn.addEventListener('click', closeModal);
+
+  if (importFileInput && importRawTextInput) {
+    importFileInput.addEventListener('change', (e) => {
+      const file = e.target.files && e.target.files[0];
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = (evt) => {
+        importRawTextInput.value = evt.target.result;
+        showAdminToast(`✓ Файл "${file.name}" завантажено у вікно`);
+      };
+      reader.readAsText(file);
+    });
+  }
+
+  if (parseImportWithAiBtn && importRawTextInput) {
+    parseImportWithAiBtn.addEventListener('click', async () => {
+      const text = importRawTextInput.value.trim();
+      if (!text) {
+        alert('Вставте текст тесту або завантажте файл');
+        return;
+      }
+      try {
+        parseImportWithAiBtn.disabled = true;
+        if (importParsingStatus) importParsingStatus.textContent = 'ШІ аналізує текст та витягує питання...';
+
+        const res = await adminFetch('/api/admin/ai-parse-import', {
+          method: 'POST',
+          body: JSON.stringify({ rawText: text })
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || 'Помилка розпізнавання');
+
+        parsedQuestions = data.questions || [];
+        if (parsedQuestions.length === 0) {
+          throw new Error('Не знайдено жодного питання в тексті');
+        }
+
+        if (importParsingStatus) {
+          importParsingStatus.textContent = `✓ Успішно розпізнано ${parsedQuestions.length} питань (${data.source === 'gemini' ? 'Gemini AI' : 'Локальний парсер'})`;
+        }
+
+        renderImportPreview(parsedQuestions);
+        if (importPreviewContainer) importPreviewContainer.classList.remove('hidden');
+        if (submitImportQuestionsBtn) submitImportQuestionsBtn.classList.remove('hidden');
+      } catch (err) {
+        if (importParsingStatus) importParsingStatus.textContent = 'Помилка: ' + err.message;
+        alert('Помилка імпорту: ' + err.message);
+      } finally {
+        parseImportWithAiBtn.disabled = false;
+      }
+    });
+  }
+
+  function renderImportPreview(questions) {
+    if (!importParsedList) return;
+    importParsedList.innerHTML = '';
+    if (importPreviewCount) importPreviewCount.textContent = questions.length;
+
+    questions.forEach((q, idx) => {
+      const row = document.createElement('div');
+      row.style.display = 'flex';
+      row.style.alignItems = 'flex-start';
+      row.style.gap = '8px';
+      row.style.padding = '8px';
+      row.style.background = 'var(--bg-elevated)';
+      row.style.borderRadius = '4px';
+      row.style.fontSize = '12px';
+
+      const typeLabel = q.type === 'multiple' ? '☑️ Чекбокси' : (q.type === 'matching' ? '🔗 Відповідність' : (q.type === 'ordering' ? '🔢 Послідовність' : '🔘 1 варіант'));
+
+      let samplePreview = '';
+      if (q.type === 'matching' && Array.isArray(q.matchingPairs)) {
+        samplePreview = q.matchingPairs.slice(0, 3).map(p => `${escapeHtml(p.left)} ↔ ${escapeHtml(p.right)}`).join(' • ');
+      } else if (q.type === 'ordering' && Array.isArray(q.orderingItems)) {
+        samplePreview = q.orderingItems.slice(0, 3).map(i => escapeHtml(i)).join(' → ');
+      } else {
+        samplePreview = (q.options || []).slice(0, 4).map(o => escapeHtml(o)).join(' • ');
+      }
+
+      row.innerHTML = `
+        <input type="checkbox" class="import-q-cb" data-idx="${idx}" checked style="margin-top: 2px;">
+        <div style="flex:1;">
+          <div style="font-weight: 600; margin-bottom: 2px;">${idx + 1}. ${escapeHtml(q.text)} <span class="tag-badge" style="font-size:9px; margin-left:4px;">${typeLabel}</span></div>
+          <div style="font-size: 11px; color: var(--text-muted);">${samplePreview}</div>
+        </div>
+      `;
+      importParsedList.appendChild(row);
+    });
+  }
+
+  if (selectAllImportCheckbox) {
+    selectAllImportCheckbox.addEventListener('change', (e) => {
+      const checkboxes = document.querySelectorAll('.import-q-cb');
+      checkboxes.forEach(cb => cb.checked = e.target.checked);
+    });
+  }
+
+  if (submitImportQuestionsBtn) {
+    submitImportQuestionsBtn.addEventListener('click', async () => {
+      const checkboxes = document.querySelectorAll('.import-q-cb:checked');
+      const selectedIndices = Array.from(checkboxes).map(cb => parseInt(cb.dataset.idx, 10));
+      const questionsToAdd = selectedIndices.map(idx => parsedQuestions[idx]).filter(Boolean);
+
+      if (questionsToAdd.length === 0) {
+        alert('Оберіть хоча б одне питання для додавання');
+        return;
+      }
+
+      try {
+        submitImportQuestionsBtn.disabled = true;
+        submitImportQuestionsBtn.textContent = 'Додавання...';
+
+        const res = await adminFetch(`/api/admin/tests/${encodeURIComponent(selectedAdminTestId)}/questions/bulk`, {
+          method: 'POST',
+          body: JSON.stringify({ questions: questionsToAdd })
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || 'Помилка додавання питань');
+
+        showAdminToast(`✓ Успішно додано ${data.count} питань до тесту!`);
+        closeModal();
+        await loadAdminTest();
+      } catch (err) {
+        alert('Помилка: ' + err.message);
+      } finally {
+        submitImportQuestionsBtn.disabled = false;
+        submitImportQuestionsBtn.innerHTML = '<img src="/img/icons/plus.svg" class="pixel-icon inline" alt=""> Додати обрані питання до тесту';
+      }
+    });
+  }
+}
+
 async function deleteQuestion(questionId) {
   if (!confirm('Ви впевнені, що хочете видалити це питання з тесту?')) return;
   try {
@@ -1953,17 +2696,36 @@ async function loadAdminClasses() {
     if (!res.ok) return;
     allClasses = await res.json();
     populateAdminClassTestFilter();
+    populateClassSubjectFilter();
     renderClassesList();
   } catch (err) {
     console.error(err);
   }
 }
 
+function populateClassSubjectFilter() {
+  const filter = document.getElementById('classSubjectFilter');
+  if (!filter) return;
+  const currentVal = filter.value;
+  const subjects = [...new Set([
+    ...allClasses.map(c => (c.subject || '').trim()).filter(Boolean),
+    ...allAdminTests.map(t => (t.subject || '').trim()).filter(Boolean)
+  ])].sort((a, b) => a.localeCompare(b, 'uk'));
+  filter.innerHTML = '<option value="">Усі предмети</option>';
+  subjects.forEach(sb => {
+    const opt = document.createElement('option');
+    opt.value = sb;
+    opt.textContent = sb;
+    if (sb === currentVal) opt.selected = true;
+    filter.appendChild(opt);
+  });
+}
+
 function populateAdminClassTestFilter() {
   const sel = document.getElementById('adminClassTestFilter');
   if (!sel) return;
   const currentVal = sel.value;
-  sel.innerHTML = '<option value="">\u0423\u0441\u0456 \u043a\u043b\u0430\u0441\u0438</option>';
+  sel.innerHTML = '<option value="">Усі класи</option>';
   allClasses.forEach(c => {
     const opt = document.createElement('option');
     opt.value = c.id;
@@ -2325,12 +3087,14 @@ function populateClassAssignTestSelector(cls) {
 
   const assigned = new Set(cls.assignedTests || []);
   const available = allAdminTests.filter(t => !assigned.has(t.id));
+  available.sort((a, b) => (a.subject || '').localeCompare(b.subject || '', 'uk') || (a.topic || '').localeCompare(b.topic || '', 'uk') || (a.title || '').localeCompare(b.title || '', 'uk'));
 
   available.forEach(t => {
     const opt = document.createElement('option');
     opt.value = t.id;
+    const subjLabel = t.subject ? `[${t.subject}] ` : '';
     const topicLabel = t.topic ? `[${t.topic}] ` : '';
-    opt.textContent = `${topicLabel}${t.title}`;
+    opt.textContent = `${subjLabel}${topicLabel}${t.title}`;
     sel.appendChild(opt);
   });
 }
@@ -2667,4 +3431,98 @@ function pollServerHealthAndReload() {
       window.location.reload();
     }
   }, 1000);
+}
+
+const changePasswordModal = document.getElementById('changePasswordModal');
+const openChangePasswordModalBtn = document.getElementById('openChangePasswordModalBtn');
+const closeChangePasswordModalBtn = document.getElementById('closeChangePasswordModalBtn');
+const cancelChangePasswordBtn = document.getElementById('cancelChangePasswordBtn');
+const submitChangePasswordBtn = document.getElementById('submitChangePasswordBtn');
+const currentAdminPasswordInput = document.getElementById('currentAdminPasswordInput');
+const newAdminPasswordInput = document.getElementById('newAdminPasswordInput');
+const confirmAdminPasswordInput = document.getElementById('confirmAdminPasswordInput');
+const changePasswordStatus = document.getElementById('changePasswordStatus');
+
+function openChangePasswordModal() {
+  if (!changePasswordModal) return;
+  if (currentAdminPasswordInput) currentAdminPasswordInput.value = '';
+  if (newAdminPasswordInput) newAdminPasswordInput.value = '';
+  if (confirmAdminPasswordInput) confirmAdminPasswordInput.value = '';
+  if (changePasswordStatus) {
+    changePasswordStatus.textContent = '';
+    changePasswordStatus.style.color = '';
+  }
+  changePasswordModal.classList.remove('hidden');
+  changePasswordModal.style.display = 'flex';
+}
+
+function closeChangePasswordModal() {
+  if (!changePasswordModal) return;
+  changePasswordModal.classList.add('hidden');
+  changePasswordModal.style.display = 'none';
+}
+
+if (openChangePasswordModalBtn) openChangePasswordModalBtn.addEventListener('click', openChangePasswordModal);
+if (closeChangePasswordModalBtn) closeChangePasswordModalBtn.addEventListener('click', closeChangePasswordModal);
+if (cancelChangePasswordBtn) cancelChangePasswordBtn.addEventListener('click', closeChangePasswordModal);
+
+if (submitChangePasswordBtn) {
+  submitChangePasswordBtn.addEventListener('click', async () => {
+    const cur = (currentAdminPasswordInput ? currentAdminPasswordInput.value : '').trim();
+    const np = (newAdminPasswordInput ? newAdminPasswordInput.value : '').trim();
+    const cp = (confirmAdminPasswordInput ? confirmAdminPasswordInput.value : '').trim();
+
+    if (!cur) {
+      if (changePasswordStatus) {
+        changePasswordStatus.textContent = 'Введіть поточний пароль';
+        changePasswordStatus.style.color = 'var(--accent-red)';
+      }
+      return;
+    }
+    if (!np || np.length < 4) {
+      if (changePasswordStatus) {
+        changePasswordStatus.textContent = 'Новий пароль має бути не менше 4 символів';
+        changePasswordStatus.style.color = 'var(--accent-red)';
+      }
+      return;
+    }
+    if (np !== cp) {
+      if (changePasswordStatus) {
+        changePasswordStatus.textContent = 'Нові паролі не співпадають';
+        changePasswordStatus.style.color = 'var(--accent-red)';
+      }
+      return;
+    }
+
+    try {
+      submitChangePasswordBtn.disabled = true;
+      const res = await adminFetch('/api/admin/change-password', {
+        method: 'POST',
+        body: JSON.stringify({ currentPassword: cur, newPassword: np })
+      });
+      const data = await res.json();
+      submitChangePasswordBtn.disabled = false;
+      if (res.ok && data.success) {
+        adminToken = data.token || np;
+        localStorage.setItem('admin_token', adminToken);
+        if (changePasswordStatus) {
+          changePasswordStatus.textContent = '✓ Пароль успішно змінено!';
+          changePasswordStatus.style.color = 'var(--accent-green)';
+        }
+        showAdminToast('Пароль успішно змінено');
+        setTimeout(closeChangePasswordModal, 1200);
+      } else {
+        if (changePasswordStatus) {
+          changePasswordStatus.textContent = data.error || 'Помилка зміни пароля';
+          changePasswordStatus.style.color = 'var(--accent-red)';
+        }
+      }
+    } catch (err) {
+      submitChangePasswordBtn.disabled = false;
+      if (changePasswordStatus) {
+        changePasswordStatus.textContent = 'Помилка: ' + err.message;
+        changePasswordStatus.style.color = 'var(--accent-red)';
+      }
+    }
+  });
 }

@@ -187,7 +187,47 @@ function broadcastToAdmins(payload) {
   }
 }
 
-const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || '05081988';
+const secretPath = path.join(__dirname, 'admin_secret.json');
+const envPath = path.join(__dirname, '..', '.env');
+
+function saveAdminPasswordToFile(pwd) {
+  try {
+    fs.writeFileSync(secretPath, JSON.stringify({ adminPassword: pwd, updatedAt: Date.now() }, null, 2), 'utf-8');
+  } catch {}
+  try {
+    if (fs.existsSync(envPath)) {
+      let content = fs.readFileSync(envPath, 'utf-8');
+      if (content.includes('ADMIN_PASSWORD=')) {
+        content = content.replace(/ADMIN_PASSWORD=.*(\r?\n|$)/, `ADMIN_PASSWORD=${pwd}$1`);
+      } else {
+        content = content.trim() + `\r\nADMIN_PASSWORD=${pwd}\r\n`;
+      }
+      fs.writeFileSync(envPath, content, 'utf-8');
+    }
+  } catch {}
+}
+
+function getInitialAdminPassword() {
+  if (process.env.ADMIN_PASSWORD && process.env.ADMIN_PASSWORD.trim()) {
+    saveAdminPasswordToFile(process.env.ADMIN_PASSWORD.trim());
+    return process.env.ADMIN_PASSWORD.trim();
+  }
+  try {
+    if (fs.existsSync(secretPath)) {
+      const parsed = JSON.parse(fs.readFileSync(secretPath, 'utf-8'));
+      if (parsed && parsed.adminPassword) {
+        process.env.ADMIN_PASSWORD = parsed.adminPassword;
+        return parsed.adminPassword;
+      }
+    }
+  } catch {}
+  const generated = Math.floor(10000000 + Math.random() * 90000000).toString();
+  saveAdminPasswordToFile(generated);
+  process.env.ADMIN_PASSWORD = generated;
+  return generated;
+}
+
+let ADMIN_PASSWORD = getInitialAdminPassword();
 
 function requireAdmin(req, res, next) {
   const token = req.headers['x-admin-token'] || req.headers['authorization'];
@@ -196,6 +236,33 @@ function requireAdmin(req, res, next) {
   }
   return res.status(401).json({ error: 'Несанкціонований доступ' });
 }
+
+app.post('/api/admin/login', (req, res) => {
+  const { password } = req.body || {};
+  if (typeof password === 'string' && password.trim() === ADMIN_PASSWORD) {
+    return res.json({ success: true, token: ADMIN_PASSWORD });
+  }
+  return res.status(401).json({ error: 'Невірний пароль' });
+});
+
+app.get('/api/admin/verify-token', requireAdmin, (req, res) => {
+  res.json({ valid: true });
+});
+
+app.post('/api/admin/change-password', requireAdmin, (req, res) => {
+  const { currentPassword, newPassword } = req.body || {};
+  if (!currentPassword || currentPassword.trim() !== ADMIN_PASSWORD) {
+    return res.status(400).json({ error: 'Поточний пароль введено невірно' });
+  }
+  if (!newPassword || typeof newPassword !== 'string' || newPassword.trim().length < 4) {
+    return res.status(400).json({ error: 'Новий пароль має містити щонайменше 4 символи' });
+  }
+  const cleanNew = newPassword.trim();
+  ADMIN_PASSWORD = cleanNew;
+  process.env.ADMIN_PASSWORD = cleanNew;
+  saveAdminPasswordToFile(cleanNew);
+  res.json({ success: true, message: 'Пароль успішно змінено', token: cleanNew });
+});
 
 app.get('/api/tests', async (req, res) => {
   const all = await db.getAllTests();
@@ -283,8 +350,10 @@ app.get('/api/tests/:id', async (req, res) => {
   const sanitizedQuestions = (test.questions || []).map(q => ({
     id: q.id,
     text: q.text,
-    type: q.type,
-    options: q.options,
+    type: q.type || 'single',
+    options: q.options || [],
+    matchingLeft: q.matchingLeft || (q.matchingPairs ? q.matchingPairs.map(p => p.left) : []),
+    matchingRight: q.matchingRight || (q.matchingPairs ? q.matchingPairs.map(p => p.right) : []),
     timeLimitSeconds: q.timeLimitSeconds
   }));
 
@@ -308,8 +377,10 @@ app.post('/api/sessions/start', async (req, res) => {
       const sanitizedQuestions = (existing.questions || []).map(q => ({
         id: q.id,
         text: q.text,
-        type: q.type,
-        options: q.options,
+        type: q.type || 'single',
+        options: q.options || [],
+        matchingLeft: q.matchingLeft || (q.matchingPairs ? q.matchingPairs.map(p => p.left) : []),
+        matchingRight: q.matchingRight || (q.matchingPairs ? q.matchingPairs.map(p => p.right) : []),
         timeLimitSeconds: q.timeLimitSeconds
       }));
       return res.json({
@@ -351,8 +422,10 @@ app.post('/api/sessions/start', async (req, res) => {
   const sanitizedQuestions = rawQuestions.map(q => ({
     id: q.id,
     text: q.text,
-    type: q.type,
-    options: q.options,
+    type: q.type || 'single',
+    options: q.options || [],
+    matchingLeft: q.matchingLeft || (q.matchingPairs ? q.matchingPairs.map(p => p.left) : []),
+    matchingRight: q.matchingRight || (q.matchingPairs ? q.matchingPairs.map(p => p.right) : []),
     timeLimitSeconds: q.timeLimitSeconds
   }));
 
@@ -381,8 +454,10 @@ app.get('/api/sessions/:id/state', async (req, res) => {
   const sanitizedQuestions = rawQuestions.map(q => ({
     id: q.id,
     text: q.text,
-    type: q.type,
-    options: q.options,
+    type: q.type || 'single',
+    options: q.options || [],
+    matchingLeft: q.matchingLeft || (q.matchingPairs ? q.matchingPairs.map(p => p.left) : []),
+    matchingRight: q.matchingRight || (q.matchingPairs ? q.matchingPairs.map(p => p.right) : []),
     timeLimitSeconds: q.timeLimitSeconds
   }));
   res.json({
@@ -552,42 +627,245 @@ app.put('/api/admin/tests/:id', requireAdmin, async (req, res) => {
 });
 
 app.post('/api/admin/tests/:id/questions', requireAdmin, async (req, res) => {
-  const { text, options, correct, timeLimitSeconds, type } = req.body;
-  if (!text || !Array.isArray(options) || options.length < 2) {
-    return res.status(400).json({ error: 'Питання повинно містити текст і як мінімум 2 варіанти' });
+  const { text, options, correct, timeLimitSeconds, type, matchingPairs, orderingItems } = req.body;
+  if (!text || !text.trim()) {
+    return res.status(400).json({ error: 'Питання повинно містити текст' });
   }
-  const correctIdx = parseInt(correct, 10);
-  if (isNaN(correctIdx) || correctIdx < 0 || correctIdx >= options.length) {
-    return res.status(400).json({ error: 'Некоректний індекс правильної відповіді' });
+
+  const qType = type || 'single';
+  let processedCorrect = 0;
+
+  if (qType === 'multiple') {
+    processedCorrect = Array.isArray(correct) ? correct.map(Number).filter(n => !isNaN(n)) : [0];
+  } else if (qType === 'matching') {
+    processedCorrect = typeof correct === 'object' && correct !== null ? correct : {};
+  } else if (qType === 'ordering') {
+    processedCorrect = Array.isArray(orderingItems) ? orderingItems : (Array.isArray(options) ? options : []);
+  } else {
+    processedCorrect = parseInt(correct, 10);
+    if (isNaN(processedCorrect) || processedCorrect < 0) processedCorrect = 0;
   }
+
   const newQ = await db.addQuestion(req.params.id, {
-    text,
-    options,
-    correct: correctIdx,
+    text: text.trim(),
+    options: Array.isArray(options) ? options : [],
+    matchingPairs: Array.isArray(matchingPairs) ? matchingPairs : [],
+    orderingItems: Array.isArray(orderingItems) ? orderingItems : [],
+    correct: processedCorrect,
     timeLimitSeconds: parseInt(timeLimitSeconds, 10) || 60,
-    type: type || 'single'
+    type: qType
   });
+
   if (!newQ) {
     return res.status(404).json({ error: 'Тест не знайдено' });
   }
   res.status(201).json(newQ);
 });
 
-app.put('/api/admin/tests/:id/questions/:qId', requireAdmin, async (req, res) => {
-  const { text, options, correct, timeLimitSeconds } = req.body;
-  if (options && (!Array.isArray(options) || options.length < 2)) {
-    return res.status(400).json({ error: 'Повинно бути щонайменше 2 варіанти відповіді' });
+app.post('/api/admin/tests/:id/questions/bulk', requireAdmin, async (req, res) => {
+  const { questions, replaceExisting } = req.body;
+  const test = await db.getTest(req.params.id);
+  if (!test) {
+    return res.status(404).json({ error: 'Тест не знайдено' });
   }
+
+  if (!Array.isArray(questions) || questions.length === 0) {
+    return res.status(400).json({ error: 'Список питань порожній' });
+  }
+
+  if (replaceExisting) {
+    test.questions = [];
+  } else if (!test.questions) {
+    test.questions = [];
+  }
+
+  const added = [];
+  for (const q of questions) {
+    if (!q.text || !q.text.trim()) continue;
+    const qType = q.type || 'single';
+    let processedCorrect = 0;
+
+    if (qType === 'multiple') {
+      processedCorrect = Array.isArray(q.correct) ? q.correct.map(Number).filter(n => !isNaN(n)) : [0];
+    } else if (qType === 'matching') {
+      processedCorrect = typeof q.correct === 'object' && q.correct !== null ? q.correct : {};
+    } else if (qType === 'ordering') {
+      processedCorrect = Array.isArray(q.orderingItems) ? q.orderingItems : (Array.isArray(q.options) ? q.options : []);
+    } else {
+      processedCorrect = parseInt(q.correct, 10);
+      if (isNaN(processedCorrect) || processedCorrect < 0) processedCorrect = 0;
+    }
+
+    const newQuestion = {
+      id: 'q_' + Math.random().toString(36).substring(2, 9),
+      text: q.text.trim(),
+      type: qType,
+      options: Array.isArray(q.options) ? q.options : [],
+      matchingPairs: Array.isArray(q.matchingPairs) ? q.matchingPairs : [],
+      orderingItems: Array.isArray(q.orderingItems) ? q.orderingItems : [],
+      correct: processedCorrect,
+      timeLimitSeconds: parseInt(q.timeLimitSeconds, 10) || 60
+    };
+    test.questions.push(newQuestion);
+    added.push(newQuestion);
+  }
+
+  await db.saveTest(test);
+  res.json({ success: true, count: added.length, questions: added });
+});
+
+app.put('/api/admin/tests/:id/questions/:qId', requireAdmin, async (req, res) => {
+  const { text, options, correct, timeLimitSeconds, type, matchingPairs, orderingItems } = req.body;
+  const qType = type || 'single';
+  let processedCorrect = 0;
+
+  if (qType === 'multiple') {
+    processedCorrect = Array.isArray(correct) ? correct.map(Number).filter(n => !isNaN(n)) : [0];
+  } else if (qType === 'matching') {
+    processedCorrect = typeof correct === 'object' && correct !== null ? correct : {};
+  } else if (qType === 'ordering') {
+    processedCorrect = Array.isArray(orderingItems) ? orderingItems : (Array.isArray(options) ? options : []);
+  } else {
+    processedCorrect = parseInt(correct, 10);
+    if (isNaN(processedCorrect) || processedCorrect < 0) processedCorrect = 0;
+  }
+
   const updated = await db.updateQuestion(req.params.id, req.params.qId, {
     text,
     options,
-    correct,
-    timeLimitSeconds
+    matchingPairs,
+    orderingItems,
+    correct: processedCorrect,
+    timeLimitSeconds,
+    type: qType
   });
   if (!updated) {
     return res.status(404).json({ error: 'Питання або тест не знайдено' });
   }
   res.json(updated);
+});
+
+app.post('/api/admin/ai-parse-import', requireAdmin, async (req, res) => {
+  try {
+    const { rawText, apiKey = '' } = req.body;
+    if (!rawText || !rawText.trim()) {
+      return res.status(400).json({ error: 'Введіть текст тесту для розпізнавання' });
+    }
+
+    const keyToUse = (apiKey && apiKey.trim()) ? apiKey.trim() : DEFAULT_GEMINI_KEY;
+
+    if (keyToUse) {
+      const promptText = `Ти — експертний методист і парсер тестів українською мовою.
+Твоє завдання — перетворити будь-який сирий текст тесту (з підручника, Word, сайту чи ЗНО) у структурований JSON.
+Підтримуй такі типи питань:
+1. "single": одна правильна відповідь. options: масив рядків, correct: індекс правильної відповіді (0, 1, 2...).
+2. "multiple": кілька правильних відповідей. options: масив рядків, correct: масив індексів (наприклад [0, 2]).
+3. "matching": встановлення відповідності між парами. matchingPairs: масив об'єктів [{"left": "...", "right": "..."}].
+4. "ordering": встановлення послідовності. orderingItems: масив елементів у правильному хронологічному порядку.
+
+Якщо варіант позначено +, *, "вірно" чи вказано ключ відповідей в кінці, визнач правильну відповідь.
+Час на питання timeLimitSeconds: 60.
+
+Ось текст:
+${rawText.trim()}
+
+Поверни результат ТІЛЬКИ як валідний JSON у форматі:
+{
+  "questions": [
+    {
+      "text": "Текст питання",
+      "type": "single",
+      "options": ["Варіант 1", "Варіант 2", "Варіант 3", "Варіант 4"],
+      "correct": 0,
+      "timeLimitSeconds": 60
+    }
+  ]
+}`;
+
+      const modelsToTry = ['gemini-2.5-flash', 'gemini-1.5-flash', 'gemini-flash-latest'];
+      let geminiRes = null;
+
+      for (const model of modelsToTry) {
+        try {
+          const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${encodeURIComponent(keyToUse)}`;
+          const gRes = await fetch(apiUrl, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              contents: [{ parts: [{ text: promptText }] }],
+              generationConfig: {
+                responseMimeType: 'application/json',
+                temperature: 0.2
+              }
+            }),
+            signal: AbortSignal.timeout(5000)
+          });
+
+          if (gRes.ok) {
+            geminiRes = await gRes.json();
+            break;
+          }
+        } catch {}
+      }
+
+      if (geminiRes) {
+        const rawContent = geminiRes.candidates?.[0]?.content?.parts?.[0]?.text;
+        if (rawContent) {
+          try {
+            const parsed = JSON.parse(rawContent);
+            if (Array.isArray(parsed.questions) && parsed.questions.length > 0) {
+              return res.json({ success: true, source: 'gemini', questions: parsed.questions });
+            }
+          } catch {}
+        }
+      }
+    }
+
+    const fallbackQuestions = [];
+    const blocks = rawText.split(/(?=(?:^|\n)\s*(?:\d+[\.\)]|Питання\s*\d+[\.:]?))/i).map(b => b.trim()).filter(Boolean);
+
+    for (const block of blocks) {
+      const lines = block.split(/\r?\n/).map(l => l.trim()).filter(Boolean);
+      if (lines.length < 2) continue;
+
+      const qText = lines[0].replace(/^\d+[\.\)]\s*|^Питання\s*\d+[\.:]?\s*/i, '').trim();
+      const optLines = lines.slice(1);
+      const options = [];
+      let correctIdx = 0;
+
+      optLines.forEach((ol, idx) => {
+        let isCorrect = false;
+        let clean = ol;
+        if (clean.includes('+') || clean.includes('*') || clean.toLowerCase().includes('(правильно)')) {
+          isCorrect = true;
+          clean = clean.replace(/[\+\*]|\(правильно\)/gi, '').trim();
+        }
+        clean = clean.replace(/^[А-ЯA-Z\d][\.\)]\s*/i, '').trim();
+        if (clean) {
+          if (isCorrect) correctIdx = options.length;
+          options.push(clean);
+        }
+      });
+
+      if (options.length >= 2) {
+        fallbackQuestions.push({
+          text: qText,
+          type: 'single',
+          options,
+          correct: correctIdx,
+          timeLimitSeconds: 60
+        });
+      }
+    }
+
+    if (fallbackQuestions.length > 0) {
+      return res.json({ success: true, source: 'local_parser', questions: fallbackQuestions });
+    }
+
+    res.status(400).json({ error: 'Не вдалося розпізнати питання з тексту. Перевірте формат або підключення до ШІ.' });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
 });
 
 app.delete('/api/admin/tests/:id/questions/:qId', requireAdmin, async (req, res) => {
@@ -1163,7 +1441,7 @@ app.post('/api/admin/update/apply', requireAdmin, async (req, res) => {
           const dPath = path.join(dest, entry.name);
           const rel = path.relative(rootDir, dPath).replace(/\\/g, '/').toLowerCase();
 
-          if (rel === 'server/data.json' || rel === '.env' || rel.startsWith('.env') || rel.startsWith('node_modules') || rel.startsWith('server/backups') || rel === 'update_temp.zip' || rel.startsWith('temp_update')) {
+          if (rel === 'server/data.json' || rel === '.env' || rel.startsWith('.env') || rel.startsWith('node_modules') || rel.startsWith('server/backups') || rel === 'server/admin_secret.json' || rel === 'update_temp.zip' || rel.startsWith('temp_update')) {
             continue;
           }
 
@@ -1262,6 +1540,7 @@ async function bootstrap() {
     console.log('       СИСТЕМА БЕЗПЕЧНОГО ТЕСТУВАННЯ ЗАПУЩЕНА');
     console.log('==========================================================');
     console.log(`[+] Адмін-панель:            http://localhost:${PORT}/admin.html`);
+    console.log(`[+] Пароль викладача:        ${ADMIN_PASSWORD}`);
     console.log(`[+] Локальна мережа (Wi-Fi): http://${localIp}:${PORT}`);
     if (tunnel) {
       console.log(`[+] Інтернет (Ngrok тунель): ${tunnel}`);

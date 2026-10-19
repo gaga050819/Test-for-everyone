@@ -4,3 +4,4 @@ node_modules/
 ngrok.exe
 *.zip
 server/backups/
+server/admin_secret.json
