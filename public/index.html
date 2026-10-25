@@ -43,7 +43,7 @@
         <div class="device-badge-row">
           <span class="device-pill" id="deviceTypePill">Визначення пристрою...</span>
         </div>
-        <h1 class="welcome-title" id="welcomeTitle">Підсумковий Контроль Знань</h1>
+        <h1 class="welcome-title gradient-title" id="welcomeTitle">Підсумковий Контроль Знань</h1>
         <p class="welcome-description">
           Система веде моніторинг стабільності інтернет-з'єднання та активності вікна. Збої мережі не штрафуються і ставлять тест на паузу. Спроби згорнути вікно, відкрити іншу програму, розділити екран або зробити скріншот фіксуються в журналі порушень.
         </p>
@@ -91,7 +91,7 @@
           </div>
           <div style="display: flex; gap: 6px;">
             <button id="resumeSessionBtn" class="btn-primary" style="width: auto; padding: 6px 12px; font-size: 11px;" type="button">Продовжити</button>
-            <button id="discardSessionBtn" class="btn-secondary" style="width: auto; padding: 6px 10px; font-size: 11px; border-color: var(--accent-red); color: var(--accent-red);" type="button" title="Скинути збереження">✕</button>
+            <button id="discardSessionBtn" class="btn-secondary" style="width: auto; min-width: 36px; height: 36px; padding: 0 10px; font-size: 16px; border-color: var(--accent-red); color: var(--accent-red); border-radius: 50%; line-height: 1;" type="button" title="Скинути збереження">✕</button>
           </div>
         </div>
 
@@ -116,7 +116,7 @@
             <label class="form-label" style="margin: 0; font-size: 11px; font-weight: 700; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.05em; display: flex; align-items: center; gap: 6px;">
               <img src="/img/icons/folder.svg" class="pixel-icon inline" alt=""> Призначений тест від викладача
             </label>
-            <span class="tag-badge approved" style="font-size: 10px;">Активний</span>
+            <span id="testsCountBadge" class="tag-badge approved" style="font-size: 10px;">Активний</span>
           </div>
 
           <div id="activeTestTitleDisplay" style="font-size: 15px; font-weight: 700; color: var(--text); line-height: 1.4; margin-bottom: 10px;">
@@ -124,6 +124,11 @@
           </div>
 
           <div id="selectedTestInfoBadge" style="font-size: 11px; color: var(--text-muted); display: flex; flex-wrap: wrap; align-items: center; gap: 8px;"></div>
+
+          <select id="testSelectInput" class="form-input hidden" style="display:none;"><option value="">Оберіть тест...</option></select>
+          <input type="text" id="testTopicSearchInput" class="hidden" style="display:none;">
+          <select id="subjectFilterSelect" class="hidden" style="display:none;"><option value="">Усі предмети</option></select>
+          <select id="topicFilterSelect" class="hidden" style="display:none;"><option value="">Усі теми</option></select>
         </div>
 
         <div id="cameraStatusBlock" class="cam-card status-checking">
@@ -218,11 +223,11 @@
 
     <section id="testScreen" class="card-panel hidden">
       <div class="test-header-bar">
-        <div class="trust-badge-container" style="flex-shrink: 0;">
+        <div class="trust-badge-container">
           <div class="trust-score-radial">
-            <svg viewBox="0 0 46 46" width="38" height="38">
-              <circle class="trust-circle-bg" cx="23" cy="23" r="19"></circle>
-              <circle id="trustScoreCircle" class="trust-circle-val" cx="23" cy="23" r="19" stroke-dasharray="119.38" stroke-dashoffset="0"></circle>
+            <svg viewBox="0 0 44 44" width="38" height="38">
+              <circle class="trust-circle-bg" cx="22" cy="22" r="18"></circle>
+              <circle id="trustScoreCircle" class="trust-circle-val" cx="22" cy="22" r="18" stroke-dasharray="113.1" stroke-dashoffset="0"></circle>
             </svg>
             <div class="trust-score-number" id="trustScoreNumber">100%</div>
           </div>
@@ -232,17 +237,26 @@
           </div>
         </div>
 
-        <div style="flex: 1; min-width: 0; text-align: center; padding: 0 8px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px;">
-          <h2 id="testTitleDisplay" style="font-size: 13px; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%;">Підсумковий тест</h2>
-          <div id="testLivePingBadge" style="font-size: 11px; display: inline-flex; align-items: center; gap: 5px; color: var(--text-muted);">
+        <div class="test-header-center">
+          <h2 id="testTitleDisplay" class="test-header-title">Підсумковий тест</h2>
+          <div id="testLivePingBadge" class="test-header-ping">
             <span class="status-dot" id="testLivePingDot"></span>
             <span id="testLivePingValue">-- ms</span>
           </div>
         </div>
 
-        <div class="timer-box" style="flex-shrink: 0;">
-          <span class="timer-icon"><img src="/img/icons/timer.svg" class="pixel-icon" alt=""></span>
-          <span class="timer-value" id="testTimerDisplay">15:00</span>
+        <div class="timer-badge-container">
+          <div class="timer-label-box">
+            <span class="timer-title">Залишилось часу</span>
+            <span class="timer-status-text" id="timerStatusText">Таймер</span>
+          </div>
+          <div class="timer-ring-wrap">
+            <svg class="timer-ring-svg" viewBox="0 0 44 44" width="38" height="38">
+              <circle class="timer-ring-bg" cx="22" cy="22" r="18"/>
+              <circle class="timer-ring-val" id="timerRingVal" cx="22" cy="22" r="18" stroke-dasharray="113.1" stroke-dashoffset="0"/>
+            </svg>
+            <span class="timer-ring-text" id="testTimerDisplay">15:00</span>
+          </div>
         </div>
       </div>
 
@@ -260,6 +274,10 @@
       </div>
 
       <div class="options-list" id="optionsList"></div>
+
+      <div class="swipe-hint" id="swipeHint">
+        <span>← свайп, щоб перейти між питаннями →</span>
+      </div>
 
       <div class="test-controls-row">
         <div class="question-nav-pills" id="questionNavPills"></div>
@@ -303,16 +321,16 @@
 
       <div style="margin-top: 24px;">
         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; flex-wrap: wrap; gap: 8px;">
-          <h3 style="font-size: 15px; font-weight: 700; margin: 0;">Детальний аналіз відповідей та часу</h3>
-          <span id="resultAvgTimeBadge" style="font-size: 11px; color: var(--text-muted); background: var(--bg-elevated); padding: 4px 10px; border-radius: var(--radius-sm); border: 1px solid var(--border);"></span>
+          <h3 style="font-size: 15px; font-weight: 700; margin: 0;">Мої помилки</h3>
+          <span id="resultMistakeCount" style="font-size: 11px; color: var(--text-muted); background: var(--bg-elevated); padding: 4px 10px; border-radius: var(--radius-sm); border: 1px solid var(--border);"></span>
         </div>
-        <div id="resultQuestionsList" style="display: flex; flex-direction: column; gap: 10px;"></div>
+        <div id="resultQuestionsList" class="result-questions-list" role="status" aria-live="polite"></div>
       </div>
 
       <div style="margin-top: 28px;">
         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; flex-wrap: wrap; gap: 8px;">
           <div>
-            <h3 style="font-size: 15px; font-weight: 700; margin: 0;">🏆 Рейтингова таблиця (Топ результатів)</h3>
+            <h3 style="font-size: 15px; font-weight: 700; margin: 0;"><img src="/img/icons/trophy.svg" class="pixel-icon inline" alt=""> Рейтингова таблиця (Топ результатів)</h3>
             <div style="font-size: 11px; color: var(--text-muted); margin-top: 2px;">Кращі результати серед усіх учнів</div>
           </div>
           <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
@@ -364,7 +382,7 @@
 
   <footer style="text-align: center; padding: 16px 20px 20px; border-top: 1px solid var(--border); background: var(--bg-elevated);">
     <p style="font-size: 12px; color: var(--text-muted); margin: 0; line-height: 1.6;">
-      🛠️ Технічна підтримка: якщо виникли проблеми з платформою —
+      <img src="/img/icons/settings.svg" class="pixel-icon inline" alt=""> Технічна підтримка: якщо виникли проблеми з платформою —
       <a href="mailto:gaga05081@gmail.com" style="color: var(--accent); text-decoration: none; font-weight: 600;" onmouseover="this.style.textDecoration='underline'" onmouseout="this.style.textDecoration='none'">gaga05081@gmail.com</a>
     </p>
   </footer>
@@ -377,6 +395,21 @@
       <div class="countdown-badge hidden" id="warningCountdown">15 сек</div>
       <div>
         <button id="warningActionBtn" class="btn-primary" type="button">Повернутися</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="summarySubmitModal" class="modal-backdrop hidden">
+    <div class="modal-dialog summary-modal-dialog">
+      <div class="modal-icon-wrap warning" id="summaryModalIcon">
+        <img src="/img/icons/warning.svg" class="pixel-icon large" alt="">
+      </div>
+      <h3 class="modal-title" id="summaryModalTitle">Залишилися питання без відповіді</h3>
+      <p class="modal-message" id="summaryModalMessage"></p>
+      <div id="summaryModalPillsWrap" class="summary-pills-wrap"></div>
+      <div class="summary-modal-actions">
+        <button id="summaryBackBtn" class="btn-secondary" type="button">Повернутися до тесту</button>
+        <button id="summaryConfirmBtn" class="btn-primary danger" type="button">Все одно завершити</button>
       </div>
     </div>
   </div>

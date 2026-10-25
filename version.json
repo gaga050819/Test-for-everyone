@@ -1,8 +1,8 @@
 {
-  "version": "1.0.7",
+  "version": "1.0.8",
   "name": "SecureExam",
   "githubRepo": "gaga050819/Test-for-everyone",
   "updateManifestUrl": "https://raw.githubusercontent.com/gaga050819/Test-for-everyone/main/version.json",
-  "changelog": "Оновлення 1.0.7: персоналізований пароль викладача, форма зміни пароля в панелі та збереження унікального пароля при оновленнях.",
-  "lastUpdated": 1792350800000
+  "changelog": "Оновлення 1.0.8: Перевірка перед здачею (Summary Modal) з переходом до невідповіджених питань та режим відлагодження (Debug Mode).",
+  "lastUpdated": 1792953600000
 }
