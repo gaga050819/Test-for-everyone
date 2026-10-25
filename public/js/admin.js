@@ -1010,7 +1010,7 @@ function renderAdminTestSelectorOptions() {
     });
     Object.keys(grouped).sort((a, b) => a.localeCompare(b, 'uk')).forEach(subjName => {
       const grp = document.createElement('optgroup');
-      grp.label = `📚 ${subjName}`;
+      grp.label = subjName;
       grouped[subjName].forEach(t => {
         const opt = document.createElement('option');
         opt.value = t.id;
@@ -1366,11 +1366,11 @@ async function loadTestAnalytics(testId = selectedAdminTestId) {
       const card = document.createElement('div');
       card.style.cssText = 'background: var(--bg-surface); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 14px 16px; display: flex; flex-direction: column; gap: 10px;';
 
-      let diffBadge = `<span class="tag-badge approved" style="font-size: 10px;">🟢 Легке (${q.successRate}% успішності)</span>`;
+      let diffBadge = `<span class="tag-badge approved" style="font-size: 10px;"><img src="/img/icons/check.svg" class="pixel-icon inline" alt=""> Легке (${q.successRate}% успішності)</span>`;
       if (q.successRate < 50) {
-        diffBadge = `<span class="tag-badge danger" style="font-size: 10px;">🔴 Складне (${q.successRate}% успішності)</span>`;
+        diffBadge = `<span class="tag-badge danger" style="font-size: 10px;"><img src="/img/icons/warning.svg" class="pixel-icon inline" alt=""> Складне (${q.successRate}% успішності)</span>`;
       } else if (q.successRate < 75) {
-        diffBadge = `<span class="tag-badge warning" style="font-size: 10px;">🟡 Помірне (${q.successRate}% успішності)</span>`;
+        diffBadge = `<span class="tag-badge warning" style="font-size: 10px;"><img src="/img/icons/warning.svg" class="pixel-icon inline" alt=""> Помірне (${q.successRate}% успішності)</span>`;
       }
 
       let optionsBarsHtml = '';
@@ -1491,9 +1491,9 @@ function renderAdminLeaderboardTable() {
   tbody.innerHTML = '';
   list.forEach((item, idx) => {
     let medal = `#${idx + 1}`;
-    if (idx === 0) medal = '🥇 1';
-    else if (idx === 1) medal = '🥈 2';
-    else if (idx === 2) medal = '🥉 3';
+    if (idx === 0) medal = '<img src="/img/icons/medal-gold.svg" class="pixel-icon inline" alt=""> 1';
+    else if (idx === 1) medal = '<img src="/img/icons/medal-silver.svg" class="pixel-icon inline" alt=""> 2';
+    else if (idx === 2) medal = '<img src="/img/icons/medal-bronze.svg" class="pixel-icon inline" alt=""> 3';
 
     const mins = Math.floor(item.durationSeconds / 60);
     const secs = item.durationSeconds % 60;
@@ -1654,10 +1654,10 @@ function renderQuestionsList() {
     header.className = 'q-card-header';
 
     const typeBadgeMap = {
-      single: '<span class="tag-badge" style="font-size:10px;">🔘 Один варіант</span>',
-      multiple: '<span class="tag-badge warning" style="font-size:10px;">☑️ Чекбокси</span>',
-      matching: '<span class="tag-badge approved" style="font-size:10px;">🔗 Відповідність</span>',
-      ordering: '<span class="tag-badge" style="font-size:10px; background:rgba(99,102,241,0.15); color:var(--accent);">🔢 Послідовність</span>'
+      single: '<span class="tag-badge" style="font-size:10px;"><img src="/img/icons/circle.svg" class="pixel-icon inline" alt=""> Один варіант</span>',
+      multiple: '<span class="tag-badge warning" style="font-size:10px;"><img src="/img/icons/check.svg" class="pixel-icon inline" alt=""> Чекбокси</span>',
+      matching: '<span class="tag-badge approved" style="font-size:10px;"><img src="/img/icons/link.svg" class="pixel-icon inline" alt=""> Відповідність</span>',
+      ordering: '<span class="tag-badge" style="font-size:10px; background:rgba(99,102,241,0.15); color:var(--accent);"><img src="/img/icons/numbered-list.svg" class="pixel-icon inline" alt=""> Послідовність</span>'
     };
     const badgeHtml = typeBadgeMap[q.type || 'single'] || typeBadgeMap.single;
 
@@ -1708,7 +1708,7 @@ function renderQuestionsList() {
       pairs.forEach((p) => {
         const pill = document.createElement('div');
         pill.className = 'q-option-pill';
-        pill.innerHTML = `<span>🔗</span> <span style="flex:1;"><strong>${escapeHtml(p.left)}</strong> ↔ ${escapeHtml(p.right)}</span>`;
+        pill.innerHTML = `<img src="/img/icons/link.svg" class="pixel-icon inline" alt=""> <span style="flex:1;"><strong>${escapeHtml(p.left)}</strong> ↔ ${escapeHtml(p.right)}</span>`;
         optGrid.appendChild(pill);
       });
     } else if (q.type === 'ordering') {
@@ -1726,7 +1726,7 @@ function renderQuestionsList() {
         const pill = document.createElement('div');
         pill.className = 'q-option-pill' + (isCorrect ? ' correct' : '');
         pill.innerHTML = `
-          <span>${isCorrect ? '☑️' : '◻️'}</span>
+          <span>${isCorrect ? '<img src="/img/icons/check.svg" class="pixel-icon inline" alt="">' : '<img src="/img/icons/circle.svg" class="pixel-icon inline" alt="">'}</span>
           <span style="flex:1;">${escapeHtml(optText)}</span>
           ${isCorrect ? '<strong style="font-size: 10px; text-transform: uppercase;">[Правильна]</strong>' : ''}
         `;
@@ -2609,7 +2609,8 @@ function initImportQuestionsControls() {
       row.style.borderRadius = '4px';
       row.style.fontSize = '12px';
 
-      const typeLabel = q.type === 'multiple' ? '☑️ Чекбокси' : (q.type === 'matching' ? '🔗 Відповідність' : (q.type === 'ordering' ? '🔢 Послідовність' : '🔘 1 варіант'));
+      const typeLabelMap = { multiple: '<img src="/img/icons/check.svg" class="pixel-icon inline" alt=""> Чекбокси', matching: '<img src="/img/icons/link.svg" class="pixel-icon inline" alt=""> Відповідність', ordering: '<img src="/img/icons/numbered-list.svg" class="pixel-icon inline" alt=""> Послідовність', single: '<img src="/img/icons/circle.svg" class="pixel-icon inline" alt=""> 1 варіант' };
+      const typeLabel = typeLabelMap[q.type] || typeLabelMap.single;
 
       let samplePreview = '';
       if (q.type === 'matching' && Array.isArray(q.matchingPairs)) {
@@ -2831,7 +2832,7 @@ function renderClassesList() {
       </div>
       <div>
         <button class="btn-primary btn-manage-class" data-id="${c.id}" style="width: 100%; font-size: 12px; padding: 8px 12px;" type="button">
-          👥 Учні та тести класу →
+          <img src="/img/icons/group.svg" class="pixel-icon inline" alt=""> Учні та тести класу →
         </button>
       </div>
     `;

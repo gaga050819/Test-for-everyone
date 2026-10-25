@@ -36,6 +36,9 @@ export class ProctorEngine {
     this.pingTimer = null;
     this.splitScreenCheckTimer = null;
     this.splitScreenGraceTimer = null;
+    this.devToolsTimer = null;
+    this.visibilityLossTimer = null;
+    this.devToolsOpen = false;
     this.splitScreenGraceRemaining = 10;
     this.isInsideSplitScreenGrace = false;
     this.splitScreenOverlay = null;
@@ -43,6 +46,7 @@ export class ProctorEngine {
     this.watermarkCanvas = null;
     this.watermarkInterval = null;
     this.ws = null;
+    this.visibilityHiddenAt = null;
     this.initialScreenHeight = window.screen.height || window.innerHeight;
     this.isInputFocused = false;
   }
@@ -215,30 +219,54 @@ export class ProctorEngine {
   initVisibilityMonitoring() {
     document.addEventListener('visibilitychange', () => {
       if (document.visibilityState === 'hidden') {
-        this.handleFocusLoss('tab_visibility_hidden');
+        this.visibilityHiddenAt = Date.now();
+        if (this.isIOS) {
+          if (this.visibilityLossTimer) clearTimeout(this.visibilityLossTimer);
+          this.visibilityLossTimer = setTimeout(() => {
+            this.visibilityLossTimer = null;
+            if (document.visibilityState === 'hidden') {
+              this.handleFocusLoss('tab_visibility_hidden');
+            }
+          }, 1200);
+        } else {
+          this.handleFocusLoss('tab_visibility_hidden');
+        }
       } else if (document.visibilityState === 'visible') {
+        if (this.visibilityLossTimer) {
+          clearTimeout(this.visibilityLossTimer);
+          this.visibilityLossTimer = null;
+        }
+        if (this.isIOS && this.visibilityHiddenAt && Date.now() - this.visibilityHiddenAt >= 1200 && this.inactiveStartTime === null) {
+          this.handleFocusLoss('tab_visibility_hidden');
+        }
+        this.visibilityHiddenAt = null;
         this.handleFocusRestored('tab_visibility_visible');
       }
     });
 
-    window.addEventListener('blur', () => {
-      this.handleFocusLoss('window_blur');
-    });
-
-    window.addEventListener('focus', () => {
-      this.handleFocusRestored('window_focus');
-    });
-
-    document.documentElement.addEventListener('mouseleave', () => {
-      this.options.onStatusChange({
-        status: 'warning',
-        message: 'Курсор миші залишив межі тестового вікна'
+    if (!this.isMobile) {
+      window.addEventListener('blur', () => {
+        this.handleFocusLoss('window_blur');
       });
-    });
+
+      window.addEventListener('focus', () => {
+        this.handleFocusRestored('window_focus');
+      });
+    }
+
+    if (!this.isMobile) {
+      document.documentElement.addEventListener('mouseleave', () => {
+        if (this.isBypassed) return;
+        this.options.onStatusChange({
+          status: 'warning',
+          message: 'Курсор миші залишив межі тестового вікна'
+        });
+      });
+    }
   }
 
   handleFocusLoss(triggerSource) {
-    if (!this.isRunning || this.isCompleted) return;
+    if (!this.isRunning || this.isCompleted || this.isBypassed) return;
     if (this.inactiveStartTime !== null) return;
 
     this.inactiveStartTime = Date.now();
@@ -291,7 +319,7 @@ export class ProctorEngine {
   }
 
   handleFocusRestored(triggerSource) {
-    if (!this.isRunning) return;
+    if (!this.isRunning || this.isBypassed) return;
     if (this.inactiveStartTime === null) return;
 
     const durationSeconds = Math.round((Date.now() - this.inactiveStartTime) / 1000);
@@ -309,7 +337,7 @@ export class ProctorEngine {
   }
 
   isFullscreenSupported() {
-    if (this.isIPhone) return false;
+    if (this.isIOS) return false;
     const doc = document;
     return !!(
       doc.fullscreenEnabled ||
@@ -337,9 +365,11 @@ export class ProctorEngine {
       });
     }
 
-    setInterval(() => {
-      this.detectDevTools();
-    }, 1500);
+    if (!this.isMobile) {
+      this.devToolsTimer = setInterval(() => {
+        this.detectDevTools();
+      }, 1500);
+    }
   }
 
   async enterFullscreen() {
@@ -405,11 +435,13 @@ export class ProctorEngine {
   }
 
   detectDevTools() {
-    if (!this.isRunning || this.isCompleted) return;
+    if (!this.isRunning || this.isCompleted || this.isMobile || this.isBypassed) return;
     const widthDiff = window.outerWidth - window.innerWidth;
     const heightDiff = window.outerHeight - window.innerHeight;
+    const detected = widthDiff > 160 || heightDiff > 160;
 
-    if (widthDiff > 160 || heightDiff > 160) {
+    if (detected && !this.devToolsOpen) {
+      this.devToolsOpen = true;
       this.recordIncident({
         category: 'devtools_opened',
         type: 'devtools_detected_size',
@@ -422,6 +454,8 @@ export class ProctorEngine {
         message: 'Використання інструментів розробника суворо заборонено.',
         severity: 'danger'
       });
+    } else if (!detected) {
+      this.devToolsOpen = false;
     }
   }
 
@@ -463,7 +497,7 @@ export class ProctorEngine {
       const t = e.changedTouches[0];
       const dy = t.clientY - this._edgeSwipeStart.y;
       const dt = Date.now() - this._edgeSwipeStart.time;
-      if (dt < 600 && this._edgeSwipeStart.fromTop && dy > 50) {
+      if (!this.isIOS && dt < 600 && this._edgeSwipeStart.fromTop && dy > 50) {
         this.recordIncident({
           category: 'cheating_attempt',
           type: 'notification_panel_swipe',
@@ -508,6 +542,7 @@ export class ProctorEngine {
   }
 
   initSplitScreenMonitor() {
+    if (this.isIOS) return;
     if (this.splitScreenCheckTimer) clearInterval(this.splitScreenCheckTimer);
     this.splitScreenCheckTimer = setInterval(() => {
       this.checkSplitScreen();
@@ -583,7 +618,7 @@ export class ProctorEngine {
   checkSplitScreen(isImmediate = false) {
     if (!this.isRunning || this.isCompleted || this.isBypassed) return;
     if (this.isInputFocused) return;
-    if (this.isIPhone) return; // iPhones do not support split-screen; avoid false positives on Safari toolbars
+    if (this.isIOS) return;
 
     const isLandscape = window.innerWidth > window.innerHeight;
     const screenH = isLandscape
@@ -1315,7 +1350,7 @@ export class ProctorEngine {
   }
 
   recordIncident(incident) {
-    if (this.isBypassed && (incident.penalty || incident.severity === 'danger')) {
+    if (this.isBypassed) {
       return;
     }
 
@@ -1372,10 +1407,12 @@ export class ProctorEngine {
   destroy() {
     this.isRunning = false;
     if (this.pingTimer) clearInterval(this.pingTimer);
+    if (this.devToolsTimer) clearInterval(this.devToolsTimer);
     if (this.splitScreenCheckTimer) clearInterval(this.splitScreenCheckTimer);
     if (this.splitScreenGraceTimer) clearInterval(this.splitScreenGraceTimer);
     this.hideSplitScreenBlackout();
     if (this.fullscreenGraceTimer) clearInterval(this.fullscreenGraceTimer);
+    if (this.visibilityLossTimer) clearTimeout(this.visibilityLossTimer);
     if (this.watermarkInterval) clearInterval(this.watermarkInterval);
     if (this._cameraStream) {
       this._cameraStream.getTracks().forEach(t => t.stop());

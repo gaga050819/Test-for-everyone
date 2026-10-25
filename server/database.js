@@ -189,11 +189,13 @@ export class JsonFileDatabaseAdapter extends DatabaseAdapter {
     if (!test) return null;
     if (!test.questions) test.questions = [];
     const newQuestion = {
-      id: 'q_' + Math.random().toString(36).substring(2, 9),
+      id: questionData.id || ('q_' + Math.random().toString(36).substring(2, 9)),
       text: questionData.text,
       type: questionData.type || 'single',
       options: questionData.options || [],
-      correct: parseInt(questionData.correct, 10) || 0,
+      matchingPairs: questionData.matchingPairs || [],
+      orderingItems: questionData.orderingItems || [],
+      correct: questionData.correct !== undefined ? questionData.correct : 0,
       timeLimitSeconds: parseInt(questionData.timeLimitSeconds, 10) || 60
     };
     test.questions.push(newQuestion);
@@ -209,8 +211,11 @@ export class JsonFileDatabaseAdapter extends DatabaseAdapter {
     test.questions[idx] = {
       ...test.questions[idx],
       text: questionData.text !== undefined ? questionData.text : test.questions[idx].text,
+      type: questionData.type !== undefined ? questionData.type : (test.questions[idx].type || 'single'),
       options: questionData.options !== undefined ? questionData.options : test.questions[idx].options,
-      correct: questionData.correct !== undefined ? parseInt(questionData.correct, 10) : test.questions[idx].correct,
+      matchingPairs: questionData.matchingPairs !== undefined ? questionData.matchingPairs : test.questions[idx].matchingPairs,
+      orderingItems: questionData.orderingItems !== undefined ? questionData.orderingItems : test.questions[idx].orderingItems,
+      correct: questionData.correct !== undefined ? questionData.correct : test.questions[idx].correct,
       timeLimitSeconds: questionData.timeLimitSeconds !== undefined ? parseInt(questionData.timeLimitSeconds, 10) : test.questions[idx].timeLimitSeconds
     };
     await this.persist();
@@ -234,7 +239,78 @@ export class JsonFileDatabaseAdapter extends DatabaseAdapter {
     let randomizedQuestions = [];
     if (originalTest && originalTest.questions) {
       randomizedQuestions = originalTest.questions.map(q => {
-        const indexedOptions = q.options.map((opt, originalIdx) => ({ opt, originalIdx }));
+        const type = q.type || 'single';
+
+        if (type === 'multiple') {
+          const rawOpts = Array.isArray(q.options) ? q.options : [];
+          const indexedOptions = rawOpts.map((opt, originalIdx) => ({ opt, originalIdx }));
+          for (let i = indexedOptions.length - 1; i > 0; i--) {
+            const j = Math.floor(Math.random() * (i + 1));
+            [indexedOptions[i], indexedOptions[j]] = [indexedOptions[j], indexedOptions[i]];
+          }
+          const origCorrectArr = Array.isArray(q.correct) ? q.correct.map(Number) : [Number(q.correct) || 0];
+          const newCorrectArr = origCorrectArr.map(oldIdx => {
+            return indexedOptions.findIndex(o => o.originalIdx === oldIdx);
+          }).filter(idx => idx !== -1).sort((a, b) => a - b);
+
+          return {
+            id: q.id,
+            text: q.text,
+            type: 'multiple',
+            options: indexedOptions.map(o => o.opt),
+            correct: newCorrectArr,
+            timeLimitSeconds: q.timeLimitSeconds
+          };
+        }
+
+        if (type === 'matching') {
+          const pairs = Array.isArray(q.matchingPairs) ? q.matchingPairs : [];
+          const leftItems = pairs.map((p, idx) => ({ id: idx, text: p.left || '' }));
+          const rightItems = pairs.map((p, idx) => ({ originalIdx: idx, text: p.right || '' }));
+          for (let i = rightItems.length - 1; i > 0; i--) {
+            const j = Math.floor(Math.random() * (i + 1));
+            [rightItems[i], rightItems[j]] = [rightItems[j], rightItems[i]];
+          }
+          const correctMap = {};
+          leftItems.forEach(left => {
+            const newRightIdx = rightItems.findIndex(r => r.originalIdx === left.id);
+            correctMap[left.id] = newRightIdx;
+          });
+
+          return {
+            id: q.id,
+            text: q.text,
+            type: 'matching',
+            matchingPairs: pairs,
+            matchingLeft: leftItems.map(l => l.text),
+            matchingRight: rightItems.map(r => r.text),
+            correct: correctMap,
+            timeLimitSeconds: q.timeLimitSeconds
+          };
+        }
+
+        if (type === 'ordering') {
+          const rawItems = Array.isArray(q.orderingItems) && q.orderingItems.length > 0
+            ? q.orderingItems
+            : (Array.isArray(q.options) ? q.options : []);
+          const indexed = rawItems.map((text, originalOrder) => ({ text, originalOrder }));
+          for (let i = indexed.length - 1; i > 0; i--) {
+            const j = Math.floor(Math.random() * (i + 1));
+            [indexed[i], indexed[j]] = [indexed[j], indexed[i]];
+          }
+          return {
+            id: q.id,
+            text: q.text,
+            type: 'ordering',
+            orderingItems: rawItems,
+            options: indexed.map(item => item.text),
+            correct: rawItems,
+            timeLimitSeconds: q.timeLimitSeconds
+          };
+        }
+
+        const rawOpts = Array.isArray(q.options) ? q.options : [];
+        const indexedOptions = rawOpts.map((opt, originalIdx) => ({ opt, originalIdx }));
         for (let i = indexedOptions.length - 1; i > 0; i--) {
           const j = Math.floor(Math.random() * (i + 1));
           [indexedOptions[i], indexedOptions[j]] = [indexedOptions[j], indexedOptions[i]];
@@ -243,12 +319,13 @@ export class JsonFileDatabaseAdapter extends DatabaseAdapter {
         return {
           id: q.id,
           text: q.text,
-          type: q.type,
+          type: 'single',
           options: indexedOptions.map(o => o.opt),
-          correct: newCorrectIdx,
+          correct: newCorrectIdx >= 0 ? newCorrectIdx : 0,
           timeLimitSeconds: q.timeLimitSeconds
         };
       });
+
       for (let i = randomizedQuestions.length - 1; i > 0; i--) {
         const j = Math.floor(Math.random() * (i + 1));
         [randomizedQuestions[i], randomizedQuestions[j]] = [randomizedQuestions[j], randomizedQuestions[i]];
@@ -372,13 +449,61 @@ export class JsonFileDatabaseAdapter extends DatabaseAdapter {
 
     questions.forEach((q) => {
       const userAnswer = submission.answers[q.id];
-      const isCorrect = userAnswer !== undefined && userAnswer === q.correct;
-      if (isCorrect) correctCount++;
+      let isCorrect = false;
+      let earnedPoints = 0;
+
+      if (q.type === 'multiple') {
+        const correctArr = Array.isArray(q.correct) ? q.correct.map(Number).sort((a, b) => a - b) : [];
+        const userArr = Array.isArray(userAnswer) ? userAnswer.map(Number).sort((a, b) => a - b) : [];
+        if (correctArr.length > 0 && userArr.length === correctArr.length && userArr.every((v, i) => v === correctArr[i])) {
+          isCorrect = true;
+          earnedPoints = 1;
+        } else if (correctArr.length > 0 && userArr.length > 0) {
+          const matched = userArr.filter(v => correctArr.includes(v)).length;
+          const wrong = userArr.filter(v => !correctArr.includes(v)).length;
+          earnedPoints = Math.max(0, (matched - wrong) / correctArr.length);
+          if (earnedPoints >= 0.99) isCorrect = true;
+        }
+      } else if (q.type === 'matching') {
+        if (userAnswer && typeof userAnswer === 'object' && q.correct && typeof q.correct === 'object') {
+          const keys = Object.keys(q.correct);
+          let matchSuccess = 0;
+          keys.forEach(k => {
+            if (String(userAnswer[k]) === String(q.correct[k])) {
+              matchSuccess++;
+            }
+          });
+          earnedPoints = keys.length > 0 ? (matchSuccess / keys.length) : 0;
+          if (earnedPoints >= 0.99) isCorrect = true;
+        }
+      } else if (q.type === 'ordering') {
+        if (Array.isArray(userAnswer) && Array.isArray(q.correct)) {
+          if (userAnswer.length === q.correct.length && userAnswer.every((v, i) => String(v) === String(q.correct[i]))) {
+            isCorrect = true;
+            earnedPoints = 1;
+          } else {
+            let correctPositions = 0;
+            userAnswer.forEach((v, i) => {
+              if (String(v) === String(q.correct[i])) correctPositions++;
+            });
+            earnedPoints = q.correct.length > 0 ? (correctPositions / q.correct.length) : 0;
+            if (earnedPoints >= 0.99) isCorrect = true;
+          }
+        }
+      } else {
+        if (userAnswer !== undefined && Number(userAnswer) === Number(q.correct)) {
+          isCorrect = true;
+          earnedPoints = 1;
+        }
+      }
+
+      correctCount += earnedPoints;
       const timeSpent = (submission.questionTimings && submission.questionTimings[q.id]) ? submission.questionTimings[q.id] : 0;
       gradedAnswers[q.id] = {
         userAnswer,
         correctAnswer: q.correct,
         isCorrect,
+        earnedPoints: Math.round(earnedPoints * 100) / 100,
         timeSpent
       };
     });

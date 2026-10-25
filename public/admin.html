@@ -216,7 +216,7 @@
       <div class="update-banner-content">
         <span class="update-banner-icon"><img src="/img/icons/refresh.svg" class="pixel-icon" alt=""></span>
         <div>
-          <span class="update-banner-title">🔔 Доступна нова версія <strong id="updateBannerVersion">1.2.0</strong>!</span>
+          <span class="update-banner-title"><img src="/img/icons/bell.svg" class="pixel-icon inline" alt=""> Доступна нова версія <strong id="updateBannerVersion">1.2.0</strong>!</span>
           <span class="update-banner-sub" id="updateBannerSub">Оновлення містить покращення та виправлення. Ваші дані збережуться.</span>
         </div>
       </div>
@@ -245,7 +245,7 @@
         <div style="display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 10px;">
           <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
             <div style="position: relative; display: inline-flex; align-items: center;">
-              <input type="text" id="adminTestSearchInput" class="form-input" style="width: auto; min-width: 175px; font-size: 12px; padding: 7px 24px 7px 10px;" placeholder="🔍 Пошук за темою / назвою...">
+              <input type="text" id="adminTestSearchInput" class="form-input search-input" style="width: auto; min-width: 175px; font-size: 12px; padding: 7px 24px 7px 32px;" placeholder="Пошук за темою / назвою...">
               <button id="adminTestSearchClearBtn" type="button" style="display: none; position: absolute; right: 6px; background: transparent; border: none; cursor: pointer; color: var(--text-muted); font-size: 12px; padding: 2px; line-height: 1;" title="Очистити">✕</button>
             </div>
             <select id="adminSubjectFilter" class="form-input" style="width: auto; min-width: 130px; font-size: 12px; padding: 7px 10px; cursor: pointer;">
@@ -331,7 +331,7 @@
             <div id="qrUrlLabel" style="font-size: 11px; color: var(--text-muted); word-break: break-all; margin-bottom: 14px;"></div>
             <div style="display: flex; gap: 8px; justify-content: center;">
               <button id="copyQrUrlBtn" class="btn-secondary" type="button" style="width: auto; padding: 7px 16px; font-size: 12px;">Копіювати посилання</button>
-              <button id="downloadQrBtn" class="btn-primary" type="button" style="width: auto; padding: 7px 16px; font-size: 12px;">⬇ Завантажити QR</button>
+              <button id="downloadQrBtn" class="btn-primary" type="button" style="width: auto; padding: 7px 16px; font-size: 12px;"><img src="/img/icons/download.svg" class="pixel-icon inline" alt=""> Завантажити QR</button>
             </div>
           </div>
         </div>
@@ -542,7 +542,7 @@
           </div>
           <div style="display: flex; gap: 8px;">
             <button id="refreshAdminLeaderboardBtn" class="btn-secondary" type="button"><img src="/img/icons/refresh.svg" class="pixel-icon inline" alt=""> Оновити</button>
-            <button id="exportLeaderboardCsvBtn" class="btn-primary" style="width: auto; padding: 7px 14px; font-size: 11px;" type="button">⬇ Експорт у CSV</button>
+            <button id="exportLeaderboardCsvBtn" class="btn-primary" style="width: auto; padding: 7px 14px; font-size: 11px;" type="button"><img src="/img/icons/download.svg" class="pixel-icon inline" alt=""> Експорт у CSV</button>
           </div>
         </div>
 
@@ -601,7 +601,7 @@
 
         <div class="card-panel" style="margin-bottom: 16px; padding: 12px 16px; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px;">
           <div style="display: flex; align-items: center; gap: 10px; flex-wrap: wrap; flex: 1;">
-            <input type="text" id="classSearchInput" class="form-input" style="width: auto; min-width: 220px; font-size: 12px; padding: 7px 12px;" placeholder="🔍 Пошук класу або предмету...">
+            <input type="text" id="classSearchInput" class="form-input search-input" style="width: auto; min-width: 220px; font-size: 12px; padding: 7px 12px 7px 32px;" placeholder="Пошук класу або предмету...">
             <select id="classSubjectFilter" class="form-input" style="width: auto; font-size: 12px; padding: 7px 12px; cursor: pointer;">
               <option value="">Усі предмети</option>
             </select>
@@ -697,10 +697,10 @@
           <div>
             <label class="form-label" for="qTypeSelect">Тип завдання</label>
             <select id="qTypeSelect" class="form-input" style="font-size: 13px; font-weight: 600; cursor: pointer;">
-              <option value="single">🔘 Один правильний варіант</option>
-              <option value="multiple">☑️ Кілька правильних відповідей (чекбокси)</option>
-              <option value="matching">🔗 Встановлення відповідності (логічні пари)</option>
-              <option value="ordering">🔢 Встановлення послідовності (хронологія)</option>
+              <option value="single">Один правильний варіант</option>
+              <option value="multiple">Кілька правильних відповідей (чекбокси)</option>
+              <option value="matching">Встановлення відповідності (логічні пари)</option>
+              <option value="ordering">Встановлення послідовності (хронологія)</option>
             </select>
           </div>
           <div>
@@ -984,7 +984,7 @@
         <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px;">
           <div style="background: var(--bg-surface); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 16px;">
             <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
-              <h4 style="font-size: 14px; font-weight: 700; margin: 0;">👥 Учні класу (<span id="classDetailStudentsCount">0</span>)</h4>
+              <h4 style="font-size: 14px; font-weight: 700; margin: 0;"><img src="/img/icons/group.svg" class="pixel-icon inline" alt=""> Учні класу (<span id="classDetailStudentsCount">0</span>)</h4>
             </div>
             <div style="display: flex; gap: 6px; margin-bottom: 12px;">
               <input type="text" id="classNewStudentNameInput" class="form-input" style="font-size: 12px; padding: 7px 10px;" placeholder="Прізвище та ім'я учня...">
@@ -997,7 +997,7 @@
 
           <div style="background: var(--bg-surface); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 16px;">
             <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
-              <h4 style="font-size: 14px; font-weight: 700; margin: 0;">📚 Призначені тести (<span id="classDetailTestsCount">0</span>)</h4>
+              <h4 style="font-size: 14px; font-weight: 700; margin: 0;"><img src="/img/icons/books.svg" class="pixel-icon inline" alt=""> Призначені тести (<span id="classDetailTestsCount">0</span>)</h4>
             </div>
             <div style="display: flex; gap: 6px; margin-bottom: 12px;">
               <select id="classAssignTestSelector" class="form-input" style="font-size: 12px; padding: 7px 10px; cursor: pointer; flex: 1;">
@@ -1030,7 +1030,7 @@
           Бажаєте оновити систему до версії <strong id="modalUpdateVersionDisplay" style="color: var(--accent);">1.0.1</strong>?
         </div>
         <div style="background: rgba(16, 185, 129, 0.1); border: 1px solid var(--accent-green); border-radius: 8px; padding: 12px 14px; margin-bottom: 14px; font-size: 12px; line-height: 1.5; color: var(--text);">
-          🛡️ <strong>Ваші дані залишаться недоторканими:</strong><br>
+          <img src="/img/icons/shield.svg" class="pixel-icon inline" alt=""> <strong>Ваші дані залишаться недоторканими:</strong><br>
           Створені вами класи, учні, власні тести та результати проходження тестування <strong>НЕ перезаписуються</strong>. Оновлюється тільки оболонка програми.
         </div>
         <div id="modalChangelogBlock" style="margin-bottom: 16px; background: var(--bg-surface); padding: 12px 14px; border-radius: 8px; border: 1px solid var(--border); font-size: 12px;">
