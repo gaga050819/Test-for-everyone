@@ -5,3 +5,4 @@ ngrok.exe
 *.zip
 server/backups/
 server/admin_secret.json
+public/uploads/

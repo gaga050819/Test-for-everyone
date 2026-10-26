@@ -188,14 +188,20 @@ export class JsonFileDatabaseAdapter extends DatabaseAdapter {
     const test = this.data.tests[testId];
     if (!test) return null;
     if (!test.questions) test.questions = [];
+    const images = Array.isArray(questionData.images) ? questionData.images : (questionData.imageUrl ? [questionData.imageUrl] : []);
     const newQuestion = {
       id: questionData.id || ('q_' + Math.random().toString(36).substring(2, 9)),
       text: questionData.text,
       type: questionData.type || 'single',
+      images,
+      imageUrl: questionData.imageUrl || (images[0] || ''),
       options: questionData.options || [],
       matchingPairs: questionData.matchingPairs || [],
       orderingItems: questionData.orderingItems || [],
+      blanks: Array.isArray(questionData.blanks) ? questionData.blanks : [],
+      hotspotTarget: questionData.hotspotTarget || null,
       correct: questionData.correct !== undefined ? questionData.correct : 0,
+      correctKeywords: questionData.correctKeywords || [],
       timeLimitSeconds: parseInt(questionData.timeLimitSeconds, 10) || 60
     };
     test.questions.push(newQuestion);
@@ -208,14 +214,21 @@ export class JsonFileDatabaseAdapter extends DatabaseAdapter {
     if (!test || !test.questions) return null;
     const idx = test.questions.findIndex(q => q.id === questionId);
     if (idx === -1) return null;
+    const currentImages = test.questions[idx].images || (test.questions[idx].imageUrl ? [test.questions[idx].imageUrl] : []);
+    const newImages = questionData.images !== undefined ? (Array.isArray(questionData.images) ? questionData.images : (questionData.images ? [questionData.images] : [])) : currentImages;
     test.questions[idx] = {
       ...test.questions[idx],
       text: questionData.text !== undefined ? questionData.text : test.questions[idx].text,
       type: questionData.type !== undefined ? questionData.type : (test.questions[idx].type || 'single'),
+      images: newImages,
+      imageUrl: questionData.imageUrl !== undefined ? questionData.imageUrl : (newImages[0] || test.questions[idx].imageUrl || ''),
       options: questionData.options !== undefined ? questionData.options : test.questions[idx].options,
       matchingPairs: questionData.matchingPairs !== undefined ? questionData.matchingPairs : test.questions[idx].matchingPairs,
       orderingItems: questionData.orderingItems !== undefined ? questionData.orderingItems : test.questions[idx].orderingItems,
+      blanks: questionData.blanks !== undefined ? (Array.isArray(questionData.blanks) ? questionData.blanks : []) : (test.questions[idx].blanks || []),
+      hotspotTarget: questionData.hotspotTarget !== undefined ? questionData.hotspotTarget : (test.questions[idx].hotspotTarget || null),
       correct: questionData.correct !== undefined ? questionData.correct : test.questions[idx].correct,
+      correctKeywords: questionData.correctKeywords !== undefined ? questionData.correctKeywords : (test.questions[idx].correctKeywords || []),
       timeLimitSeconds: questionData.timeLimitSeconds !== undefined ? parseInt(questionData.timeLimitSeconds, 10) : test.questions[idx].timeLimitSeconds
     };
     await this.persist();
@@ -240,6 +253,32 @@ export class JsonFileDatabaseAdapter extends DatabaseAdapter {
     if (originalTest && originalTest.questions) {
       randomizedQuestions = originalTest.questions.map(q => {
         const type = q.type || 'single';
+        const imageUrl = q.imageUrl || '';
+
+        if (type === 'short_answer') {
+          return {
+            id: q.id,
+            text: q.text,
+            type: 'short_answer',
+            imageUrl,
+            options: [],
+            correct: q.correct !== undefined ? q.correct : '',
+            correctKeywords: Array.isArray(q.correctKeywords) ? q.correctKeywords : [],
+            timeLimitSeconds: q.timeLimitSeconds
+          };
+        }
+
+        if (type === 'true_false') {
+          return {
+            id: q.id,
+            text: q.text,
+            type: 'true_false',
+            imageUrl,
+            options: ['Неправда', 'Правда'],
+            correct: Number(q.correct) === 1 ? 1 : 0,
+            timeLimitSeconds: q.timeLimitSeconds
+          };
+        }
 
         if (type === 'multiple') {
           const rawOpts = Array.isArray(q.options) ? q.options : [];
@@ -257,6 +296,7 @@ export class JsonFileDatabaseAdapter extends DatabaseAdapter {
             id: q.id,
             text: q.text,
             type: 'multiple',
+            imageUrl,
             options: indexedOptions.map(o => o.opt),
             correct: newCorrectArr,
             timeLimitSeconds: q.timeLimitSeconds
@@ -281,6 +321,7 @@ export class JsonFileDatabaseAdapter extends DatabaseAdapter {
             id: q.id,
             text: q.text,
             type: 'matching',
+            imageUrl,
             matchingPairs: pairs,
             matchingLeft: leftItems.map(l => l.text),
             matchingRight: rightItems.map(r => r.text),
@@ -302,9 +343,35 @@ export class JsonFileDatabaseAdapter extends DatabaseAdapter {
             id: q.id,
             text: q.text,
             type: 'ordering',
+            imageUrl,
             orderingItems: rawItems,
             options: indexed.map(item => item.text),
             correct: rawItems,
+            timeLimitSeconds: q.timeLimitSeconds
+          };
+        }
+
+        if (type === 'fill_blanks') {
+          return {
+            id: q.id,
+            text: q.text,
+            type: 'fill_blanks',
+            imageUrl,
+            images: Array.isArray(q.images) && q.images.length > 0 ? q.images : (imageUrl ? [imageUrl] : []),
+            blanks: Array.isArray(q.blanks) ? q.blanks : [],
+            timeLimitSeconds: q.timeLimitSeconds
+          };
+        }
+
+        if (type === 'hotspot') {
+          return {
+            id: q.id,
+            text: q.text,
+            type: 'hotspot',
+            imageUrl,
+            images: Array.isArray(q.images) && q.images.length > 0 ? q.images : (imageUrl ? [imageUrl] : []),
+            hotspotTarget: q.hotspotTarget || null,
+            hotspotPrompt: q.hotspotPrompt || 'Клікніть на правильну область на зображенні',
             timeLimitSeconds: q.timeLimitSeconds
           };
         }
@@ -320,6 +387,7 @@ export class JsonFileDatabaseAdapter extends DatabaseAdapter {
           id: q.id,
           text: q.text,
           type: 'single',
+          imageUrl,
           options: indexedOptions.map(o => o.opt),
           correct: newCorrectIdx >= 0 ? newCorrectIdx : 0,
           timeLimitSeconds: q.timeLimitSeconds
@@ -490,6 +558,43 @@ export class JsonFileDatabaseAdapter extends DatabaseAdapter {
             if (earnedPoints >= 0.99) isCorrect = true;
           }
         }
+      } else if (q.type === 'short_answer') {
+        const userText = String(userAnswer || '').trim().toLowerCase();
+        const validList = Array.isArray(q.correctKeywords) && q.correctKeywords.length > 0
+          ? q.correctKeywords.map(k => String(k).trim().toLowerCase())
+          : String(q.correct || '').split(',').map(s => s.trim().toLowerCase()).filter(Boolean);
+        if (userText && validList.includes(userText)) {
+          isCorrect = true;
+          earnedPoints = 1;
+        }
+      } else if (q.type === 'fill_blanks') {
+        const blanks = Array.isArray(q.blanks) ? q.blanks : [];
+        if (blanks.length > 0 && typeof userAnswer === 'object' && userAnswer !== null) {
+          let matchedBlanks = 0;
+          blanks.forEach((b, bIdx) => {
+            const uVal = String(userAnswer[bIdx] || '').trim().toLowerCase();
+            const targets = Array.isArray(b.answers) ? b.answers.map(s => String(s).trim().toLowerCase()) : [String(b.answer || '').trim().toLowerCase()];
+            if (targets.includes(uVal)) matchedBlanks++;
+          });
+          earnedPoints = matchedBlanks / blanks.length;
+          if (earnedPoints >= 0.99) isCorrect = true;
+        }
+      } else if (q.type === 'hotspot') {
+        if (userAnswer && typeof userAnswer === 'object' && q.hotspotTarget) {
+          const dx = (Number(userAnswer.x) || 0) - (Number(q.hotspotTarget.x) || 0);
+          const dy = (Number(userAnswer.y) || 0) - (Number(q.hotspotTarget.y) || 0);
+          const dist = Math.sqrt(dx * dx + dy * dy);
+          const rad = Number(q.hotspotTarget.radius) || 15;
+          if (dist <= rad) {
+            isCorrect = true;
+            earnedPoints = 1;
+          }
+        }
+      } else if (q.type === 'true_false') {
+        if (userAnswer !== undefined && Number(userAnswer) === Number(q.correct)) {
+          isCorrect = true;
+          earnedPoints = 1;
+        }
       } else {
         if (userAnswer !== undefined && Number(userAnswer) === Number(q.correct)) {
           isCorrect = true;
@@ -612,6 +717,28 @@ export class JsonFileDatabaseAdapter extends DatabaseAdapter {
     session.partialAnswers = { ...session.partialAnswers, ...answers };
     await this.persist();
     return session.partialAnswers;
+  }
+
+  async adminOverrideScore(sessionId, newScore12) {
+    const session = this.data.sessions[sessionId];
+    if (!session) return null;
+    const s12 = Math.max(1, Math.min(12, Math.round(Number(newScore12))));
+    session.score12 = s12;
+    session.score12ManualOverride = true;
+    await this.persist();
+    return session;
+  }
+
+  async addSessionTime(sessionId, minutes) {
+    const session = this.data.sessions[sessionId];
+    if (!session) return null;
+    const addMins = parseInt(minutes, 10) || 5;
+    session.extraTimeMinutes = (session.extraTimeMinutes || 0) + addMins;
+    if (session.durationMinutes) {
+      session.durationMinutes += addMins;
+    }
+    await this.persist();
+    return session;
   }
 
   async deleteSession(sessionId) {

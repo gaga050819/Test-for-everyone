@@ -8,6 +8,10 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.css" crossorigin="anonymous">
+  <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.js" crossorigin="anonymous"></script>
+  <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/contrib/auto-render.min.js" crossorigin="anonymous"
+    onload="if(window._katexReady) window._katexReady(); else window._katexPending=true;"></script>
   <link rel="stylesheet" href="/css/style.css">
   <script>
     (function(){
@@ -91,7 +95,7 @@
           </div>
           <div style="display: flex; gap: 6px;">
             <button id="resumeSessionBtn" class="btn-primary" style="width: auto; padding: 6px 12px; font-size: 11px;" type="button">Продовжити</button>
-            <button id="discardSessionBtn" class="btn-secondary" style="width: auto; min-width: 36px; height: 36px; padding: 0 10px; font-size: 16px; border-color: var(--accent-red); color: var(--accent-red); border-radius: 50%; line-height: 1;" type="button" title="Скинути збереження">✕</button>
+            <button id="discardSessionBtn" class="btn-secondary" style="width: auto; min-width: 36px; height: 36px; padding: 0 10px; font-size: 16px; border-color: var(--accent-red); color: var(--accent-red); border-radius: 50%; line-height: 1; display: inline-flex; align-items: center; justify-content: center;" type="button" title="Скинути збереження"><img src="/img/icons/trash.svg" class="pixel-icon inline" alt=""></button>
           </div>
         </div>
 
@@ -266,14 +270,21 @@
 
       <div class="question-counter-row">
         <span class="question-counter-badge" id="questionCounterBadge">Питання 1 з 5</span>
-        <span style="font-size: 11px; color: var(--text-dim);">Антикопіювання активовано</span>
+        <span id="antiAiWatermarkBadge" style="font-size: 11px; color: var(--accent); display: inline-flex; align-items: center; gap: 4px; font-weight: 600; background: rgba(99,102,241,0.08); padding: 3px 8px; border-radius: 999px; border: 1px solid rgba(99,102,241,0.25);">
+          <img src="/img/icons/shield.svg" class="pixel-icon inline" alt="">
+          <span id="antiAiWatermarkText">Anti-AI Захист активний</span>
+        </span>
       </div>
 
       <div class="canvas-question-container">
         <canvas id="questionCanvas" class="question-canvas"></canvas>
+        <div id="questionMathText" class="question-math-text hidden" style="user-select:none; -webkit-user-select:none; font-weight:600; font-size:16px; line-height:1.5; color:var(--text); padding: 12px 16px; background: var(--bg-surface); border: 1px solid var(--border); border-radius: var(--radius-sm);"></div>
+      </div>
+      <div id="questionImageWrap" class="question-image-wrap hidden">
+        <img id="questionImage" class="question-img" src="" alt="Зображення до питання">
       </div>
 
-      <div class="options-list" id="optionsList"></div>
+      <div id="optionsList" class="options-list"></div>
 
       <div class="swipe-hint" id="swipeHint">
         <span>← свайп, щоб перейти між питаннями →</span>
@@ -411,6 +422,15 @@
         <button id="summaryBackBtn" class="btn-secondary" type="button">Повернутися до тесту</button>
         <button id="summaryConfirmBtn" class="btn-primary danger" type="button">Все одно завершити</button>
       </div>
+    </div>
+  </div>
+
+  <div id="teacherWarningOverlay" class="teacher-warning-overlay hidden">
+    <div class="teacher-warning-dialog">
+      <div class="teacher-warning-icon" id="teacherWarningIcon"><img src="/img/icons/warning.svg" class="pixel-icon" style="width:48px;height:48px;" alt=""></div>
+      <div class="teacher-warning-title">Повідомлення від викладача</div>
+      <div class="teacher-warning-msg" id="teacherWarningMsg"></div>
+      <button class="btn-primary" id="teacherWarningOkBtn" type="button" style="margin-top:16px; width:100%;">Зрозумів(ла)</button>
     </div>
   </div>
 

@@ -98,6 +98,17 @@ export class ProctorEngine {
             this._adminOverrideUnlock(data.trustScore || 70);
           } else if (data.type === 'admin_override_bypass') {
             this._adminOverrideBypass(data.trustScore || 70);
+          } else if (data.type === 'teacher_warning') {
+            if (typeof window.showTeacherWarning === 'function') {
+              window.showTeacherWarning(data.message, data.level || 'warning');
+            }
+            if (this.ws && this.ws.readyState === 1) {
+              this.ws.send(JSON.stringify({ type: 'student_ack_warning' }));
+            }
+          } else if (data.type === 'time_extended') {
+            if (typeof window.extendTestTimer === 'function') {
+              window.extendTestTimer(data.minutes || 5);
+            }
           }
         } catch (e) {
           console.error(e);

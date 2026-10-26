@@ -44,7 +44,10 @@ function updateDebugBadge() {
       badge.style.color = '#eab308';
       badge.style.border = '1px solid rgba(234, 179, 8, 0.4)';
       badge.style.fontWeight = '700';
-      badge.textContent = '⚡ Debug Mode';
+      badge.style.display = 'inline-flex';
+      badge.style.alignItems = 'center';
+      badge.style.gap = '4px';
+      badge.innerHTML = '<img src="/img/icons/settings.svg" class="pixel-icon inline" alt=""> Debug Mode';
       const row = document.querySelector('.device-badge-row');
       if (row) row.appendChild(badge);
     }
@@ -618,7 +621,10 @@ function updateClassSelection() {
     if (classAssignedHint) {
       const count = (chosen.assignedTests || []).length;
       if (count > 0) {
-        classAssignedHint.textContent = `✓ Для класу ${chosen.name} закріплено ${count} тестів`;
+        classAssignedHint.style.display = 'inline-flex';
+        classAssignedHint.style.alignItems = 'center';
+        classAssignedHint.style.gap = '4px';
+        classAssignedHint.innerHTML = `<img src="/img/icons/check.svg" class="pixel-icon inline" alt=""> Для класу ${escapeHtml(chosen.name)} закріплено ${count} тестів`;
         classAssignedHint.classList.remove('hidden');
       } else {
         classAssignedHint.classList.add('hidden');
@@ -1027,6 +1033,19 @@ function updateTimerDisplay() {
   }
 }
 
+window.extendTestTimer = function(minutes) {
+  const addedSecs = (parseInt(minutes, 10) || 5) * 60;
+  testSecondsRemaining += addedSecs;
+  updateTimerDisplay();
+
+  const toast = document.createElement('div');
+  toast.className = 'cam-copy-toast';
+  toast.style.background = 'rgba(59, 130, 246, 0.95)';
+  toast.innerHTML = `<img src="/img/icons/timer.svg" class="pixel-icon inline" alt=""> Вчитель додав +${minutes} хв до вашого часу!`;
+  document.body.appendChild(toast);
+  setTimeout(() => toast.remove(), 5000);
+};
+
 function isQuestionAnswered(q) {
   if (!q) return false;
   const ans = userAnswers[q.id];
@@ -1038,6 +1057,18 @@ function isQuestionAnswered(q) {
   }
   if (q.type === 'ordering') {
     return Array.isArray(ans) && ans.length > 0;
+  }
+  if (q.type === 'true_false') {
+    return ans === 0 || ans === 1;
+  }
+  if (q.type === 'short_answer') {
+    return typeof ans === 'string' && ans.trim().length > 0;
+  }
+  if (q.type === 'fill_blanks') {
+    return !!(ans && typeof ans === 'object' && Object.values(ans).some(v => String(v).trim().length > 0));
+  }
+  if (q.type === 'hotspot') {
+    return !!(ans && typeof ans === 'object' && ans.x !== undefined && ans.y !== undefined);
   }
   return ans !== undefined && ans !== null && ans !== '';
 }
@@ -1089,7 +1120,41 @@ function renderQuestion(index, direction = 'right') {
   const progressPercent = ((index + 1) / currentTest.questions.length) * 100;
   questionProgressFill.style.width = `${progressPercent}%`;
 
-  drawQuestionCanvas(question.text);
+  const wmTextEl = document.getElementById('antiAiWatermarkText');
+  if (wmTextEl) {
+    const sName = (currentSession && currentSession.studentName) || (studentNameInput ? studentNameInput.value : '') || 'Учень';
+    const sId = (currentSession && currentSession.id) ? currentSession.id.slice(0, 8) : 'PROCTOR';
+    wmTextEl.textContent = `Захист від AI • ${sName} [${sId}]`;
+  }
+
+  const mathEl = document.getElementById('questionMathText');
+  const hasMath = /[$\\]/.test(question.text || '');
+  if (hasMath && mathEl) {
+    mathEl.textContent = question.text;
+    mathEl.classList.remove('hidden');
+    if (questionCanvas) questionCanvas.classList.add('hidden');
+    renderKatex(mathEl);
+  } else {
+    if (mathEl) mathEl.classList.add('hidden');
+    if (questionCanvas) questionCanvas.classList.remove('hidden');
+    drawQuestionCanvas(question.text);
+  }
+
+  const qImgWrap = document.getElementById('questionImageWrap');
+  if (qImgWrap) {
+    const qImages = Array.isArray(question.images) && question.images.length > 0
+      ? question.images
+      : (question.imageUrl ? [question.imageUrl] : []);
+    if (qImages.length > 0) {
+      qImgWrap.innerHTML = qImages.map((u, i) => `
+        <img class="question-img" src="${escapeHtml(u)}" alt="Зображення ${i + 1}" style="max-height: 280px; max-width: 100%; border-radius: var(--radius-sm); border: 1px solid var(--border); object-fit: contain; background: var(--bg-elevated); margin: 4px; cursor: zoom-in;" onclick="window.open('${escapeHtml(u)}', '_blank')">
+      `).join('');
+      qImgWrap.classList.remove('hidden');
+    } else {
+      qImgWrap.innerHTML = '';
+      qImgWrap.classList.add('hidden');
+    }
+  }
 
   optionsList.innerHTML = '';
 
@@ -1102,7 +1167,7 @@ function renderQuestion(index, direction = 'right') {
 
       item.innerHTML = `
         <div class="option-indicator">
-          <div class="option-indicator-inner">${isSelected ? '✓' : ''}</div>
+          <div class="option-indicator-inner">${isSelected ? '<img src="/img/icons/check.svg" style="width:12px;height:12px;" alt="">' : ''}</div>
         </div>
         <div class="option-text">${escapeHtml(optText)}</div>
       `;
@@ -1118,7 +1183,7 @@ function renderQuestion(index, direction = 'right') {
           cur.push(optIdx);
           item.classList.add('selected');
           const check = item.querySelector('.option-indicator-inner');
-          if (check) check.textContent = '✓';
+          if (check) check.innerHTML = '<img src="/img/icons/check.svg" style="width:12px;height:12px;" alt="">';
         }
         userAnswers[question.id] = cur.sort((a, b) => a - b);
         persistLocalSession();
@@ -1145,7 +1210,7 @@ function renderQuestion(index, direction = 'right') {
 
       const arrow = document.createElement('div');
       arrow.className = 'matching-pair-arrow';
-      arrow.textContent = '➔';
+      arrow.innerHTML = '<img src="/img/icons/link.svg" class="pixel-icon inline" alt="">';
 
       const select = document.createElement('select');
       select.className = 'matching-pair-select';
@@ -1238,6 +1303,152 @@ function renderQuestion(index, direction = 'right') {
       layout.appendChild(card);
     });
     optionsList.appendChild(layout);
+  } else if (question.type === 'true_false') {
+    const tfOptions = ['Неправда', 'Правда'];
+    tfOptions.forEach((optText, optIdx) => {
+      const item = document.createElement('div');
+      const isSelected = userAnswers[question.id] === optIdx;
+      item.className = 'option-item true-false-item' + (isSelected ? ' selected' : '');
+      const icon = optIdx === 1 ? '<img src="/img/icons/check.svg" style="width:16px;height:16px;" alt="">' : '<img src="/img/icons/cross.svg" style="width:16px;height:16px;" alt="">';
+      const iconClass = optIdx === 1 ? 'tf-true' : 'tf-false';
+      item.innerHTML = `
+        <div class="tf-icon ${iconClass}">${icon}</div>
+        <div class="option-text">${escapeHtml(optText)}</div>
+      `;
+      item.addEventListener('click', () => {
+        userAnswers[question.id] = optIdx;
+        persistLocalSession();
+        optionsList.querySelectorAll('.option-item').forEach(el => el.classList.remove('selected'));
+        item.classList.add('selected');
+        renderNavPills();
+      });
+      optionsList.appendChild(item);
+    });
+  } else if (question.type === 'short_answer') {
+    const wrap = document.createElement('div');
+    wrap.className = 'short-answer-wrap';
+    const inp = document.createElement('input');
+    inp.type = 'text';
+    inp.className = 'form-input short-answer-input';
+    inp.placeholder = 'Введіть вашу відповідь…';
+    inp.autocomplete = 'off';
+    inp.autocorrect = 'off';
+    inp.autocapitalize = 'none';
+    inp.spellcheck = false;
+    inp.value = userAnswers[question.id] !== undefined ? String(userAnswers[question.id]) : '';
+    inp.addEventListener('input', () => {
+      userAnswers[question.id] = inp.value;
+      persistLocalSession();
+      renderNavPills();
+    });
+    inp.addEventListener('paste', (e) => {
+      e.preventDefault();
+      const toast = document.createElement('div');
+      toast.className = 'cam-copy-toast';
+      toast.style.background = 'rgba(239, 68, 68, 0.95)';
+      toast.innerHTML = '<img src="/img/icons/blocked.svg" class="pixel-icon inline" alt=""> Вставка заборонена! Вводьте відповідь власноруч.';
+      document.body.appendChild(toast);
+      setTimeout(() => toast.remove(), 3000);
+    });
+    inp.addEventListener('drop', (e) => e.preventDefault());
+    wrap.appendChild(inp);
+    const hint = document.createElement('div');
+    hint.className = 'short-answer-hint';
+    hint.textContent = 'Введіть точну відповідь (реєстр не важливий)';
+    wrap.appendChild(hint);
+    optionsList.appendChild(wrap);
+  } else if (question.type === 'fill_blanks') {
+    const wrap = document.createElement('div');
+    wrap.style.cssText = 'background: var(--bg-surface); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 18px; font-size: 15px; line-height: 2.2; color: var(--text);';
+
+    if (!userAnswers[question.id] || typeof userAnswers[question.id] !== 'object') {
+      userAnswers[question.id] = {};
+    }
+
+    const segments = Array.isArray(question.fillBlanksSegments) && question.fillBlanksSegments.length > 0
+      ? question.fillBlanksSegments
+      : (question.text || '').split('_______');
+
+    const blanksCount = question.blanksCount || Math.max(1, segments.length - 1);
+
+    segments.forEach((seg, sIdx) => {
+      wrap.appendChild(document.createTextNode(seg));
+      if (sIdx < blanksCount) {
+        const inp = document.createElement('input');
+        inp.type = 'text';
+        inp.className = 'form-input';
+        inp.style.cssText = 'display: inline-block; width: 130px; padding: 4px 10px; margin: 0 4px; font-size: 14px; text-align: center; font-weight: 700; border-bottom: 2px solid var(--accent); vertical-align: middle; background: var(--bg-elevated); color: var(--text);';
+        inp.placeholder = `[Пропуск ${sIdx + 1}]`;
+        inp.autocomplete = 'off';
+        inp.spellcheck = false;
+        inp.value = userAnswers[question.id][sIdx] !== undefined ? String(userAnswers[question.id][sIdx]) : '';
+        inp.addEventListener('input', () => {
+          userAnswers[question.id][sIdx] = inp.value;
+          persistLocalSession();
+          renderNavPills();
+        });
+        inp.addEventListener('paste', (e) => {
+          e.preventDefault();
+          const toast = document.createElement('div');
+          toast.className = 'cam-copy-toast';
+          toast.style.background = 'rgba(239, 68, 68, 0.95)';
+          toast.innerHTML = '<img src="/img/icons/blocked.svg" class="pixel-icon inline" alt=""> Вставка заборонена! Вводьте відповідь власноруч.';
+          document.body.appendChild(toast);
+          setTimeout(() => toast.remove(), 3000);
+        });
+        inp.addEventListener('drop', (e) => e.preventDefault());
+        wrap.appendChild(inp);
+      }
+    });
+
+    optionsList.appendChild(wrap);
+  } else if (question.type === 'hotspot') {
+    const wrap = document.createElement('div');
+    wrap.style.cssText = 'display: flex; flex-direction: column; gap: 10px; align-items: center;';
+
+    const hint = document.createElement('div');
+    hint.style.cssText = 'font-size: 12px; color: var(--text-muted); display: inline-flex; align-items: center; gap: 6px;';
+    hint.innerHTML = `<img src="/img/icons/camera.svg" class="pixel-icon inline" alt=""> ${escapeHtml(question.hotspotPrompt || 'Клікніть на зображення, щоб обрати відповідь')}`;
+    wrap.appendChild(hint);
+
+    const imgWrap = document.createElement('div');
+    imgWrap.style.cssText = 'position: relative; display: inline-block; max-width: 100%; border: 1px solid var(--border); border-radius: var(--radius-sm); overflow: hidden; background: var(--bg-elevated); cursor: crosshair; user-select: none;';
+
+    const imgs = Array.isArray(question.images) && question.images.length > 0 ? question.images : (question.imageUrl ? [question.imageUrl] : []);
+    const imgSrc = imgs[0] || '';
+
+    const img = document.createElement('img');
+    img.src = imgSrc;
+    img.alt = 'Hotspot';
+    img.style.cssText = 'display: block; max-width: 100%; max-height: 420px; object-fit: contain; pointer-events: none;';
+
+    const marker = document.createElement('div');
+    marker.style.cssText = 'position: absolute; width: 22px; height: 22px; border: 2px solid #ef4444; background: rgba(239,68,68,0.3); border-radius: 50%; transform: translate(-50%, -50%); pointer-events: none; display: none;';
+    marker.innerHTML = '<span style="position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;"><img src="/img/icons/cross.svg" style="width:12px;height:12px;" alt=""></span>';
+
+    if (userAnswers[question.id] && typeof userAnswers[question.id] === 'object' && userAnswers[question.id].x !== undefined) {
+      marker.style.left = `${userAnswers[question.id].x}%`;
+      marker.style.top = `${userAnswers[question.id].y}%`;
+      marker.style.display = 'block';
+    }
+
+    imgWrap.addEventListener('click', (e) => {
+      const rect = img.getBoundingClientRect();
+      if (!rect.width || !rect.height) return;
+      const xPct = Math.round(((e.clientX - rect.left) / rect.width) * 1000) / 10;
+      const yPct = Math.round(((e.clientY - rect.top) / rect.height) * 1000) / 10;
+      userAnswers[question.id] = { x: xPct, y: yPct };
+      marker.style.left = `${xPct}%`;
+      marker.style.top = `${yPct}%`;
+      marker.style.display = 'block';
+      persistLocalSession();
+      renderNavPills();
+    });
+
+    imgWrap.appendChild(img);
+    imgWrap.appendChild(marker);
+    wrap.appendChild(imgWrap);
+    optionsList.appendChild(wrap);
   } else {
     (question.options || []).forEach((optText, optIdx) => {
       const item = document.createElement('div');
@@ -1272,6 +1483,7 @@ function renderQuestion(index, direction = 'right') {
     submitTestBtn.classList.add('hidden');
   }
 
+  renderKatex(optionsList);
   renderNavPills();
 }
 
@@ -1319,6 +1531,44 @@ function drawQuestionCanvas(text) {
     ctx.scale(dpr, dpr);
     ctx.clearRect(0, 0, containerWidth, canvasHeight);
 
+    ctx.save();
+    ctx.strokeStyle = 'rgba(128, 128, 128, 0.04)';
+    ctx.lineWidth = 1;
+    for (let x = 0; x < containerWidth; x += 18) {
+      ctx.beginPath();
+      ctx.moveTo(x, 0);
+      ctx.lineTo(x, canvasHeight);
+      ctx.stroke();
+    }
+    for (let y = 0; y < canvasHeight; y += 18) {
+      ctx.beginPath();
+      ctx.moveTo(0, y);
+      ctx.lineTo(containerWidth, y);
+      ctx.stroke();
+    }
+
+    ctx.rotate(-0.12);
+    ctx.font = '700 11px Inter, -apple-system, sans-serif';
+    ctx.fillStyle = 'rgba(128, 128, 128, 0.09)';
+    const sName = (currentSession && currentSession.studentName) || (studentNameInput ? studentNameInput.value : '') || 'SECURE';
+    const sId = (currentSession && currentSession.id) ? currentSession.id.slice(0, 8) : 'EXAM';
+    const wmText = `SECUREEXAM • ${sName} • ID:${sId} • PROCTORING PROTECTED`;
+    for (let wy = -20; wy < canvasHeight + 80; wy += 36) {
+      for (let wx = -60; wx < containerWidth + 120; wx += 280) {
+        ctx.fillText(wmText, wx, wy);
+      }
+    }
+    ctx.restore();
+
+    ctx.save();
+    ctx.fillStyle = 'rgba(128, 128, 128, 0.05)';
+    for (let i = 0; i < containerWidth; i += 32) {
+      for (let j = 0; j < canvasHeight; j += 24) {
+        ctx.fillRect(i + ((j % 48 === 0) ? 6 : 0), j, 2, 2);
+      }
+    }
+    ctx.restore();
+
     const textColor = getComputedStyle(document.documentElement).getPropertyValue('--text').trim() || '#0d0f1a';
     ctx.fillStyle = textColor;
     ctx.font = `600 ${fontSize}px Inter, -apple-system, sans-serif`;
@@ -1327,6 +1577,12 @@ function drawQuestionCanvas(text) {
     lines.forEach((line, idx) => {
       ctx.fillText(line, 4, padY + idx * lineHeight);
     });
+
+    ctx.save();
+    ctx.font = '500 8px monospace';
+    ctx.fillStyle = 'rgba(128, 128, 128, 0.22)';
+    ctx.fillText(`PROTECTED PROCTOR ARTIFACT [DO NOT OCR OR REPRODUCE] • SESS:${sId}`, 4, canvasHeight - 2);
+    ctx.restore();
   } catch (err) {
     console.error('Canvas draw error:', err);
   }
@@ -1413,7 +1669,7 @@ function openSummaryModal() {
         const pill = document.createElement('button');
         pill.type = 'button';
         pill.className = 'summary-pill-btn';
-        pill.innerHTML = `<span>№${u.number}</span> <span style="opacity:0.7;">➔</span>`;
+        pill.innerHTML = `<span>№${u.number}</span> <span style="opacity:0.7; display:inline-flex; align-items:center;"><img src="/img/icons/link.svg" class="pixel-icon inline" style="width:11px;height:11px;" alt=""></span>`;
         pill.title = `Перейти до питання №${u.number}`;
         pill.addEventListener('click', () => {
           closeSummaryModal();
@@ -1747,20 +2003,20 @@ function showResults(result, questionsSnapshot = [], timings = {}) {
         const rightArr = q.matchingRight || [];
         const uKeys = Object.keys(uMap);
         if (uKeys.length > 0) {
-          userChoiceText = uKeys.map(k => `${leftArr[k] || k} ➔ ${rightArr[uMap[k]] || uMap[k]}`).join(' | ');
+          userChoiceText = uKeys.map(k => `${leftArr[k] || k} → ${rightArr[uMap[k]] || uMap[k]}`).join(' | ');
         }
         const cKeys = Object.keys(cMap);
         if (cKeys.length > 0) {
-          correctChoiceText = cKeys.map(k => `${leftArr[k] || k} ➔ ${rightArr[cMap[k]] || cMap[k]}`).join(' | ');
+          correctChoiceText = cKeys.map(k => `${leftArr[k] || k} → ${rightArr[cMap[k]] || cMap[k]}`).join(' | ');
         }
       } else if (q.type === 'ordering') {
         const uArr = Array.isArray(ansInfo?.userAnswer) ? ansInfo.userAnswer : [];
         const cArr = Array.isArray(ansInfo?.correctAnswer) ? ansInfo.correctAnswer : [];
         if (uArr.length > 0) {
-          userChoiceText = uArr.join(' ➔ ');
+          userChoiceText = uArr.join(' → ');
         }
         if (cArr.length > 0) {
-          correctChoiceText = cArr.join(' ➔ ');
+          correctChoiceText = cArr.join(' → ');
         }
       } else {
         const userChoiceIdx = ansInfo ? ansInfo.userAnswer : undefined;
@@ -1778,7 +2034,7 @@ function showResults(result, questionsSnapshot = [], timings = {}) {
       card.innerHTML = `
         <div style="display: flex; justify-content: space-between; align-items: flex-start; gap: 10px; margin-bottom: 6px;">
           <div style="font-size: 13px; font-weight: 700; color: var(--text);">#${idx + 1}. ${escapeHtml(q.text)}</div>
-          <span class="tag-badge ${isCorrect ? 'approved' : 'danger'}" style="font-size: 10px; padding: 2px 8px; flex-shrink: 0;">${isCorrect ? '✓ Правильно' : '✗ Помилка'}</span>
+          <span class="tag-badge ${isCorrect ? 'approved' : 'danger'}" style="font-size: 10px; padding: 2px 8px; flex-shrink: 0; display: inline-flex; align-items: center; gap: 4px;"><img src="/img/icons/${isCorrect ? 'check' : 'cross'}.svg" class="pixel-icon inline" style="width:11px;height:11px;" alt=""> ${isCorrect ? 'Правильно' : 'Помилка'}</span>
         </div>
         <div style="font-size: 12px; color: var(--text-muted); display: flex; flex-direction: column; gap: 4px;">
           <div style="display: flex; justify-content: space-between; flex-wrap: wrap; gap: 6px;">
@@ -1952,9 +2208,92 @@ async function loadLeaderboardUI(testId, mySessionId) {
   }
 }
 
-function escapeHtml(text) {
 
+function escapeHtml(text) {
   const div = document.createElement('div');
   div.textContent = text || '';
   return div.innerHTML;
 }
+
+window.showTeacherWarning = function(message, level) {
+  const overlay = document.getElementById('teacherWarningOverlay');
+  const msgEl = document.getElementById('teacherWarningMsg');
+  const iconEl = document.getElementById('teacherWarningIcon');
+  const okBtn = document.getElementById('teacherWarningOkBtn');
+  if (!overlay || !msgEl) return;
+
+  msgEl.textContent = message || '';
+  if (iconEl) {
+    if (level === 'info') {
+      iconEl.innerHTML = '<img src="/img/icons/info.svg" class="pixel-icon" style="width:48px;height:48px;" alt="">';
+    } else if (level === 'danger') {
+      iconEl.innerHTML = '<img src="/img/icons/blocked.svg" class="pixel-icon" style="width:48px;height:48px;" alt="">';
+    } else {
+      iconEl.innerHTML = '<img src="/img/icons/warning.svg" class="pixel-icon" style="width:48px;height:48px;" alt="">';
+    }
+  }
+  overlay.classList.remove('hidden');
+  overlay.classList.add('visible');
+
+  if (okBtn && !okBtn._bound) {
+    okBtn._bound = true;
+    okBtn.addEventListener('click', () => {
+      overlay.classList.remove('visible');
+      overlay.classList.add('hidden');
+    });
+  }
+};
+
+function renderKatex(el) {
+  if (!el) return;
+  try {
+    if (window.renderMathInElement) {
+      renderMathInElement(el, {
+        delimiters: [
+          { left: '$$', right: '$$', display: true },
+          { left: '$', right: '$', display: false },
+          { left: '\\(', right: '\\)', display: false },
+          { left: '\\[', right: '\\]', display: true }
+        ],
+        throwOnError: false
+      });
+    } else {
+      window._katexReady = () => renderMathInElement(el, {
+        delimiters: [
+          { left: '$$', right: '$$', display: true },
+          { left: '$', right: '$', display: false }
+        ],
+        throwOnError: false
+      });
+    }
+  } catch {}
+}
+
+window.extendTestTimer = function(minutes) {
+  const addSecs = (parseInt(minutes, 10) || 5) * 60;
+  testSecondsRemaining += addSecs;
+  updateTimerDisplay();
+  if (typeof window.showTeacherWarning === 'function') {
+    window.showTeacherWarning(`Викладач надав вам додатковий час: +${minutes} хв!`, 'info');
+  }
+};
+
+document.addEventListener('paste', e => {
+  const target = e.target;
+  if (target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA') && target.closest('#testScreen')) {
+    e.preventDefault();
+    if (typeof window.showTeacherWarning === 'function') {
+      window.showTeacherWarning('Вставка тексту заборонена! Вводьте відповідь власноруч з клавіатури.', 'warning');
+    } else {
+      alert('Вставка тексту заборонена! Вводьте відповідь власноруч.');
+    }
+  }
+}, true);
+
+document.addEventListener('drop', e => {
+  const target = e.target;
+  if (target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA') && target.closest('#testScreen')) {
+    e.preventDefault();
+  }
+}, true);
+

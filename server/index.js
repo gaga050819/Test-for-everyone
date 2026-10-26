@@ -41,7 +41,8 @@ const app = express();
 const server = http.createServer(app);
 const wss = new WebSocketServer({ server, path: '/ws' });
 
-app.use(express.json());
+app.use(express.json({ limit: '15mb' }));
+app.use(express.urlencoded({ extended: true, limit: '15mb' }));
 app.use(express.static(path.join(__dirname, '..', 'public')));
 
 const connectedClients = new Map();
@@ -158,6 +159,34 @@ wss.on('connection', (ws, req) => {
             incident: recorded
           });
         }
+        return;
+      }
+
+      if (message.type === 'teacher_warning') {
+        const targetSessionId = message.sessionId;
+        const targetClient = connectedClients.get(targetSessionId);
+        if (targetClient && targetClient.ws && targetClient.ws.readyState === WebSocket.OPEN) {
+          targetClient.ws.send(JSON.stringify({
+            type: 'teacher_warning',
+            message: message.message,
+            level: message.level || 'warning',
+            timestamp: Date.now()
+          }));
+        }
+        await db.logIncident(targetSessionId, {
+          category: 'teacher_warning',
+          message: `Попередження від викладача: ${message.message}`,
+          severity: message.level || 'warning'
+        });
+        return;
+      }
+
+      if (message.type === 'student_ack_warning') {
+        broadcastToAdmins({
+          type: 'student_ack_warning',
+          sessionId: boundSessionId,
+          timestamp: Date.now()
+        });
         return;
       }
     } catch (err) {
@@ -341,21 +370,38 @@ app.get('/api/leaderboard', async (req, res) => {
   res.json(list);
 });
 
+function sanitizeQuestionForStudent(q) {
+  const imgs = Array.isArray(q.images) && q.images.length > 0 ? q.images : (q.imageUrl ? [q.imageUrl] : []);
+  let text = q.text || '';
+  let fillBlanksSegments = undefined;
+  if (q.type === 'fill_blanks') {
+    fillBlanksSegments = text.split(/\[[^\]]+\]/);
+    text = text.replace(/\[([^\]]+)\]/g, '_______');
+  }
+  return {
+    id: q.id,
+    text,
+    type: q.type || 'single',
+    images: imgs,
+    imageUrl: imgs[0] || (q.imageUrl || ''),
+    options: q.options || [],
+    matchingLeft: q.matchingLeft || (q.matchingPairs ? q.matchingPairs.map(p => p.left) : []),
+    matchingRight: q.matchingRight || (q.matchingPairs ? q.matchingPairs.map(p => p.right) : []),
+    orderingItems: q.type === 'ordering' ? (q.orderingItems || q.options || []) : undefined,
+    blanksCount: q.type === 'fill_blanks' ? (Array.isArray(q.blanks) && q.blanks.length > 0 ? q.blanks.length : ((q.text || '').match(/\[([^\]]+)\]/g) || []).length) : undefined,
+    fillBlanksSegments,
+    hotspotPrompt: q.type === 'hotspot' ? (q.hotspotPrompt || 'Клікніть на правильну область на зображенні') : undefined,
+    timeLimitSeconds: q.timeLimitSeconds
+  };
+}
+
 app.get('/api/tests/:id', async (req, res) => {
   const test = await db.getTest(req.params.id);
   if (!test) {
     return res.status(404).json({ error: 'Тест не знайдено' });
   }
 
-  const sanitizedQuestions = (test.questions || []).map(q => ({
-    id: q.id,
-    text: q.text,
-    type: q.type || 'single',
-    options: q.options || [],
-    matchingLeft: q.matchingLeft || (q.matchingPairs ? q.matchingPairs.map(p => p.left) : []),
-    matchingRight: q.matchingRight || (q.matchingPairs ? q.matchingPairs.map(p => p.right) : []),
-    timeLimitSeconds: q.timeLimitSeconds
-  }));
+  const sanitizedQuestions = (test.questions || []).map(sanitizeQuestionForStudent);
 
   res.json({
     id: test.id,
@@ -396,15 +442,7 @@ app.post('/api/sessions/start', async (req, res) => {
   if (resumeSessionId) {
     const existing = await db.getSession(resumeSessionId);
     if (existing && existing.status === 'in_progress') {
-      const sanitizedQuestions = (existing.questions || []).map(q => ({
-        id: q.id,
-        text: q.text,
-        type: q.type || 'single',
-        options: q.options || [],
-        matchingLeft: q.matchingLeft || (q.matchingPairs ? q.matchingPairs.map(p => p.left) : []),
-        matchingRight: q.matchingRight || (q.matchingPairs ? q.matchingPairs.map(p => p.right) : []),
-        timeLimitSeconds: q.timeLimitSeconds
-      }));
+      const sanitizedQuestions = (existing.questions || []).map(sanitizeQuestionForStudent);
       return res.json({
         id: existing.id,
         testId: existing.testId,
@@ -442,15 +480,7 @@ app.post('/api/sessions/start', async (req, res) => {
   });
 
   const rawQuestions = session.questions || test.questions || [];
-  const sanitizedQuestions = rawQuestions.map(q => ({
-    id: q.id,
-    text: q.text,
-    type: q.type || 'single',
-    options: q.options || [],
-    matchingLeft: q.matchingLeft || (q.matchingPairs ? q.matchingPairs.map(p => p.left) : []),
-    matchingRight: q.matchingRight || (q.matchingPairs ? q.matchingPairs.map(p => p.right) : []),
-    timeLimitSeconds: q.timeLimitSeconds
-  }));
+  const sanitizedQuestions = rawQuestions.map(sanitizeQuestionForStudent);
 
   res.json({
     id: session.id,
@@ -474,15 +504,7 @@ app.get('/api/sessions/:id/state', async (req, res) => {
   }
   const test = await db.getTest(session.testId);
   const rawQuestions = session.questions || (test ? test.questions : []) || [];
-  const sanitizedQuestions = rawQuestions.map(q => ({
-    id: q.id,
-    text: q.text,
-    type: q.type || 'single',
-    options: q.options || [],
-    matchingLeft: q.matchingLeft || (q.matchingPairs ? q.matchingPairs.map(p => p.left) : []),
-    matchingRight: q.matchingRight || (q.matchingPairs ? q.matchingPairs.map(p => p.right) : []),
-    timeLimitSeconds: q.timeLimitSeconds
-  }));
+  const sanitizedQuestions = rawQuestions.map(sanitizeQuestionForStudent);
   res.json({
     id: session.id,
     testId: session.testId,
@@ -657,7 +679,7 @@ app.put('/api/admin/tests/:id', requireAdmin, async (req, res) => {
 });
 
 app.post('/api/admin/tests/:id/questions', requireAdmin, async (req, res) => {
-  const { text, options, correct, timeLimitSeconds, type, matchingPairs, orderingItems } = req.body;
+  const { text, options, correct, timeLimitSeconds, type, matchingPairs, orderingItems, blanks, hotspotTarget, imageUrl, images, correctKeywords } = req.body;
   if (!text || !text.trim()) {
     return res.status(400).json({ error: 'Питання повинно містити текст' });
   }
@@ -671,17 +693,27 @@ app.post('/api/admin/tests/:id/questions', requireAdmin, async (req, res) => {
     processedCorrect = typeof correct === 'object' && correct !== null ? correct : {};
   } else if (qType === 'ordering') {
     processedCorrect = Array.isArray(orderingItems) ? orderingItems : (Array.isArray(options) ? options : []);
+  } else if (qType === 'short_answer') {
+    processedCorrect = typeof correct === 'string' ? correct.trim() : String(correct || '');
+  } else if (qType === 'true_false') {
+    processedCorrect = Number(correct) === 1 ? 1 : 0;
   } else {
     processedCorrect = parseInt(correct, 10);
     if (isNaN(processedCorrect) || processedCorrect < 0) processedCorrect = 0;
   }
 
+  const finalImages = Array.isArray(images) ? images : (imageUrl ? [imageUrl] : []);
   const newQ = await db.addQuestion(req.params.id, {
     text: text.trim(),
+    images: finalImages,
+    imageUrl: finalImages[0] || (imageUrl || ''),
     options: Array.isArray(options) ? options : [],
     matchingPairs: Array.isArray(matchingPairs) ? matchingPairs : [],
     orderingItems: Array.isArray(orderingItems) ? orderingItems : [],
+    blanks: Array.isArray(blanks) ? blanks : [],
+    hotspotTarget: hotspotTarget || null,
     correct: processedCorrect,
+    correctKeywords: Array.isArray(correctKeywords) ? correctKeywords : (typeof processedCorrect === 'string' ? processedCorrect.split(',').map(s => s.trim()).filter(Boolean) : []),
     timeLimitSeconds: parseInt(timeLimitSeconds, 10) || 60,
     type: qType
   });
@@ -712,6 +744,7 @@ app.post('/api/admin/tests/:id/questions/bulk', requireAdmin, async (req, res) =
   const added = [];
   for (const q of questions) {
     if (!q.text || !q.text.trim()) continue;
+
     const qType = q.type || 'single';
     let processedCorrect = 0;
 
@@ -721,19 +754,29 @@ app.post('/api/admin/tests/:id/questions/bulk', requireAdmin, async (req, res) =
       processedCorrect = typeof q.correct === 'object' && q.correct !== null ? q.correct : {};
     } else if (qType === 'ordering') {
       processedCorrect = Array.isArray(q.orderingItems) ? q.orderingItems : (Array.isArray(q.options) ? q.options : []);
+    } else if (qType === 'short_answer') {
+      processedCorrect = typeof q.correct === 'string' ? q.correct.trim() : String(q.correct || '');
+    } else if (qType === 'true_false') {
+      processedCorrect = Number(q.correct) === 1 ? 1 : 0;
     } else {
       processedCorrect = parseInt(q.correct, 10);
       if (isNaN(processedCorrect) || processedCorrect < 0) processedCorrect = 0;
     }
 
+    const qImages = Array.isArray(q.images) ? q.images : (q.imageUrl ? [q.imageUrl] : []);
     const newQuestion = {
       id: 'q_' + Math.random().toString(36).substring(2, 9),
       text: q.text.trim(),
       type: qType,
+      images: qImages,
+      imageUrl: qImages[0] || (q.imageUrl || ''),
       options: Array.isArray(q.options) ? q.options : [],
       matchingPairs: Array.isArray(q.matchingPairs) ? q.matchingPairs : [],
       orderingItems: Array.isArray(q.orderingItems) ? q.orderingItems : [],
+      blanks: Array.isArray(q.blanks) ? q.blanks : [],
+      hotspotTarget: q.hotspotTarget || null,
       correct: processedCorrect,
+      correctKeywords: Array.isArray(q.correctKeywords) ? q.correctKeywords : (typeof processedCorrect === 'string' ? processedCorrect.split(',').map(s => s.trim()).filter(Boolean) : []),
       timeLimitSeconds: parseInt(q.timeLimitSeconds, 10) || 60
     };
     test.questions.push(newQuestion);
@@ -745,7 +788,7 @@ app.post('/api/admin/tests/:id/questions/bulk', requireAdmin, async (req, res) =
 });
 
 app.put('/api/admin/tests/:id/questions/:qId', requireAdmin, async (req, res) => {
-  const { text, options, correct, timeLimitSeconds, type, matchingPairs, orderingItems } = req.body;
+  const { text, options, correct, timeLimitSeconds, type, matchingPairs, orderingItems, blanks, hotspotTarget, imageUrl, images, correctKeywords } = req.body;
   const qType = type || 'single';
   let processedCorrect = 0;
 
@@ -755,17 +798,27 @@ app.put('/api/admin/tests/:id/questions/:qId', requireAdmin, async (req, res) =>
     processedCorrect = typeof correct === 'object' && correct !== null ? correct : {};
   } else if (qType === 'ordering') {
     processedCorrect = Array.isArray(orderingItems) ? orderingItems : (Array.isArray(options) ? options : []);
+  } else if (qType === 'short_answer') {
+    processedCorrect = typeof correct === 'string' ? correct.trim() : String(correct || '');
+  } else if (qType === 'true_false') {
+    processedCorrect = Number(correct) === 1 ? 1 : 0;
   } else {
     processedCorrect = parseInt(correct, 10);
     if (isNaN(processedCorrect) || processedCorrect < 0) processedCorrect = 0;
   }
 
+  const finalImages = images !== undefined ? (Array.isArray(images) ? images : (images ? [images] : [])) : undefined;
   const updated = await db.updateQuestion(req.params.id, req.params.qId, {
     text,
+    images: finalImages,
+    imageUrl: finalImages && finalImages.length > 0 ? finalImages[0] : imageUrl,
     options,
     matchingPairs,
     orderingItems,
+    blanks: blanks !== undefined ? (Array.isArray(blanks) ? blanks : []) : undefined,
+    hotspotTarget: hotspotTarget !== undefined ? hotspotTarget : undefined,
     correct: processedCorrect,
+    correctKeywords: Array.isArray(correctKeywords) ? correctKeywords : (typeof processedCorrect === 'string' ? processedCorrect.split(',').map(s => s.trim()).filter(Boolean) : []),
     timeLimitSeconds,
     type: qType
   });
@@ -773,6 +826,66 @@ app.put('/api/admin/tests/:id/questions/:qId', requireAdmin, async (req, res) =>
     return res.status(404).json({ error: 'Питання або тест не знайдено' });
   }
   res.json(updated);
+});
+
+app.post('/api/admin/upload-image', requireAdmin, async (req, res) => {
+  try {
+    const { dataUrl } = req.body;
+    if (!dataUrl || !dataUrl.startsWith('data:image/')) {
+      return res.status(400).json({ error: 'Некоректний формат зображення' });
+    }
+    const matches = dataUrl.match(/^data:image\/([a-zA-Z0-9+]+);base64,(.+)$/);
+    if (!matches) {
+      return res.status(400).json({ error: 'Некоректні base64 дані' });
+    }
+    const ext = matches[1].replace('jpeg', 'jpg').replace('svg+xml', 'svg');
+    const buffer = Buffer.from(matches[2], 'base64');
+    const uploadDir = path.join(__dirname, '..', 'public', 'uploads');
+    if (!fs.existsSync(uploadDir)) {
+      fs.mkdirSync(uploadDir, { recursive: true });
+    }
+    const cleanName = 'img_' + Date.now() + '_' + Math.random().toString(36).substring(2, 8) + '.' + ext;
+    const filePath = path.join(uploadDir, cleanName);
+    fs.writeFileSync(filePath, buffer);
+    res.json({ success: true, url: '/uploads/' + cleanName });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post('/api/admin/sessions/:id/send-message', requireAdmin, async (req, res) => {
+  const sessionId = req.params.id;
+  const { message, level } = req.body;
+  if (!message || !message.trim()) {
+    return res.status(400).json({ error: 'Повідомлення не може бути порожнім' });
+  }
+  const targetClient = connectedClients.get(sessionId);
+  let delivered = false;
+  if (targetClient && targetClient.ws && targetClient.ws.readyState === WebSocket.OPEN) {
+    targetClient.ws.send(JSON.stringify({
+      type: 'teacher_warning',
+      message: message.trim(),
+      level: level || 'warning',
+      timestamp: Date.now()
+    }));
+    delivered = true;
+  }
+  await db.logIncident(sessionId, {
+    category: 'teacher_warning',
+    message: `Попередження від викладача: ${message.trim()}`,
+    severity: level || 'warning'
+  });
+  broadcastToAdmins({
+    type: 'new_incident',
+    sessionId,
+    incident: {
+      category: 'teacher_warning',
+      message: `Надіслано учневі: ${message.trim()}`,
+      severity: level || 'warning',
+      timestamp: Date.now()
+    }
+  });
+  res.json({ success: true, delivered });
 });
 
 app.post('/api/admin/ai-parse-import', requireAdmin, async (req, res) => {
@@ -1107,6 +1220,40 @@ app.post('/api/admin/sessions/:id/override-bypass', requireAdmin, async (req, re
   }
   broadcastToAdmins({ type: 'session_bypassed', sessionId: req.params.id, trustScore: session.trustScore });
   res.json({ success: true, session });
+});
+
+app.patch('/api/admin/sessions/:id/override-score', requireAdmin, async (req, res) => {
+  const { score12 } = req.body;
+  if (score12 === undefined || score12 === null || isNaN(Number(score12))) {
+    return res.status(400).json({ error: 'Вкажіть оцінку від 1 до 12' });
+  }
+  const session = await db.adminOverrideScore(req.params.id, score12);
+  if (!session) {
+    return res.status(404).json({ error: 'Сесію не знайдено' });
+  }
+  broadcastToAdmins({ type: 'session_score_overridden', sessionId: req.params.id, score12: session.score12 });
+  res.json({ success: true, session });
+});
+
+app.post('/api/admin/sessions/:id/add-time', requireAdmin, async (req, res) => {
+  const { minutes } = req.body;
+  const mins = parseInt(minutes, 10) || 5;
+  const session = await db.addSessionTime(req.params.id, mins);
+  if (!session) {
+    return res.status(404).json({ error: 'Сесію не знайдено' });
+  }
+  const studentClient = connectedClients.get(req.params.id);
+  if (studentClient && studentClient.ws.readyState === WebSocket.OPEN) {
+    studentClient.ws.send(JSON.stringify({ type: 'time_extended', minutes: mins }));
+  }
+  broadcastToAdmins({
+    type: 'session_time_extended',
+    sessionId: req.params.id,
+    minutes: mins,
+    durationMinutes: session.durationMinutes,
+    extraTimeMinutes: session.extraTimeMinutes
+  });
+  res.json({ success: true, session, addedMinutes: mins });
 });
 
 app.delete('/api/admin/sessions/:id', requireAdmin, async (req, res) => {

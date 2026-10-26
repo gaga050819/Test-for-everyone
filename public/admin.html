@@ -9,6 +9,9 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="/css/style.css">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.css" crossorigin="anonymous">
+  <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.js" crossorigin="anonymous"></script>
+  <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/contrib/auto-render.min.js" crossorigin="anonymous"></script>
   <script src="/js/qrcode.min.js"></script>
   <script>
     (function(){
@@ -224,8 +227,8 @@
         <button id="bannerUpdateNowBtn" class="btn-primary" style="padding: 6px 14px; font-size: 12px;" type="button">
           Оновити зараз
         </button>
-        <button id="bannerDismissUpdateBtn" class="btn-secondary" style="padding: 6px 10px; font-size: 12px;" type="button" title="Приховати сповіщення">
-          ✕
+        <button id="bannerDismissUpdateBtn" class="btn-secondary" style="padding: 6px 10px; font-size: 12px; display: inline-flex; align-items: center; justify-content: center;" type="button" title="Приховати сповіщення">
+          <img src="/img/icons/cross.svg" class="pixel-icon inline" alt="">
         </button>
       </div>
     </div>
@@ -233,12 +236,12 @@
     <main class="main-container" style="max-width: 1200px;">
 
       <div class="admin-tab-nav" style="display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 14px;">
-        <button id="tabBtnSessions" class="admin-tab-btn active" type="button"><img src="/img/icons/analytics.svg" class="pixel-icon inline" alt=""> Моніторинг сесій</button>
-        <button id="tabBtnLiveRadar" class="admin-tab-btn" type="button"><img src="/img/icons/signal.svg" class="pixel-icon inline" alt=""> Живий дашборд (<span id="liveRadarOnlineCount">0</span>)</button>
-        <button id="tabBtnAnalytics" class="admin-tab-btn" type="button"><img src="/img/icons/chart.svg" class="pixel-icon inline" alt=""> Аналітика відповідей</button>
-        <button id="tabBtnLeaderboard" class="admin-tab-btn" type="button"><img src="/img/icons/star.svg" class="pixel-icon inline" alt=""> Рейтинг учнів</button>
-        <button id="tabBtnClasses" class="admin-tab-btn" type="button"><img src="/img/icons/folder.svg" class="pixel-icon inline" alt=""> Класи</button>
-        <button id="tabBtnTestEditor" class="admin-tab-btn" type="button"><img src="/img/icons/edit.svg" class="pixel-icon inline" alt=""> Редактор тестів</button>
+        <button id="tabBtnSessions" class="admin-tab-btn active" type="button" onclick="window.switchTabTo('sessions')"><img src="/img/icons/analytics.svg" class="pixel-icon inline" alt=""> Моніторинг сесій</button>
+        <button id="tabBtnLiveRadar" class="admin-tab-btn" type="button" onclick="window.switchTabTo('liveRadar')"><img src="/img/icons/signal.svg" class="pixel-icon inline" alt=""> Живий дашборд (<span id="liveRadarOnlineCount">0</span>)</button>
+        <button id="tabBtnAnalytics" class="admin-tab-btn" type="button" onclick="window.switchTabTo('analytics')"><img src="/img/icons/chart.svg" class="pixel-icon inline" alt=""> Аналітика відповідей</button>
+        <button id="tabBtnLeaderboard" class="admin-tab-btn" type="button" onclick="window.switchTabTo('leaderboard')"><img src="/img/icons/star.svg" class="pixel-icon inline" alt=""> Рейтинг учнів</button>
+        <button id="tabBtnClasses" class="admin-tab-btn" type="button" onclick="window.switchTabTo('classes')"><img src="/img/icons/folder.svg" class="pixel-icon inline" alt=""> Класи</button>
+        <button id="tabBtnTestEditor" class="admin-tab-btn" type="button" onclick="window.switchTabTo('testEditor')"><img src="/img/icons/edit.svg" class="pixel-icon inline" alt=""> Редактор тестів</button>
       </div>
 
       <div class="card-panel" style="margin-bottom: 16px; padding: 12px 16px; display: flex; flex-direction: column; gap: 10px;">
@@ -246,7 +249,7 @@
           <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
             <div style="position: relative; display: inline-flex; align-items: center;">
               <input type="text" id="adminTestSearchInput" class="form-input search-input" style="width: auto; min-width: 175px; font-size: 12px; padding: 7px 24px 7px 32px;" placeholder="Пошук за темою / назвою...">
-              <button id="adminTestSearchClearBtn" type="button" style="display: none; position: absolute; right: 6px; background: transparent; border: none; cursor: pointer; color: var(--text-muted); font-size: 12px; padding: 2px; line-height: 1;" title="Очистити">✕</button>
+              <button id="adminTestSearchClearBtn" type="button" style="display: none; position: absolute; right: 6px; background: transparent; border: none; cursor: pointer; color: var(--text-muted); font-size: 12px; padding: 2px; line-height: 1;" title="Очистити"><img src="/img/icons/cross.svg" class="pixel-icon inline" alt=""></button>
             </div>
             <select id="adminSubjectFilter" class="form-input" style="width: auto; min-width: 130px; font-size: 12px; padding: 7px 10px; cursor: pointer;">
               <option value="">Усі предмети</option>
@@ -317,29 +320,39 @@
           </div>
         </div>
         <div id="qrModal" class="hidden" style="position: fixed; inset: 0; background: rgba(0,0,0,0.7); z-index: 20000; display: flex; align-items: center; justify-content: center; padding: 16px;">
-          <div class="card-panel" style="max-width: 360px; width: 100%; padding: 28px; text-align: center;">
+          <div class="card-panel" style="max-width: 420px; width: 100%; padding: 28px; text-align: center;">
             <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 18px;">
               <div>
                 <div style="font-size: 16px; font-weight: 700;">QR-код для студентів</div>
                 <div style="font-size: 11px; color: var(--text-muted); margin-top: 2px;">Відскануй — і одразу переходь на тест</div>
               </div>
-              <button id="closeQrModalBtn" style="background: none; border: none; cursor: pointer; padding: 4px;" type="button"><img src="/img/icons/cross.svg" class="pixel-icon" alt=""></button>
+              <div style="display: flex; gap: 6px; align-items: center;">
+                <button id="fullscreenQrBtn" class="btn-secondary" type="button" style="padding: 4px 10px; font-size: 11px; display: inline-flex; align-items: center; gap: 4px;" title="На весь екран (для проектора)"><img src="/img/icons/monitor.svg" class="pixel-icon inline" alt=""> Проектор</button>
+                <button id="closeQrModalBtn" style="background: none; border: none; cursor: pointer; padding: 4px;" type="button"><img src="/img/icons/cross.svg" class="pixel-icon" alt=""></button>
+              </div>
             </div>
             <div id="qrCodeContainer" style="display: flex; justify-content: center; align-items: center; background: #ffffff; border-radius: 10px; padding: 16px; margin-bottom: 16px; min-height: 200px;">
               <canvas id="qrCanvas"></canvas>
             </div>
             <div id="qrUrlLabel" style="font-size: 11px; color: var(--text-muted); word-break: break-all; margin-bottom: 14px;"></div>
-            <div style="display: flex; gap: 8px; justify-content: center;">
+            <div style="display: flex; gap: 8px; justify-content: center; flex-wrap: wrap;">
               <button id="copyQrUrlBtn" class="btn-secondary" type="button" style="width: auto; padding: 7px 16px; font-size: 12px;">Копіювати посилання</button>
               <button id="downloadQrBtn" class="btn-primary" type="button" style="width: auto; padding: 7px 16px; font-size: 12px;"><img src="/img/icons/download.svg" class="pixel-icon inline" alt=""> Завантажити QR</button>
             </div>
           </div>
         </div>
 
+        <div id="qrFullscreenOverlay" class="hidden" style="position: fixed; inset: 0; background: #ffffff; z-index: 30000; display: flex; flex-direction: column; align-items: center; justify-content: center; cursor: pointer;" onclick="document.getElementById('qrFullscreenOverlay').classList.add('hidden');" title="Натисніть для закриття">
+          <div style="font-size: clamp(14px, 3vw, 28px); font-weight: 800; color: #0f172a; margin-bottom: 24px; text-align: center; display: inline-flex; align-items: center; gap: 10px;"><img src="/img/icons/qrcode.svg" class="pixel-icon inline" style="width: 28px; height: 28px;" alt=""> Скануй QR-код для входу на тест</div>
+          <div id="qrFullscreenCanvas" style="background: #ffffff; padding: 24px; border-radius: 16px; box-shadow: 0 4px 32px rgba(0,0,0,0.12); display: flex; align-items: center; justify-content: center;"></div>
+          <div id="qrFullscreenUrl" style="font-size: clamp(10px, 2vw, 16px); color: #64748b; margin-top: 20px; font-family: monospace; text-align: center; max-width: 90vw; word-break: break-all;"></div>
+          <div style="margin-top: 14px; font-size: clamp(10px, 1.5vw, 13px); color: #94a3b8;">Натисніть будь-де для закриття повноекранного режиму</div>
+        </div>
+
         <div class="admin-grid">
 
           <div class="card-panel">
-            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; flex-wrap: wrap; gap: 8px;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; flex-wrap: wrap; gap: 8px;">
               <h2 style="font-size: 14px; font-weight: 600; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.05em; margin: 0;">Студенти та результати</h2>
               <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
                 <label style="font-size: 11px; color: var(--text-muted); font-weight: 600;">Клас:</label>
@@ -354,9 +367,22 @@
                   <option value="score_desc">За оцінкою (12 → 1)</option>
                   <option value="name_asc">За прізвищем (А → Я)</option>
                 </select>
+                <div style="display: flex; gap: 4px; border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 2px; background: var(--bg-elevated);">
+                  <button id="viewModeTable" type="button" class="btn-secondary active" style="padding: 4px 8px; font-size: 11px; border: none; border-radius: 3px; background: var(--accent); color: #fff; display: inline-flex; align-items: center; gap: 4px;" title="Таблиця"><img src="/img/icons/numbered-list.svg" class="pixel-icon inline" alt=""> Таблиця</button>
+                  <button id="viewModeTiles" type="button" class="btn-secondary" style="padding: 4px 8px; font-size: 11px; border: none; border-radius: 3px; background: transparent; color: var(--text-muted); display: inline-flex; align-items: center; gap: 4px;" title="Плитки"><img src="/img/icons/group.svg" class="pixel-icon inline" alt=""> Плитки</button>
+                </div>
               </div>
             </div>
-            <div style="overflow-x: auto;">
+
+            <div id="sessionStatusFilters" style="display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 10px;">
+              <button type="button" class="session-filter-chip active" data-filter="all" style="padding: 5px 12px; font-size: 11px; border-radius: 999px; border: 1px solid var(--border); background: var(--accent); color: #fff; cursor: pointer; font-weight: 600; transition: all 0.15s;">Всі</button>
+              <button type="button" class="session-filter-chip" data-filter="active" style="padding: 5px 12px; font-size: 11px; border-radius: 999px; border: 1px solid rgba(16,185,129,0.4); background: rgba(16,185,129,0.08); color: #10b981; cursor: pointer; font-weight: 600; transition: all 0.15s; display: inline-flex; align-items: center; gap: 4px;"><img src="/img/icons/signal.svg" class="pixel-icon inline" alt=""> Пишуть зараз</button>
+              <button type="button" class="session-filter-chip" data-filter="suspicious" style="padding: 5px 12px; font-size: 11px; border-radius: 999px; border: 1px solid rgba(245,158,11,0.4); background: rgba(245,158,11,0.08); color: #f59e0b; cursor: pointer; font-weight: 600; transition: all 0.15s; display: inline-flex; align-items: center; gap: 4px;"><img src="/img/icons/warning.svg" class="pixel-icon inline" alt=""> Підозрілі</button>
+              <button type="button" class="session-filter-chip" data-filter="completed" style="padding: 5px 12px; font-size: 11px; border-radius: 999px; border: 1px solid rgba(59,130,246,0.4); background: rgba(59,130,246,0.08); color: #3b82f6; cursor: pointer; font-weight: 600; transition: all 0.15s; display: inline-flex; align-items: center; gap: 4px;"><img src="/img/icons/check.svg" class="pixel-icon inline" alt=""> Завершили</button>
+              <button type="button" class="session-filter-chip" data-filter="critical" style="padding: 5px 12px; font-size: 11px; border-radius: 999px; border: 1px solid rgba(239,68,68,0.4); background: rgba(239,68,68,0.08); color: #ef4444; cursor: pointer; font-weight: 600; transition: all 0.15s; display: inline-flex; align-items: center; gap: 4px;"><img src="/img/icons/blocked.svg" class="pixel-icon inline" alt=""> Критичні</button>
+            </div>
+
+            <div id="sessionsTableWrap" style="overflow-x: auto;">
               <table class="admin-table">
                 <thead>
                   <tr>
@@ -377,6 +403,9 @@
                   </tr>
                 </tbody>
               </table>
+            </div>
+
+            <div id="sessionsTilesWrap" class="hidden" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 12px; padding: 4px;">
             </div>
           </div>
 
@@ -408,6 +437,16 @@
                   <div style="font-size: 10px; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-muted); margin-bottom: 2px;">Оцінка за 12-бальною шкалою</div>
                   <div id="detailScore12Display" style="font-size: 20px; font-weight: 800; color: var(--accent-blue);">—</div>
                   <div id="detailScore12Sub" style="font-size: 11px; color: var(--text-muted); margin-top: 2px;">—</div>
+                  <div id="scoreOverridePanel" class="hidden" style="margin-top: 8px; padding-top: 8px; border-top: 1px solid var(--border);">
+                    <div style="font-size: 10px; color: var(--text-muted); margin-bottom: 5px;">Ручне коригування оцінки:</div>
+                    <div style="display: flex; gap: 6px; align-items: center;">
+                      <input type="number" id="overrideScoreInput" min="1" max="12" value="6" class="form-input" style="width: 60px; padding: 4px 8px; font-size: 13px; font-weight: 700; text-align: center;">
+                      <span style="font-size: 12px; color: var(--text-muted);">/ 12 балів</span>
+                      <button id="submitOverrideScoreBtn" class="btn-primary" type="button" style="padding: 4px 10px; font-size: 11px; width: auto; display: inline-flex; align-items: center; gap: 4px;"><img src="/img/icons/save.svg" class="pixel-icon inline" alt=""> Зберегти</button>
+                    </div>
+                    <div id="overrideScoreMsg" style="font-size: 10px; min-height: 14px; margin-top: 4px;"></div>
+                  </div>
+                  <button id="toggleScoreOverrideBtn" type="button" style="background: none; border: none; cursor: pointer; color: var(--text-muted); font-size: 10px; margin-top: 6px; padding: 0; text-decoration: underline; display: inline-flex; align-items: center; gap: 4px;"><img src="/img/icons/edit.svg" class="pixel-icon inline" alt=""> Змінити оцінку вручну</button>
                 </div>
                 <div style="margin-bottom: 12px;">
                   <div style="font-size: 10px; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-muted); margin-bottom: 6px;">RTT-графік пінгу</div>
@@ -430,6 +469,17 @@
                     <button id="overrideBypassBtn" class="btn-secondary" style="width: 100%; font-size: 11px; background: rgba(99,102,241,0.1); border-color: #6366f1; color: #6366f1;" type="button">
                       <img src="/img/icons/key.svg" class="pixel-icon inline" alt=""> Забрати безпеку (повний аварійний доступ)
                     </button>
+                    <button id="openSendWarningBtn" class="btn-secondary" style="width: 100%; font-size: 11px; background: rgba(245,158,11,0.12); border-color: #f59e0b; color: #f59e0b;" type="button">
+                      <img src="/img/icons/warning.svg" class="pixel-icon inline" alt=""> Надіслати попередження учневі
+                    </button>
+                    <div style="display: flex; gap: 6px;">
+                      <button id="addTime5Btn" class="btn-secondary" style="flex: 1; font-size: 11px; background: rgba(59,130,246,0.1); border-color: #3b82f6; color: #3b82f6; display: inline-flex; align-items: center; justify-content: center; gap: 4px;" type="button">
+                        <img src="/img/icons/timer.svg" class="pixel-icon inline" alt=""> +5 хв
+                      </button>
+                      <button id="addTime10Btn" class="btn-secondary" style="flex: 1; font-size: 11px; background: rgba(59,130,246,0.1); border-color: #3b82f6; color: #3b82f6; display: inline-flex; align-items: center; justify-content: center; gap: 4px;" type="button">
+                        <img src="/img/icons/timer.svg" class="pixel-icon inline" alt=""> +10 хв
+                      </button>
+                    </div>
                     <div id="overrideStatusMsg" style="font-size: 10px; color: var(--text-muted); min-height: 14px;"></div>
                   </div>
                 </div>
@@ -664,6 +714,7 @@
             <div id="questionsCountLabel" style="font-size: 11px; color: var(--text-muted);">Завантаження списку питань...</div>
           </div>
           <div style="display: flex; gap: 8px; flex-wrap: wrap;">
+            <button id="previewWholeTestBtn" class="btn-secondary" style="width: auto; padding: 8px 16px; font-size: 12px; display: inline-flex; align-items: center; gap: 6px;" type="button"><img src="/img/icons/eye.svg" class="pixel-icon inline" alt=""> Переглянути як учень</button>
             <button id="openAiGenerateBtn" class="btn-primary" style="width: auto; padding: 8px 16px; font-size: 12px; background: linear-gradient(135deg, #6366f1, #8b5cf6); border: none; box-shadow: 0 2px 10px rgba(99,102,241,0.25);" type="button"><img src="/img/icons/star.svg" class="pixel-icon inline" alt="" style="filter: brightness(0) invert(1);"> Згенерувати через Gemini AI</button>
             <button id="openImportModalBtn" class="btn-secondary" style="width: auto; padding: 8px 16px; font-size: 12px;" type="button"><img src="/img/icons/folder.svg" class="pixel-icon inline" alt=""> Масовий імпорт (ШІ / Текст / Файл)</button>
             <button id="openAddQuestionBtn" class="btn-secondary" style="width: auto; padding: 8px 16px; font-size: 12px;" type="button"><img src="/img/icons/plus.svg" class="pixel-icon inline" alt=""> Додати вручну</button>
@@ -674,9 +725,9 @@
         <div id="aiStatusBanner" class="hidden" style="margin-bottom: 14px; padding: 12px 16px; border-radius: var(--radius-sm); background: rgba(22, 163, 74, 0.09); border: 1px solid var(--accent-green); color: var(--text); font-size: 13px; display: flex; align-items: center; justify-content: space-between; gap: 12px;">
           <div style="display: flex; align-items: center; gap: 8px;">
             <img src="/img/icons/check.svg" class="pixel-icon inline" alt="">
-            <span id="aiStatusBannerText" style="font-weight: 600;">✓ ШІ успішно завершив генерацію тесту</span>
+            <span id="aiStatusBannerText" style="font-weight: 600;">ШІ успішно завершив генерацію тесту</span>
           </div>
-          <button id="closeAiStatusBannerBtn" type="button" style="background: none; border: none; cursor: pointer; color: var(--text-muted); font-size: 16px; padding: 2px 6px;">✕</button>
+          <button id="closeAiStatusBannerBtn" type="button" style="background: none; border: none; cursor: pointer; color: var(--text-muted); font-size: 16px; padding: 2px 6px; display: inline-flex; align-items: center;"><img src="/img/icons/cross.svg" class="pixel-icon inline" alt=""></button>
         </div>
 
         <div id="adminQuestionsList">
@@ -699,8 +750,12 @@
             <select id="qTypeSelect" class="form-input" style="font-size: 13px; font-weight: 600; cursor: pointer;">
               <option value="single">Один правильний варіант</option>
               <option value="multiple">Кілька правильних відповідей (чекбокси)</option>
+              <option value="true_false">Правда / Неправда</option>
               <option value="matching">Встановлення відповідності (логічні пари)</option>
               <option value="ordering">Встановлення послідовності (хронологія)</option>
+              <option value="short_answer">Коротка текстова відповідь</option>
+              <option value="fill_blanks">Заповнення пропусків у тексті</option>
+              <option value="hotspot">Вибір області на зображенні (Hotspot)</option>
             </select>
           </div>
           <div>
@@ -711,7 +766,26 @@
 
         <div class="form-group" style="margin-bottom: 14px;">
           <label class="form-label" for="qTextInput">Текст питання або інструкція до завдання *</label>
-          <textarea id="qTextInput" class="form-input" style="min-height: 80px; resize: vertical; font-size: 13px; line-height: 1.45;" placeholder="Введіть формулювання питання..."></textarea>
+          <textarea id="qTextInput" class="form-input" style="min-height: 80px; resize: vertical; font-size: 13px; line-height: 1.45;" placeholder="Введіть формулювання питання... Для формул використовуйте $..$ або $$..$$"></textarea>
+        </div>
+
+        <div class="form-group" style="margin-bottom: 14px;">
+          <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px;">
+            <label class="form-label" style="margin:0;">Зображення до питання (необов'язково)</label>
+            <div style="display:flex; gap:6px;">
+              <label class="btn-secondary" style="width:auto; padding:5px 10px; font-size:11px; cursor:pointer; display:inline-flex; align-items:center; gap:5px; margin:0;">
+                <img src="/img/icons/folder.svg" class="pixel-icon inline" alt=""> Додати фото
+                <input type="file" id="qImageFileInput" accept="image/*" multiple style="display:none;">
+              </label>
+              <button type="button" id="qImageAddUrlBtn" class="btn-secondary" style="width:auto; padding:5px 10px; font-size:11px; display:inline-flex; align-items:center; gap:5px;"><img src="/img/icons/link.svg" class="pixel-icon inline" alt=""> За URL</button>
+            </div>
+          </div>
+          <div id="qImagesGallery" style="display:flex; flex-wrap:wrap; gap:8px; margin-top:6px;"></div>
+          <div id="qImageUrlAddRow" class="hidden" style="display:flex; gap:6px; margin-top:8px; align-items:center;">
+            <input type="text" id="qImageUrlInput" class="form-input" placeholder="Вставте URL зображення та натисніть ↵" style="flex:1; font-size:12px; padding:6px 10px;">
+            <button type="button" id="qImageUrlConfirmBtn" class="btn-primary" style="width:auto; padding:6px 10px; font-size:12px;">Додати</button>
+            <button type="button" id="qImageUrlCancelBtn" class="btn-secondary" style="width:auto; padding:6px 8px; font-size:12px; display:inline-flex; align-items:center;"><img src="/img/icons/cross.svg" class="pixel-icon inline" alt=""></button>
+          </div>
         </div>
 
         <div id="optionsFormSection" style="margin-bottom: 16px;">
@@ -720,6 +794,47 @@
             <button id="addOptionFieldBtn" class="btn-secondary" style="width: auto; padding: 4px 10px; font-size: 11px;" type="button"><img src="/img/icons/plus.svg" class="pixel-icon inline" alt=""> Додати варіант</button>
           </div>
           <div id="optionsFormContainer"></div>
+        </div>
+
+        <div id="shortAnswerFormSection" class="hidden" style="margin-bottom: 16px;">
+          <label class="form-label">Правильні відповіді (через кому, регістр ігнорується) *</label>
+          <input type="text" id="shortAnswerKeywordsInput" class="form-input" placeholder="напр.: Київ, київ, kyiv" style="font-size:13px;">
+          <div style="font-size:11px; color:var(--text-muted); margin-top:4px;">Відповідь студента вважається правильною, якщо збігається з будь-яким з цих варіантів.</div>
+        </div>
+
+        <div id="fillBlanksFormSection" class="hidden" style="margin-bottom: 16px;">
+          <div style="background: var(--bg-elevated); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 12px; margin-bottom: 10px;">
+            <div style="font-size: 12px; font-weight: 700; color: var(--text); margin-bottom: 4px; display: flex; align-items: center; gap: 6px;">
+              <img src="/img/icons/edit.svg" class="pixel-icon inline" alt=""> Як створювати пропуски у тексті:
+            </div>
+            <div style="font-size: 12px; color: var(--text-muted); line-height: 1.45;">
+              У полі «Текст питання» візьміть правильні відповіді у квадратні дужки <strong>[...]</strong>.<br>
+              Приклад: <code>Столицею України є [Київ], яка розташована на річці [Дніпро].</code><br>
+              Для синонімів розділяйте їх рискою <code>|</code>, наприклад: <code>[Київ|Kyiv]</code>.
+            </div>
+          </div>
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+            <label class="form-label" style="margin: 0;">Знайдені пропуски у тексті:</label>
+            <button id="detectBlanksBtn" class="btn-secondary" style="width: auto; padding: 4px 10px; font-size: 11px; display: inline-flex; align-items: center; gap: 4px;" type="button">
+              <img src="/img/icons/refresh.svg" class="pixel-icon inline" alt=""> Оновити з тексту
+            </button>
+          </div>
+          <div id="blanksDetectedList" style="display: flex; flex-direction: column; gap: 6px;"></div>
+        </div>
+
+        <div id="hotspotFormSection" class="hidden" style="margin-bottom: 16px;">
+          <div style="font-size: 12px; color: var(--text-muted); margin-bottom: 8px; display: flex; align-items: center; gap: 6px;">
+            <img src="/img/icons/info.svg" class="pixel-icon inline" alt=""> Клікніть на зображення нижче, щоб встановити цільову точку правильної відповіді:
+          </div>
+          <div style="margin-bottom: 8px; display: flex; gap: 12px; align-items: center; flex-wrap: wrap;">
+            <label style="font-size: 11px; font-weight: 600; color: var(--text-muted);">Радіус допуску (%):</label>
+            <input type="number" id="hotspotRadiusInput" class="form-input" value="12" min="3" max="40" style="width: 80px; font-size: 12px; padding: 4px 8px;">
+            <span id="hotspotCoordsLabel" style="font-size: 11px; color: var(--accent); font-weight: 700;">Цільова точка не обрана</span>
+          </div>
+          <div id="hotspotCanvasWrap" style="position: relative; display: inline-block; max-width: 100%; border: 1px solid var(--border); border-radius: var(--radius-sm); overflow: hidden; background: var(--bg-elevated); cursor: crosshair;">
+            <img id="hotspotPreviewImg" src="" alt="Спочатку додайте зображення до питання вище" style="display: block; max-width: 100%; max-height: 360px; object-fit: contain;">
+            <div id="hotspotTargetMarker" class="hidden" style="position: absolute; width: 24px; height: 24px; border: 2px solid #ef4444; background: rgba(239,68,68,0.25); border-radius: 50%; transform: translate(-50%, -50%); pointer-events: none;"></div>
+          </div>
         </div>
 
         <div id="matchingFormSection" class="hidden" style="margin-bottom: 16px;">
@@ -743,6 +858,57 @@
         <div style="display: flex; justify-content: flex-end; gap: 10px;">
           <button id="cancelQModalBtn" class="btn-secondary" style="width: auto; padding: 8px 18px; font-size: 12px;" type="button">Скасувати</button>
           <button id="saveQuestionBtn" class="btn-primary" style="width: auto; padding: 8px 20px; font-size: 12px;" type="button"><img src="/img/icons/save.svg" class="pixel-icon inline" alt=""> Зберегти питання</button>
+        </div>
+      </div>
+    </div>
+
+    <div id="previewQuestionModal" class="hidden" style="position: fixed; inset: 0; background: rgba(0,0,0,0.7); z-index: 20000; display: flex; align-items: center; justify-content: center; padding: 16px;">
+      <div class="card-panel" style="max-width: 760px; width: 100%; max-height: 92vh; overflow-y: auto; padding: 24px; position: relative;">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; border-bottom: 1px solid var(--border); padding-bottom: 12px;">
+          <div style="display: flex; align-items: center; gap: 8px;">
+            <div style="width: 28px; height: 28px; border-radius: 6px; background: rgba(99,102,241,0.15); display: flex; align-items: center; justify-content: center;">
+              <img src="/img/icons/eye.svg" class="pixel-icon" alt="">
+            </div>
+            <div>
+              <h3 id="previewModalTitle" style="font-size: 15px; font-weight: 700; margin: 0;">Попередній перегляд (як бачить учень)</h3>
+              <div id="previewModalSubtitle" style="font-size: 11px; color: var(--text-muted); margin-top: 2px;">Перевірка відображення водяного знаку, формул та варіантів</div>
+            </div>
+          </div>
+          <button id="closePreviewModalBtn" style="background: none; border: none; cursor: pointer; display: flex; align-items: center; padding: 4px;" type="button">
+            <img src="/img/icons/cross.svg" class="pixel-icon" alt="">
+          </button>
+        </div>
+
+        <div style="background: var(--bg-surface); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 18px; margin-bottom: 16px;">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; flex-wrap: wrap; gap: 8px;">
+            <span id="previewQCounter" class="tag-badge" style="font-size: 11px; font-weight: 700;">Питання 1 з 1</span>
+            <div style="display: flex; align-items: center; gap: 6px; font-size: 11px; color: var(--text-muted);">
+              <img src="/img/icons/timer.svg" class="pixel-icon inline" alt=""> Ліміт часу: <span id="previewQTimer">60 с</span>
+            </div>
+          </div>
+
+          <div id="previewCanvasWrap" style="margin-bottom: 14px;">
+            <canvas id="previewQuestionCanvas" style="display: block; max-width: 100%; border-radius: var(--radius-sm);"></canvas>
+            <div id="previewMathText" class="hidden" style="font-size: 16px; font-weight: 600; line-height: 1.5; color: var(--text); padding: 10px; background: var(--bg-elevated); border-radius: var(--radius-sm);"></div>
+          </div>
+
+          <div id="previewImagesWrap" class="hidden" style="display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 14px;"></div>
+
+          <div id="previewOptionsContainer" style="display: flex; flex-direction: column; gap: 8px;"></div>
+        </div>
+
+        <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px;">
+          <div style="display: flex; gap: 8px;">
+            <button id="previewPrevBtn" class="btn-secondary" style="width: auto; padding: 6px 14px; font-size: 12px;" type="button">
+              ← Попереднє
+            </button>
+            <button id="previewNextBtn" class="btn-secondary" style="width: auto; padding: 6px 14px; font-size: 12px;" type="button">
+              Наступне →
+            </button>
+          </div>
+          <button id="closePreviewBtnBottom" class="btn-secondary" style="width: auto; padding: 6px 18px; font-size: 12px;" type="button">
+            Закрити перегляд
+          </button>
         </div>
       </div>
     </div>
@@ -905,33 +1071,95 @@
     </div>
 
     <div id="createTestModal" class="hidden" style="position: fixed; inset: 0; background: rgba(0,0,0,0.65); z-index: 10000; display: flex; align-items: center; justify-content: center; padding: 16px;">
-      <div class="card-panel" style="max-width: 520px; width: 100%; padding: 24px;">
-        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
-          <h3 style="font-size: 16px; font-weight: 700; margin: 0;">Створити новий тест</h3>
-          <button id="closeCreateTestModalBtn" style="background: none; border: none; cursor: pointer; padding: 4px;" type="button"><img src="/img/icons/cross.svg" class="pixel-icon" alt=""></button>
+      <div class="card-panel" style="max-width: 540px; width: 100%; padding: 24px;">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px;">
+          <h3 style="font-size: 16px; font-weight: 700; margin: 0; display: inline-flex; align-items: center; gap: 8px;">
+            <img src="/img/icons/books.svg" class="pixel-icon inline" alt=""> Створення нового тесту
+          </h3>
+          <button id="closeCreateTestModalBtn" style="background: none; border: none; cursor: pointer; padding: 4px; display: inline-flex; align-items: center;" type="button"><img src="/img/icons/cross.svg" class="pixel-icon" alt=""></button>
         </div>
-        <div class="form-group" style="margin-bottom: 14px;">
-          <label class="form-label" for="newTestTitleInput">Назва тесту *</label>
-          <input type="text" id="newTestTitleInput" class="form-input" placeholder="Наприклад: Країни Європи: Німеччина" style="font-size: 13px;">
+
+        <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 6px; margin-bottom: 18px;">
+          <div id="wizardStepPill1" style="padding: 6px 10px; border-radius: 6px; font-size: 11px; font-weight: 700; text-align: center; background: var(--accent); color: #fff; transition: all 0.2s;">1. Параметри</div>
+          <div id="wizardStepPill2" style="padding: 6px 10px; border-radius: 6px; font-size: 11px; font-weight: 700; text-align: center; background: var(--bg-surface); color: var(--text-muted); border: 1px solid var(--border); transition: all 0.2s;">2. Наповнення</div>
+          <div id="wizardStepPill3" style="padding: 6px 10px; border-radius: 6px; font-size: 11px; font-weight: 700; text-align: center; background: var(--bg-surface); color: var(--text-muted); border: 1px solid var(--border); transition: all 0.2s;">3. Запуск</div>
         </div>
-        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 14px;">
-          <div>
-            <label class="form-label" for="newTestTopicInput">Тема підручника</label>
-            <input type="text" id="newTestTopicInput" class="form-input" placeholder="Наприклад: Європа" style="font-size: 13px;">
+
+        <div id="wizardStep1">
+          <div class="form-group" style="margin-bottom: 14px;">
+            <label class="form-label" for="newTestTitleInput">Назва тесту *</label>
+            <input type="text" id="newTestTitleInput" class="form-input" placeholder="Наприклад: Країни Європи: Німеччина" style="font-size: 13px;">
           </div>
-          <div>
-            <label class="form-label" for="newTestSubjectInput">Предмет</label>
-            <input type="text" id="newTestSubjectInput" class="form-input" value="Географія" style="font-size: 13px;">
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 14px;">
+            <div>
+              <label class="form-label" for="newTestTopicInput">Тема підручника</label>
+              <input type="text" id="newTestTopicInput" class="form-input" placeholder="Наприклад: Європа" style="font-size: 13px;">
+            </div>
+            <div>
+              <label class="form-label" for="newTestSubjectInput">Предмет</label>
+              <input type="text" id="newTestSubjectInput" class="form-input" value="Географія" style="font-size: 13px;">
+            </div>
+          </div>
+          <div class="form-group" style="margin-bottom: 18px;">
+            <label class="form-label" for="newTestDurationInput">Тривалість тестування (хвилини)</label>
+            <input type="number" id="newTestDurationInput" class="form-input" value="15" min="1" max="180" style="width: 140px; font-size: 13px;">
+          </div>
+          <div id="createTestErrorMsg" style="color: var(--accent-red); font-size: 12px; margin-bottom: 12px; min-height: 16px;"></div>
+          <div style="display: flex; justify-content: flex-end; gap: 8px;">
+            <button id="cancelCreateTestBtn" class="btn-secondary" style="width: auto; padding: 8px 16px; font-size: 12px;" type="button">Скасувати</button>
+            <button id="wizardStep1NextBtn" class="btn-primary" style="width: auto; padding: 8px 18px; font-size: 12px;" type="button">Далі: Наповнення →</button>
           </div>
         </div>
-        <div class="form-group" style="margin-bottom: 18px;">
-          <label class="form-label" for="newTestDurationInput">Тривалість тестування (хвилини)</label>
-          <input type="number" id="newTestDurationInput" class="form-input" value="15" min="1" max="180" style="width: 140px; font-size: 13px;">
+
+        <div id="wizardStep2" class="hidden">
+          <div style="font-size: 12px; color: var(--text-muted); margin-bottom: 12px;">Оберіть, як ви бажаєте наповнити тест питаннями:</div>
+          <div style="display: flex; flex-direction: column; gap: 8px; margin-bottom: 18px;">
+            <label style="display: flex; align-items: center; gap: 10px; padding: 10px 14px; border: 1px solid var(--accent); border-radius: var(--radius-sm); background: rgba(99,102,241,0.06); cursor: pointer;">
+              <input type="radio" name="wizardFillMethod" value="editor" checked style="accent-color: var(--accent);">
+              <div>
+                <div style="font-size: 13px; font-weight: 700; display: inline-flex; align-items: center; gap: 6px;"><img src="/img/icons/edit.svg" class="pixel-icon inline" alt=""> Створити вручну в редакторі</div>
+                <div style="font-size: 11px; color: var(--text-muted); margin-top: 2px;">Додавайте питання по одному або обирайте готові типи</div>
+              </div>
+            </label>
+            <label style="display: flex; align-items: center; gap: 10px; padding: 10px 14px; border: 1px solid var(--border); border-radius: var(--radius-sm); background: var(--bg-surface); cursor: pointer;">
+              <input type="radio" name="wizardFillMethod" value="ai" style="accent-color: var(--accent);">
+              <div>
+                <div style="font-size: 13px; font-weight: 700; display: inline-flex; align-items: center; gap: 6px;"><img src="/img/icons/bulb.svg" class="pixel-icon inline" alt=""> Згенерувати за допомогою ШІ (Gemini)</div>
+                <div style="font-size: 11px; color: var(--text-muted); margin-top: 2px;">Миттєве автостворення 5-20 запитань за вказаною темою</div>
+              </div>
+            </label>
+            <label style="display: flex; align-items: center; gap: 10px; padding: 10px 14px; border: 1px solid var(--border); border-radius: var(--radius-sm); background: var(--bg-surface); cursor: pointer;">
+              <input type="radio" name="wizardFillMethod" value="import" style="accent-color: var(--accent);">
+              <div>
+                <div style="font-size: 13px; font-weight: 700; display: inline-flex; align-items: center; gap: 6px;"><img src="/img/icons/download.svg" class="pixel-icon inline" alt=""> Імпортувати з файлу або тексту</div>
+                <div style="font-size: 11px; color: var(--text-muted); margin-top: 2px;">Завантажити з DOCX, TXT або скопіювати з іншого джерела</div>
+              </div>
+            </label>
+          </div>
+          <div style="display: flex; justify-content: space-between; gap: 8px;">
+            <button id="wizardStep2BackBtn" class="btn-secondary" style="width: auto; padding: 8px 16px; font-size: 12px;" type="button">← Назад</button>
+            <button id="wizardStep2NextBtn" class="btn-primary" style="width: auto; padding: 8px 18px; font-size: 12px;" type="button">Далі: Огляд →</button>
+          </div>
         </div>
-        <div id="createTestErrorMsg" style="color: var(--accent-red); font-size: 12px; margin-bottom: 12px; min-height: 16px;"></div>
-        <div style="display: flex; justify-content: flex-end; gap: 8px;">
-          <button id="cancelCreateTestBtn" class="btn-secondary" style="width: auto; padding: 8px 16px; font-size: 12px;" type="button">Скасувати</button>
-          <button id="submitCreateTestBtn" class="btn-primary" style="width: auto; padding: 8px 18px; font-size: 12px;" type="button">Створити тест</button>
+
+        <div id="wizardStep3" class="hidden">
+          <div style="background: var(--bg-surface); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 14px; margin-bottom: 18px;">
+            <div style="font-size: 11px; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-muted); margin-bottom: 8px; font-weight: 700;">Підсумок параметрів тесту:</div>
+            <div style="display: grid; grid-template-columns: 120px 1fr; gap: 6px; font-size: 12px; line-height: 1.5;">
+              <span style="color: var(--text-muted);">Назва:</span>
+              <strong id="wizardSummaryTitle" style="color: var(--text);">—</strong>
+              <span style="color: var(--text-muted);">Предмет / Тема:</span>
+              <span id="wizardSummarySubject">—</span>
+              <span style="color: var(--text-muted);">Тривалість:</span>
+              <span id="wizardSummaryDuration">—</span>
+              <span style="color: var(--text-muted);">Наповнення:</span>
+              <span id="wizardSummaryMethod" style="color: var(--accent); font-weight: 600;">—</span>
+            </div>
+          </div>
+          <div style="display: flex; justify-content: space-between; gap: 8px;">
+            <button id="wizardStep3BackBtn" class="btn-secondary" style="width: auto; padding: 8px 16px; font-size: 12px;" type="button">← Назад</button>
+            <button id="submitCreateTestBtn" class="btn-primary" style="width: auto; padding: 8px 20px; font-size: 12px; display: inline-flex; align-items: center; gap: 6px;" type="button"><img src="/img/icons/check.svg" class="pixel-icon inline" alt=""> Створити та перейти</button>
+          </div>
         </div>
       </div>
     </div>
@@ -1023,7 +1251,7 @@
         <h3 style="margin: 0; font-size: 16px; font-weight: 700; display: flex; align-items: center; gap: 8px; color: var(--text);">
           <img src="/img/icons/refresh.svg" class="pixel-icon inline" alt=""> Оновлення системи
         </h3>
-        <button id="closeUpdateModalBtn" class="btn-secondary" style="border: 1px solid var(--border); border-radius: 6px; padding: 4px 10px; font-size: 14px; cursor: pointer; background: var(--bg);" type="button">✕</button>
+        <button id="closeUpdateModalBtn" class="btn-secondary" style="border: 1px solid var(--border); border-radius: 6px; padding: 4px 10px; font-size: 14px; cursor: pointer; background: var(--bg); display: inline-flex; align-items: center;" type="button"><img src="/img/icons/cross.svg" class="pixel-icon inline" alt=""></button>
       </div>
       <div style="padding: 20px; background: var(--bg);">
         <div style="font-size: 14px; margin-bottom: 14px; color: var(--text);">
@@ -1052,8 +1280,8 @@
             <span style="font-size: 11px; color: var(--text-muted);">Не закривайте сторінку</span>
           </div>
         </div>
-        <div id="modalUpdateSuccessArea" class="hidden" style="margin-bottom: 16px; padding: 14px; background: rgba(16, 185, 129, 0.15); border: 1px solid var(--accent-green); border-radius: 8px; text-align: center; color: var(--accent-green); font-weight: 600; font-size: 13px;">
-          ✓ Оновлення встановлено! Сервер перезапускається, оновлюємо сторінку...
+        <div id="modalUpdateSuccessArea" class="hidden" style="margin-bottom: 16px; padding: 14px; background: rgba(16, 185, 129, 0.15); border: 1px solid var(--accent-green); border-radius: 8px; text-align: center; color: var(--accent-green); font-weight: 600; font-size: 13px; display: flex; align-items: center; justify-content: center; gap: 6px;">
+          <img src="/img/icons/check.svg" class="pixel-icon inline" alt=""> Оновлення встановлено! Сервер перезапускається, оновлюємо сторінку...
         </div>
         <div style="display: flex; justify-content: flex-end; gap: 10px;" id="modalUpdateActions">
           <button id="modalCancelUpdateBtn" class="btn-secondary" type="button">Скасувати</button>
@@ -1069,7 +1297,7 @@
         <h3 style="margin: 0; font-size: 16px; font-weight: 700; display: flex; align-items: center; gap: 8px; color: var(--text);">
           <img src="/img/icons/lock.svg" class="pixel-icon inline" alt=""> Зміна пароля викладача
         </h3>
-        <button id="closeChangePasswordModalBtn" class="btn-secondary" style="border: 1px solid var(--border); border-radius: 6px; padding: 4px 10px; font-size: 14px; cursor: pointer; background: var(--bg);" type="button">✕</button>
+        <button id="closeChangePasswordModalBtn" class="btn-secondary" style="border: 1px solid var(--border); border-radius: 6px; padding: 4px 10px; font-size: 14px; cursor: pointer; background: var(--bg); display: inline-flex; align-items: center;" type="button"><img src="/img/icons/cross.svg" class="pixel-icon inline" alt=""></button>
       </div>
       <div style="padding: 20px; background: var(--bg);">
         <div style="font-size: 13px; color: var(--text-muted); margin-bottom: 16px; line-height: 1.4;">
@@ -1093,6 +1321,58 @@
         <div style="display: flex; justify-content: flex-end; gap: 10px;">
           <button id="cancelChangePasswordBtn" class="btn-secondary" type="button">Скасувати</button>
           <button id="submitChangePasswordBtn" class="btn-primary" type="button">Зберегти пароль</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div id="teacherWarningModal" class="modal-backdrop hidden" style="background: rgba(0, 0, 0, 0.7); backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px); z-index: 10000;">
+    <div class="modal-card" style="max-width: 520px; width: 92%; background: var(--bg); border: 1px solid var(--border); border-radius: 14px; box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5); overflow: hidden;">
+      <div class="modal-header" style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--border); padding: 16px 20px; background: var(--bg-surface);">
+        <h3 style="margin: 0; font-size: 16px; font-weight: 700; display: flex; align-items: center; gap: 8px; color: var(--accent-amber);">
+          <img src="/img/icons/warning.svg" class="pixel-icon inline" alt=""> Надіслати попередження учневі
+        </h3>
+        <button id="closeTeacherWarningModalBtn" class="btn-secondary" style="border: 1px solid var(--border); border-radius: 6px; padding: 4px 10px; font-size: 14px; cursor: pointer; background: var(--bg); display: inline-flex; align-items: center;" type="button"><img src="/img/icons/cross.svg" class="pixel-icon inline" alt=""></button>
+      </div>
+      <div style="padding: 20px; background: var(--bg);">
+        <div style="font-size: 13px; color: var(--text); margin-bottom: 14px;">
+          Одержувач: <strong id="warnTargetStudentName" style="color: var(--accent-blue);">—</strong>
+          <input type="hidden" id="warnTargetSessionId" value="">
+        </div>
+
+        <div style="margin-bottom: 14px;">
+          <label style="display: block; font-size: 12px; font-weight: 600; margin-bottom: 6px; color: var(--text);">Рівень попередження</label>
+          <select id="warnLevelSelect" class="form-input" style="width: 100%; font-size: 13px;">
+            <option value="warning">Застереження (жовтий індикатор)</option>
+            <option value="danger">Суворе попередження про порушення (червоний індикатор)</option>
+            <option value="info">Повідомлення / Підказка (синій індикатор)</option>
+          </select>
+        </div>
+
+        <div style="margin-bottom: 14px;">
+          <label style="display: block; font-size: 12px; font-weight: 600; margin-bottom: 6px; color: var(--text);">Швидкі шаблони</label>
+          <div style="display: flex; flex-wrap: wrap; gap: 6px;" id="warnQuickTemplates">
+            <button type="button" class="btn-secondary warn-chip" data-msg="Сядьте ближче до камери та тримайте обличчя в кадрі." style="font-size: 11px; padding: 4px 8px; display: inline-flex; align-items: center; gap: 4px;"><img src="/img/icons/camera.svg" class="pixel-icon inline" alt=""> Ближче до камери</button>
+            <button type="button" class="btn-secondary warn-chip" data-msg="Не відводьте погляд від монітора під час тестування." style="font-size: 11px; padding: 4px 8px; display: inline-flex; align-items: center; gap: 4px;"><img src="/img/icons/eye.svg" class="pixel-icon inline" alt=""> Дивіться на екран</button>
+            <button type="button" class="btn-secondary warn-chip" data-msg="Припиніть розмови та сторонні шуми у кімнаті." style="font-size: 11px; padding: 4px 8px; display: inline-flex; align-items: center; gap: 4px;"><img src="/img/icons/bell.svg" class="pixel-icon inline" alt=""> Тиша / Сторонні звуки</button>
+            <button type="button" class="btn-secondary warn-chip" data-msg="Поверніться у повноекранний режим і не перемикайте вкладки." style="font-size: 11px; padding: 4px 8px; display: inline-flex; align-items: center; gap: 4px;"><img src="/img/icons/desktop.svg" class="pixel-icon inline" alt=""> Повноекранний режим</button>
+            <button type="button" class="btn-secondary warn-chip" data-msg="Приберіть телефон та сторонні електронні пристрої." style="font-size: 11px; padding: 4px 8px; display: inline-flex; align-items: center; gap: 4px;"><img src="/img/icons/mobile.svg" class="pixel-icon inline" alt=""> Приберіть телефон</button>
+            <button type="button" class="btn-secondary warn-chip" data-msg="Увага: система зафіксувала підозрілу активність. Тест може бути анульовано." style="font-size: 11px; padding: 4px 8px; display: inline-flex; align-items: center; gap: 4px;"><img src="/img/icons/warning.svg" class="pixel-icon inline" alt=""> Підозріла активність</button>
+          </div>
+        </div>
+
+        <div style="margin-bottom: 14px;">
+          <label style="display: block; font-size: 12px; font-weight: 600; margin-bottom: 6px; color: var(--text);">Текст повідомлення учневі *</label>
+          <textarea id="warnTextInput" class="form-input" style="width: 100%; min-height: 80px; font-size: 13px; line-height: 1.4; resize: vertical;" placeholder="Введіть текст персонального попередження..."></textarea>
+        </div>
+
+        <div id="warnSendStatus" style="font-size: 12px; min-height: 18px; margin-bottom: 12px;"></div>
+
+        <div style="display: flex; justify-content: flex-end; gap: 10px;">
+          <button id="cancelTeacherWarningBtn" class="btn-secondary" type="button">Скасувати</button>
+          <button id="submitTeacherWarningBtn" class="btn-primary" style="background: var(--accent-amber); border-color: var(--accent-amber); color: #000;" type="button">
+            <img src="/img/icons/warning.svg" class="pixel-icon inline" alt=""> Надіслати учневі
+          </button>
         </div>
       </div>
     </div>
