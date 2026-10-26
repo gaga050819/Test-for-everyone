@@ -1,8 +1,8 @@
 {
-  "version": "1.0.8",
+  "version": "1.0.9",
   "name": "SecureExam",
   "githubRepo": "gaga050819/Test-for-everyone",
   "updateManifestUrl": "https://raw.githubusercontent.com/gaga050819/Test-for-everyone/main/version.json",
-  "changelog": "Оновлення 1.0.8: Перевірка перед здачею (Summary Modal) з переходом до невідповіджених питань та режим відлагодження (Debug Mode).",
+  "changelog": "Оновлення 1.0.9: Нові питання, кращий інтерфейс.",
   "lastUpdated": 1792953600000
 }
