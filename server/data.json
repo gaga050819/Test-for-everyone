@@ -2891,9 +2891,351 @@
       "tags": []
     }
   },
-  "sessions": {},
+  "sessions": {
+    "ses_4v2ak1kj": {
+      "id": "ses_4v2ak1kj",
+      "testId": "geo-vstup",
+      "studentName": "12",
+      "studentId": "10-В",
+      "clientIp": "::1",
+      "clientInfo": {
+        "isMobile": false,
+        "userAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/156.0.0.0 Safari/537.36",
+        "screenWidth": 1536,
+        "screenHeight": 864
+      },
+      "proctorBypassed": false,
+      "startedAt": 1793216478173,
+      "status": "completed",
+      "trustScore": 100,
+      "incidentsCount": 0,
+      "answers": {
+        "g_vstup_4": {
+          "userAnswer": 0,
+          "correctAnswer": 0,
+          "isCorrect": true,
+          "earnedPoints": 1,
+          "timeSpent": 16
+        },
+        "g_vstup_3": {
+          "userAnswer": 2,
+          "correctAnswer": 1,
+          "isCorrect": false,
+          "earnedPoints": 0,
+          "timeSpent": 1
+        },
+        "g_vstup_2": {
+          "userAnswer": 0,
+          "correctAnswer": 2,
+          "isCorrect": false,
+          "earnedPoints": 0,
+          "timeSpent": 1
+        },
+        "g_vstup_10": {
+          "userAnswer": 1,
+          "correctAnswer": 0,
+          "isCorrect": false,
+          "earnedPoints": 0,
+          "timeSpent": 1
+        },
+        "g_vstup_7": {
+          "userAnswer": 2,
+          "correctAnswer": 3,
+          "isCorrect": false,
+          "earnedPoints": 0,
+          "timeSpent": 1
+        },
+        "g_vstup_1": {
+          "userAnswer": 0,
+          "correctAnswer": 0,
+          "isCorrect": true,
+          "earnedPoints": 1,
+          "timeSpent": 2
+        },
+        "g_vstup_9": {
+          "userAnswer": 3,
+          "correctAnswer": 3,
+          "isCorrect": true,
+          "earnedPoints": 1,
+          "timeSpent": 2
+        },
+        "g_vstup_6": {
+          "userAnswer": 3,
+          "correctAnswer": 2,
+          "isCorrect": false,
+          "earnedPoints": 0,
+          "timeSpent": 1
+        },
+        "g_vstup_8": {
+          "userAnswer": 3,
+          "correctAnswer": 0,
+          "isCorrect": false,
+          "earnedPoints": 0,
+          "timeSpent": 1
+        },
+        "g_vstup_5": {
+          "userAnswer": 3,
+          "correctAnswer": 1,
+          "isCorrect": false,
+          "earnedPoints": 0,
+          "timeSpent": 2
+        }
+      },
+      "questions": [
+        {
+          "id": "g_vstup_4",
+          "text": "Яку форму правління має Велика Британія?",
+          "type": "single",
+          "imageUrl": "",
+          "options": [
+            "Парламентська монархія",
+            "Президентська республіка",
+            "Абсолютна монархія",
+            "Федеративна республіка"
+          ],
+          "correct": 0,
+          "timeLimitSeconds": 60
+        },
+        {
+          "id": "g_vstup_3",
+          "text": "Яка держава є найбільш населеною?",
+          "type": "single",
+          "imageUrl": "",
+          "options": [
+            "США",
+            "Індія",
+            "Індонезія",
+            "Китай"
+          ],
+          "correct": 1,
+          "timeLimitSeconds": 60
+        },
+        {
+          "id": "g_vstup_2",
+          "text": "Яка держава має найбільшу площу у світі?",
+          "type": "single",
+          "imageUrl": "",
+          "options": [
+            "Канада",
+            "Китай",
+            "Росія",
+            "США"
+          ],
+          "correct": 2,
+          "timeLimitSeconds": 60
+        },
+        {
+          "id": "g_vstup_10",
+          "text": "Що є ознакою держави?",
+          "type": "single",
+          "imageUrl": "",
+          "options": [
+            "Суверенітет, територія, населення, влада",
+            "Членство в ООН",
+            "Наявність армії",
+            "Наявність мови та валюти"
+          ],
+          "correct": 0,
+          "timeLimitSeconds": 60
+        },
+        {
+          "id": "g_vstup_7",
+          "text": "Яка з організацій є найширшою міжурядовою?",
+          "type": "single",
+          "imageUrl": "",
+          "options": [
+            "ЄС",
+            "НАТО",
+            "G20",
+            "ООН"
+          ],
+          "correct": 3,
+          "timeLimitSeconds": 60
+        },
+        {
+          "id": "g_vstup_1",
+          "text": "Скільки держав є членами ООН?",
+          "type": "single",
+          "imageUrl": "",
+          "options": [
+            "193",
+            "141",
+            "173",
+            "210"
+          ],
+          "correct": 0,
+          "timeLimitSeconds": 60
+        },
+        {
+          "id": "g_vstup_9",
+          "text": "Яку форму правління мають більшість країн Близького Сходу?",
+          "type": "single",
+          "imageUrl": "",
+          "options": [
+            "Президентські республіки",
+            "Теократії",
+            "Парламентські республіки",
+            "Монархії"
+          ],
+          "correct": 3,
+          "timeLimitSeconds": 60
+        },
+        {
+          "id": "g_vstup_6",
+          "text": "Яку ознаку НЕ має суверенна держава?",
+          "type": "single",
+          "imageUrl": "",
+          "options": [
+            "Власна територія",
+            "Система органів влади",
+            "Підкорення іноземній владі",
+            "Населення"
+          ],
+          "correct": 2,
+          "timeLimitSeconds": 60
+        },
+        {
+          "id": "g_vstup_8",
+          "text": "Яка країна не має виходу до моря і є найбільшою серед внутрішньоконтинентальних?",
+          "type": "single",
+          "imageUrl": "",
+          "options": [
+            "Казахстан",
+            "Болівія",
+            "Швейцарія",
+            "Монголія"
+          ],
+          "correct": 0,
+          "timeLimitSeconds": 60
+        },
+        {
+          "id": "g_vstup_5",
+          "text": "Що таке унітарна держава?",
+          "type": "single",
+          "imageUrl": "",
+          "options": [
+            "Держава з двопалатним парламентом",
+            "Держава де вся влада в центральних органах",
+            "Держава з автономними суб'єктами",
+            "Держава з кількома столицями"
+          ],
+          "correct": 1,
+          "timeLimitSeconds": 60
+        }
+      ],
+      "networkStats": {
+        "totalPings": 13,
+        "averageLatency": 5,
+        "packetLossCount": 0,
+        "disconnectsCount": 0
+      },
+      "partialAnswers": {
+        "g_vstup_4": 0,
+        "g_vstup_3": 2,
+        "g_vstup_2": 0,
+        "g_vstup_10": 1,
+        "g_vstup_7": 2,
+        "g_vstup_1": 0,
+        "g_vstup_9": 3,
+        "g_vstup_6": 3,
+        "g_vstup_8": 3,
+        "g_vstup_5": 3
+      },
+      "submittedAt": 1793216506131,
+      "questionTimings": {
+        "g_vstup_4": 16,
+        "g_vstup_3": 1,
+        "g_vstup_2": 1,
+        "g_vstup_10": 1,
+        "g_vstup_7": 1,
+        "g_vstup_1": 2,
+        "g_vstup_9": 2,
+        "g_vstup_6": 1,
+        "g_vstup_8": 1,
+        "g_vstup_5": 2
+      },
+      "rawScore": 3,
+      "totalQuestions": 10,
+      "scorePercentage": 30,
+      "score12": 4,
+      "finalVerdict": {
+        "decision": "PERFECT_INTEGRITY",
+        "reason": "Тест пройдено з бездоганною доброчесністю (100% активності у вікні тесту).",
+        "cheatingCount": 0,
+        "networkCount": 0
+      }
+    }
+  },
   "incidents": [],
-  "pings": {},
+  "pings": {
+    "ses_4v2ak1kj": [
+      {
+        "timestamp": 1793216480210,
+        "latency": 47,
+        "status": "ok"
+      },
+      {
+        "timestamp": 1793216482210,
+        "latency": 1,
+        "status": "ok"
+      },
+      {
+        "timestamp": 1793216484207,
+        "latency": 2,
+        "status": "ok"
+      },
+      {
+        "timestamp": 1793216486208,
+        "latency": 2,
+        "status": "ok"
+      },
+      {
+        "timestamp": 1793216488208,
+        "latency": 1,
+        "status": "ok"
+      },
+      {
+        "timestamp": 1793216490208,
+        "latency": 2,
+        "status": "ok"
+      },
+      {
+        "timestamp": 1793216492209,
+        "latency": 2,
+        "status": "ok"
+      },
+      {
+        "timestamp": 1793216494208,
+        "latency": 1,
+        "status": "ok"
+      },
+      {
+        "timestamp": 1793216496203,
+        "latency": 1,
+        "status": "ok"
+      },
+      {
+        "timestamp": 1793216498205,
+        "latency": 1,
+        "status": "ok"
+      },
+      {
+        "timestamp": 1793216500208,
+        "latency": 1,
+        "status": "ok"
+      },
+      {
+        "timestamp": 1793216502207,
+        "latency": 2,
+        "status": "ok"
+      },
+      {
+        "timestamp": 1793216504207,
+        "latency": 1,
+        "status": "ok"
+      }
+    ]
+  },
   "classes": {
     "cls-10a": {
       "id": "cls-10a",

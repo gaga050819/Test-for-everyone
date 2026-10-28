@@ -6,3 +6,5 @@ ngrok.exe
 server/backups/
 server/admin_secret.json
 public/uploads/
+win7_x86/node/
+win7_x86/ngrok.exe

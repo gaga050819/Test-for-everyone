@@ -40,6 +40,8 @@
     </div>
   </header>
 
+  <div id="toastContainer" class="toast-container" aria-live="polite"></div>
+
   <main class="main-container">
 
     <section id="welcomeScreen" class="card-panel">
@@ -48,40 +50,11 @@
           <span class="device-pill" id="deviceTypePill">Визначення пристрою...</span>
         </div>
         <h1 class="welcome-title gradient-title" id="welcomeTitle">Підсумковий Контроль Знань</h1>
-        <p class="welcome-description">
-          Система веде моніторинг стабільності інтернет-з'єднання та активності вікна. Збої мережі не штрафуються і ставлять тест на паузу. Спроби згорнути вікно, відкрити іншу програму, розділити екран або зробити скріншот фіксуються в журналі порушень.
-        </p>
       </div>
 
-      <div class="rules-grid">
-        <div class="rule-card">
-          <div class="rule-icon"><img src="/img/icons/monitor.svg" class="pixel-icon" alt=""></div>
-          <div>
-            <div class="rule-text-title">Повний екран</div>
-            <div class="rule-text-desc">Тест блокує вихід. На телефонах заборонено режим розділеного екрана (Split Screen).</div>
-          </div>
-        </div>
-        <div class="rule-card">
-          <div class="rule-icon"><img src="/img/icons/signal.svg" class="pixel-icon" alt=""></div>
-          <div>
-            <div class="rule-text-title">Аналіз якості зв'язку</div>
-            <div class="rule-text-desc">Постійний моніторинг пінгу. Система точно знає, чи це зник зв'язок, чи вихід з програми.</div>
-          </div>
-        </div>
-        <div class="rule-card">
-          <div class="rule-icon"><img src="/img/icons/canvas.svg" class="pixel-icon" alt=""></div>
-          <div>
-            <div class="rule-text-title">Canvas-захист питань</div>
-            <div class="rule-text-desc">Текст малюється на Canvas. Його неможливо спарсити ботами чи розширеннями.</div>
-          </div>
-        </div>
-        <div class="rule-card">
-          <div class="rule-icon"><img src="/img/icons/fingerprint.svg" class="pixel-icon" alt=""></div>
-          <div>
-            <div class="rule-text-title">Водяний знак від фото</div>
-            <div class="rule-text-desc">Захист від фотографування екрана: напівпрозорий персональний ідентифікатор.</div>
-          </div>
-        </div>
+      <div class="shield-badge-banner">
+        <span class="shield-badge-icon"><img src="/img/icons/shield.svg" class="pixel-icon inline" alt=""></span>
+        <span class="shield-badge-text"><strong>Режим захисту:</strong> повний екран • моніторинг фокусу • захист від скріншотів</span>
       </div>
 
       <div style="max-width: 440px; margin: 0 auto;">
@@ -115,19 +88,20 @@
           <div id="classAssignedHint" style="font-size: 11px; color: var(--accent); margin-top: 4px;" class="hidden"></div>
         </div>
 
-        <div class="card-panel" style="background: var(--bg-elevated); padding: 14px 16px; margin-bottom: 16px; border: 1px solid var(--border);">
-          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
-            <label class="form-label" style="margin: 0; font-size: 11px; font-weight: 700; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.05em; display: flex; align-items: center; gap: 6px;">
-              <img src="/img/icons/folder.svg" class="pixel-icon inline" alt=""> Призначений тест від викладача
-            </label>
-            <span id="testsCountBadge" class="tag-badge approved" style="font-size: 10px;">Активний</span>
+        <div id="smartTestCard" class="smart-test-card">
+          <div class="smart-test-top">
+            <span class="smart-test-subject-badge" id="smartTestSubjectBadge">
+              <img src="/img/icons/books.svg" class="pixel-icon inline" alt="">
+              <span id="smartTestSubjectText">Тестування</span>
+            </span>
+            <span id="smartTestTopicBadge" class="smart-test-pill"></span>
           </div>
 
-          <div id="activeTestTitleDisplay" style="font-size: 15px; font-weight: 700; color: var(--text); line-height: 1.4; margin-bottom: 10px;">
-            Завантаження призначеного тесту...
+          <div id="activeTestTitleDisplay" class="smart-test-title">
+            Завантаження тесту...
           </div>
 
-          <div id="selectedTestInfoBadge" style="font-size: 11px; color: var(--text-muted); display: flex; flex-wrap: wrap; align-items: center; gap: 8px;"></div>
+          <div id="selectedTestInfoBadge" class="smart-test-meta-row"></div>
 
           <select id="testSelectInput" class="form-input hidden" style="display:none;"><option value="">Оберіть тест...</option></select>
           <input type="text" id="testTopicSearchInput" class="hidden" style="display:none;">
@@ -135,87 +109,13 @@
           <select id="topicFilterSelect" class="hidden" style="display:none;"><option value="">Усі теми</option></select>
         </div>
 
-        <div id="cameraStatusBlock" class="cam-card status-checking">
-          <div class="cam-card-header">
-            <span id="cameraStatusIcon" class="cam-card-icon"><img src="/img/icons/hourglass.svg" class="pixel-icon" alt=""></span>
-            <div style="flex:1; min-width:0;">
-              <div id="cameraStatusTitle" class="cam-card-title">Запит доступу до камери (необов'язково)...</div>
-              <div id="cameraStatusDesc" class="cam-card-desc">Дозвольте використання камери за бажанням або продовжуйте тестування без неї.</div>
-            </div>
+        <div id="cameraStatusBlock" class="cam-compact-card status-checking">
+          <div class="cam-compact-info">
+            <span id="cameraStatusIcon" class="cam-compact-icon"><img src="/img/icons/hourglass.svg" class="pixel-icon inline" alt=""></span>
+            <span id="cameraStatusTitle" class="cam-compact-title">Камера (необов'язково)...</span>
           </div>
-
-          <div id="cameraActionsRow" class="cam-actions-row hidden">
-            <button id="cameraRetryBtn" class="cam-btn cam-btn-primary" type="button"><img src="/img/icons/refresh.svg" class="pixel-icon inline" alt=""> Спробувати ще раз</button>
-            <button id="cameraCopyIncognitoBtn" class="cam-btn" type="button"><img src="/img/icons/incognito.svg" class="pixel-icon inline" alt=""> Скопіювати лінк для Інкогніто</button>
-          </div>
-
-          <div id="cameraHowTo" class="cam-guide-box hidden">
-            <div class="cam-tabs">
-              <button class="cam-tab-btn active" data-tab="android" type="button"><img src="/img/icons/android.svg" class="pixel-icon inline" alt=""> Android</button>
-              <button class="cam-tab-btn" data-tab="ios" type="button"><img src="/img/icons/apple.svg" class="pixel-icon inline" alt=""> iPhone / Safari</button>
-              <button class="cam-tab-btn" data-tab="desktop" type="button"><img src="/img/icons/desktop.svg" class="pixel-icon inline" alt=""> Комп'ютер</button>
-            </div>
-
-            <div id="camTabContentAndroid" class="cam-tab-content">
-              <div class="cam-steps-list">
-                <div class="cam-step-item">
-                  <span class="cam-step-num">1</span>
-                  <span>У рядку адреси зліва натисніть значок <img src="/img/icons/settings.svg" class="pixel-icon inline" alt=""> <strong>Налаштування сайту</strong> (або повзунки / ⓘ).</span>
-                </div>
-                <div class="cam-step-item">
-                  <span class="cam-step-num">2</span>
-                  <span>Натисніть <strong>«Дозволи»</strong> та увімкніть перемикач <strong>«Камера»</strong> (або натисніть <strong>«Скинути дозволи»</strong>).</span>
-                </div>
-                <div class="cam-step-item">
-                  <span class="cam-step-num">3</span>
-                  <span>Поверніться на сторінку та натисніть кнопку <strong>«Спробувати ще раз»</strong> нижче.</span>
-                </div>
-              </div>
-              <div class="cam-tip-box">
-                <img src="/img/icons/bulb.svg" class="pixel-icon inline" alt=""> <strong>Або через меню Chrome:</strong> Натисніть <strong>три крапки (⋮)</strong> вгорі праворуч → <strong>Налаштування</strong> → <strong>Налаштування сайтів</strong> → <strong>Камера</strong> → виберіть цей сайт та натисніть <strong>«Дозволити»</strong>.
-              </div>
-            </div>
-
-            <div id="camTabContentIos" class="cam-tab-content hidden">
-              <div class="cam-steps-list">
-                <div class="cam-step-item">
-                  <span class="cam-step-num">1</span>
-                  <span>Зліва в рядку адреси натисніть значок <strong>«аА»</strong> (або значок сторінки).</span>
-                </div>
-                <div class="cam-step-item">
-                  <span class="cam-step-num">2</span>
-                  <span>Виберіть <strong>«Параметри веб-сайту»</strong> → знайдіть рядок <strong>«Камера»</strong> → встановіть <strong>«Дозволити»</strong>.</span>
-                </div>
-                <div class="cam-step-item">
-                  <span class="cam-step-num">3</span>
-                  <span>Натисніть <strong>«Готово»</strong> і натисніть кнопку <strong>«Спробувати ще раз»</strong>.</span>
-                </div>
-              </div>
-              <div class="cam-tip-box">
-                <img src="/img/icons/bulb.svg" class="pixel-icon inline" alt=""> <strong>Якщо заблоковано в iOS:</strong> Відкрийте Налаштування iPhone → <strong>Safari</strong> → пункт <strong>Камера</strong> → виберіть <strong>Дозволити</strong>.
-              </div>
-            </div>
-
-            <div id="camTabContentDesktop" class="cam-tab-content hidden">
-              <div class="cam-steps-list">
-                <div class="cam-step-item">
-                  <span class="cam-step-num">1</span>
-                  <span>Зліва від веб-адреси натисніть значок <img src="/img/icons/settings.svg" class="pixel-icon inline" alt=""> <strong>Налаштування сайту</strong> (або <img src="/img/icons/lock.svg" class="pixel-icon inline" alt=""> замок).</span>
-                </div>
-                <div class="cam-step-item">
-                  <span class="cam-step-num">2</span>
-                  <span>Біля пункту <strong>«Камера»</strong> перемкніть тумблер у положення <strong>«Увімкнено»</strong>.</span>
-                </div>
-                <div class="cam-step-item">
-                  <span class="cam-step-num">3</span>
-                  <span>Натисніть кнопку <strong>«Спробувати ще раз»</strong> або перезавантажте сторінку (F5).</span>
-                </div>
-              </div>
-            </div>
-
-            <div class="cam-tip-box" style="margin-top: 12px; background: rgba(16, 185, 129, 0.08); border-color: rgba(16, 185, 129, 0.3);">
-              <img src="/img/icons/star.svg" class="pixel-icon inline" alt=""> <strong>Найпростіший вихід:</strong> Натисніть кнопку <strong>«Скопіювати лінк для Інкогніто»</strong>, відкрийте нову вкладку <strong>Інкогніто</strong> і вставте посилання — браузер заново запитає дозвіл!
-            </div>
+          <div id="cameraActionsRow" class="cam-compact-actions hidden">
+            <button id="cameraRetryBtn" class="cam-compact-btn" type="button"><img src="/img/icons/refresh.svg" class="pixel-icon inline" alt=""> Дозволити</button>
           </div>
         </div>
 
@@ -243,9 +143,15 @@
 
         <div class="test-header-center">
           <h2 id="testTitleDisplay" class="test-header-title">Підсумковий тест</h2>
-          <div id="testLivePingBadge" class="test-header-ping">
-            <span class="status-dot" id="testLivePingDot"></span>
-            <span id="testLivePingValue">-- ms</span>
+          <div style="display: flex; align-items: center; justify-content: center; gap: 8px; flex-wrap: wrap;">
+            <div id="testLivePingBadge" class="test-header-ping">
+              <span class="status-dot" id="testLivePingDot"></span>
+              <span id="testLivePingValue">-- ms</span>
+            </div>
+            <div id="testCurrentClockBadge" class="test-header-clock">
+              <img src="/img/icons/timer.svg" class="pixel-icon inline" alt="">
+              <span id="testCurrentClockDisplay">--:--</span>
+            </div>
           </div>
         </div>
 

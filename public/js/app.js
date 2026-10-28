@@ -76,7 +76,7 @@ function attachDebug5Clicks(el) {
       if (key === null) return;
       const cleanKey = key.trim();
       if (cleanKey !== 'Honda2020!05081988') {
-        alert('Невірний ключ доступу.');
+        showToast('Невірний ключ доступу.', 'error');
         return;
       }
 
@@ -100,9 +100,9 @@ function toggleDebugMode(cleanKey) {
     closeWarningModal();
     hideFatalOverlay();
     updateTrustScore(100);
-    alert('Режим відлагодження (Debug Mode) УВІМКНЕНО! Усі сповіщення та перевірки відключено.');
+    showToast('Debug Mode УВІМКНЕНО! Усі перевірки відключено.', 'warning');
   } else {
-    alert('Режим відлагодження (Debug Mode) ВИМКНЕНО! Захист відновлено.');
+    showToast('Debug Mode ВИМКНЕНО! Захист відновлено.', 'success');
   }
 
   updateDebugBadge();
@@ -179,88 +179,78 @@ const summaryModalPillsWrap = document.getElementById('summaryModalPillsWrap');
 const summaryBackBtn = document.getElementById('summaryBackBtn');
 const summaryConfirmBtn = document.getElementById('summaryConfirmBtn');
 
-const cameraStatusBlock      = document.getElementById('cameraStatusBlock');
-const cameraStatusIcon       = document.getElementById('cameraStatusIcon');
-const cameraStatusTitle      = document.getElementById('cameraStatusTitle');
-const cameraStatusDesc       = document.getElementById('cameraStatusDesc');
-const cameraActionsRow       = document.getElementById('cameraActionsRow');
-const cameraRetryBtn         = document.getElementById('cameraRetryBtn');
-const cameraCopyIncognitoBtn = document.getElementById('cameraCopyIncognitoBtn');
-const cameraHowTo            = document.getElementById('cameraHowTo');
+function showToast(message, type = 'info', duration = 3500) {
+  let container = document.getElementById('toastContainer');
+  if (!container) {
+    container = document.createElement('div');
+    container.id = 'toastContainer';
+    container.className = 'toast-container';
+    document.body.appendChild(container);
+  }
+
+  const iconMap = {
+    success: '/img/icons/check.svg',
+    warning: '/img/icons/warning.svg',
+    error: '/img/icons/blocked.svg',
+    info: '/img/icons/bell.svg'
+  };
+
+  const toast = document.createElement('div');
+  toast.className = `toast-card ${type}`;
+  const iconSrc = iconMap[type] || iconMap.info;
+  toast.innerHTML = `
+    <span class="toast-icon"><img src="${iconSrc}" class="pixel-icon inline" alt=""></span>
+    <div class="toast-body">${escapeHtml(message)}</div>
+    <button class="toast-close" type="button" aria-label="Закрити">✕</button>
+    <div class="toast-progress" style="animation-duration: ${duration}ms;"></div>
+  `;
+
+  container.appendChild(toast);
+  requestAnimationFrame(() => toast.classList.add('show'));
+
+  const closeBtn = toast.querySelector('.toast-close');
+  let timerId = null;
+  const dismiss = () => {
+    if (timerId) clearTimeout(timerId);
+    toast.classList.remove('show');
+    toast.classList.add('hide');
+    setTimeout(() => toast.remove(), 280);
+  };
+
+  if (closeBtn) closeBtn.addEventListener('click', dismiss);
+  timerId = setTimeout(dismiss, duration);
+}
+
+window.showToast = showToast;
+
+function updateTestCurrentClock() {
+  const el = document.getElementById('testCurrentClockDisplay');
+  if (!el) return;
+  const now = new Date();
+  const hrs = String(now.getHours()).padStart(2, '0');
+  const mins = String(now.getMinutes()).padStart(2, '0');
+  const secs = String(now.getSeconds()).padStart(2, '0');
+  el.textContent = `${hrs}:${mins}:${secs}`;
+}
+setInterval(updateTestCurrentClock, 1000);
+updateTestCurrentClock();
+
+const cameraStatusBlock = document.getElementById('cameraStatusBlock');
+const cameraStatusIcon = document.getElementById('cameraStatusIcon');
+const cameraStatusTitle = document.getElementById('cameraStatusTitle');
+const cameraActionsRow = document.getElementById('cameraActionsRow');
+const cameraRetryBtn = document.getElementById('cameraRetryBtn');
 
 let isCameraReady = false;
 let activeCameraStream = null;
 
-function initCameraTabs() {
-  const ua = navigator.userAgent;
-  const isIOS = /iPhone|iPad|iPod/i.test(ua);
-  const isAndroid = /Android/i.test(ua);
-
-  let defaultTab = 'desktop';
-  if (isIOS) defaultTab = 'ios';
-  else if (isAndroid) defaultTab = 'android';
-
-  const tabBtns = document.querySelectorAll('.cam-tab-btn');
-  const tabContents = {
-    android: document.getElementById('camTabContentAndroid'),
-    ios: document.getElementById('camTabContentIos'),
-    desktop: document.getElementById('camTabContentDesktop')
-  };
-
-  function switchTab(target) {
-    tabBtns.forEach(btn => {
-      btn.classList.toggle('active', btn.dataset.tab === target);
-    });
-    Object.keys(tabContents).forEach(key => {
-      if (tabContents[key]) {
-        tabContents[key].classList.toggle('hidden', key !== target);
-      }
-    });
-  }
-
-  tabBtns.forEach(btn => {
-    btn.addEventListener('click', () => switchTab(btn.dataset.tab));
-  });
-
-  switchTab(defaultTab);
-}
-
-if (cameraCopyIncognitoBtn) {
-  cameraCopyIncognitoBtn.addEventListener('click', async () => {
-    const url = window.location.href;
-    let copied = false;
-    if (navigator.clipboard && navigator.clipboard.writeText) {
-      try {
-        await navigator.clipboard.writeText(url);
-        copied = true;
-      } catch (e) {}
-    }
-    if (!copied) {
-      const ta = document.createElement('textarea');
-      ta.value = url;
-      document.body.appendChild(ta);
-      ta.select();
-      try { document.execCommand('copy'); copied = true; } catch (e) {}
-      ta.remove();
-    }
-
-    const toast = document.createElement('div');
-    toast.className = 'cam-copy-toast';
-    toast.innerHTML = '<img src="/img/icons/check.svg" class="pixel-icon inline" alt=""> Посилання скопійовано! Відкрийте нову вкладку Інкогніто у вашому браузері та вставте його туди.';
-    document.body.appendChild(toast);
-    setTimeout(() => toast.remove(), 4000);
-  });
-}
-
 function setCameraStatus(state) {
   if (state === 'checking') {
     isCameraReady = false;
-    if (cameraStatusBlock) cameraStatusBlock.className = 'cam-card status-checking';
-    if (cameraStatusIcon) cameraStatusIcon.innerHTML = '<img src="/img/icons/hourglass.svg" class="pixel-icon" alt="">';
-    if (cameraStatusTitle) cameraStatusTitle.textContent = 'Запит доступу до камери (необов\'язково)...';
-    if (cameraStatusDesc) cameraStatusDesc.textContent = 'Дозвольте використання камери у спливаючому вікні браузера або продовжуйте без неї.';
+    if (cameraStatusBlock) cameraStatusBlock.className = 'cam-compact-card status-checking';
+    if (cameraStatusIcon) cameraStatusIcon.innerHTML = '<img src="/img/icons/hourglass.svg" class="pixel-icon inline" alt="">';
+    if (cameraStatusTitle) cameraStatusTitle.textContent = 'Камера (необов\'язково)...';
     if (cameraActionsRow) cameraActionsRow.classList.add('hidden');
-    if (cameraHowTo) cameraHowTo.classList.add('hidden');
     if (startTestBtn) {
       startTestBtn.disabled = false;
       startTestBtn.style.opacity = '1';
@@ -268,12 +258,10 @@ function setCameraStatus(state) {
     }
   } else if (state === 'granted') {
     isCameraReady = true;
-    if (cameraStatusBlock) cameraStatusBlock.className = 'cam-card status-granted';
-    if (cameraStatusIcon) cameraStatusIcon.innerHTML = '<img src="/img/icons/check.svg" class="pixel-icon" alt="">';
-    if (cameraStatusTitle) cameraStatusTitle.textContent = 'Камера підключена та активна';
-    if (cameraStatusDesc) cameraStatusDesc.textContent = 'Фронтальна камера готова. Можна переходити до тестування.';
+    if (cameraStatusBlock) cameraStatusBlock.className = 'cam-compact-card status-granted';
+    if (cameraStatusIcon) cameraStatusIcon.innerHTML = '<img src="/img/icons/check.svg" class="pixel-icon inline" alt="">';
+    if (cameraStatusTitle) cameraStatusTitle.textContent = 'Камера активна';
     if (cameraActionsRow) cameraActionsRow.classList.add('hidden');
-    if (cameraHowTo) cameraHowTo.classList.add('hidden');
     if (startTestBtn) {
       startTestBtn.disabled = false;
       startTestBtn.style.opacity = '1';
@@ -285,12 +273,10 @@ function setCameraStatus(state) {
       activeCameraStream.getTracks().forEach(t => t.stop());
       activeCameraStream = null;
     }
-    if (cameraStatusBlock) cameraStatusBlock.className = 'cam-card status-denied';
-    if (cameraStatusIcon) cameraStatusIcon.innerHTML = '<img src="/img/icons/blocked.svg" class="pixel-icon" alt="">';
-    if (cameraStatusTitle) cameraStatusTitle.textContent = 'Камеру не увімкнено (необов\'язково)';
-    if (cameraStatusDesc) cameraStatusDesc.textContent = 'Браузер не отримав доступу до камери. Ви можете скласти тест без камери або увімкнути її за інструкцією нижче.';
+    if (cameraStatusBlock) cameraStatusBlock.className = 'cam-compact-card status-denied';
+    if (cameraStatusIcon) cameraStatusIcon.innerHTML = '<img src="/img/icons/blocked.svg" class="pixel-icon inline" alt="">';
+    if (cameraStatusTitle) cameraStatusTitle.textContent = 'Без камери (необов\'язково)';
     if (cameraActionsRow) cameraActionsRow.classList.remove('hidden');
-    if (cameraHowTo) cameraHowTo.classList.remove('hidden');
     if (startTestBtn) {
       startTestBtn.disabled = false;
       startTestBtn.style.opacity = '1';
@@ -302,12 +288,10 @@ function setCameraStatus(state) {
       activeCameraStream.getTracks().forEach(t => t.stop());
       activeCameraStream = null;
     }
-    if (cameraStatusBlock) cameraStatusBlock.className = 'cam-card status-denied';
-    if (cameraStatusIcon) cameraStatusIcon.innerHTML = '<img src="/img/icons/camera.svg" class="pixel-icon" alt="">';
-    if (cameraStatusTitle) cameraStatusTitle.textContent = 'Камеру не знайдено (необов\'язково)';
-    if (cameraStatusDesc) cameraStatusDesc.textContent = 'Працюючу камеру не виявлено. Ви можете продовжувати тестування без камери.';
-    if (cameraActionsRow) cameraActionsRow.classList.remove('hidden');
-    if (cameraHowTo) cameraHowTo.classList.add('hidden');
+    if (cameraStatusBlock) cameraStatusBlock.className = 'cam-compact-card status-denied';
+    if (cameraStatusIcon) cameraStatusIcon.innerHTML = '<img src="/img/icons/camera.svg" class="pixel-icon inline" alt="">';
+    if (cameraStatusTitle) cameraStatusTitle.textContent = 'Камеру не виявлено';
+    if (cameraActionsRow) cameraActionsRow.classList.add('hidden');
     if (startTestBtn) {
       startTestBtn.disabled = false;
       startTestBtn.style.opacity = '1';
@@ -357,7 +341,6 @@ if (cameraRetryBtn) {
   cameraRetryBtn.addEventListener('click', () => checkCameraPermission());
 }
 
-initCameraTabs();
 checkCameraPermission();
 
 window.addEventListener('beforeunload', () => {
@@ -473,7 +456,7 @@ async function resumeSession(cached) {
     const res = await fetch(`/api/sessions/${cached.sessionId}/state`);
     if (!res.ok) {
       localStorage.removeItem('secure_exam_active_session');
-      alert('Сесію на сервері не знайдено або вже завершено.');
+      showToast('Сесію на сервері не знайдено або вже завершено.', 'warning');
       const banner = document.getElementById('resumeSessionBanner');
       if (banner) banner.classList.add('hidden');
       return;
@@ -481,7 +464,7 @@ async function resumeSession(cached) {
     const state = await res.json();
     if (state.status === 'completed' || state.status === 'disqualified') {
       localStorage.removeItem('secure_exam_active_session');
-      alert('Цю сесію тестування вже було здано.');
+      showToast('Цю сесію тестування вже було здано.', 'info');
       const banner = document.getElementById('resumeSessionBanner');
       if (banner) banner.classList.add('hidden');
       return;
@@ -560,7 +543,7 @@ async function resumeSession(cached) {
     initTestUI(true);
   } catch (err) {
     console.error(err);
-    alert('Помилка відновлення сесії: ' + err.message);
+    showToast('Помилка відновлення сесії: ' + err.message, 'error');
     const resumeBtn = document.getElementById('resumeSessionBtn');
     if (resumeBtn) {
       resumeBtn.disabled = false;
@@ -763,24 +746,34 @@ function renderTestOptions() {
 function updateSelectedBadge() {
   const cur = availableTests.find(t => t.id === (testSelectInput ? testSelectInput.value : selectedTestId));
   const activeTestTitleDisplay = document.getElementById('activeTestTitleDisplay');
+  const smartTestSubjectText = document.getElementById('smartTestSubjectText');
+  const smartTestTopicBadge = document.getElementById('smartTestTopicBadge');
   const startBtn = document.getElementById('startTestBtn');
   if (cur) {
     selectedTestId = cur.id;
     const welcomeTitle = document.getElementById('welcomeTitle');
     if (welcomeTitle) welcomeTitle.textContent = cur.title;
+    if (smartTestSubjectText) {
+      smartTestSubjectText.textContent = cur.subject || 'Тестування';
+    }
+    if (smartTestTopicBadge) {
+      smartTestTopicBadge.textContent = cur.topic || 'Загальний контроль';
+      smartTestTopicBadge.style.display = 'inline-block';
+    }
     if (activeTestTitleDisplay) {
       activeTestTitleDisplay.textContent = cur.title;
       activeTestTitleDisplay.classList.remove('skeleton');
     }
     if (selectedTestInfoBadge) {
       selectedTestInfoBadge.innerHTML = `
-        <span class="tag-badge approved"><img src="/img/icons/folder.svg" class="pixel-icon inline" alt=""> ${escapeHtml(cur.topic || 'Загальний тест')}</span>
-        <span class="tag-badge" style="background: var(--bg-surface); border: 1px solid var(--border);"><img src="/img/icons/timer.svg" class="pixel-icon inline" alt=""> ${cur.durationMinutes} хв</span>
-        <span class="tag-badge" style="background: var(--bg-surface); border: 1px solid var(--border);"><img src="/img/icons/report.svg" class="pixel-icon inline" alt=""> ${cur.questionsCount} питань</span>
+        <span class="smart-test-chip"><img src="/img/icons/timer.svg" class="pixel-icon inline" alt=""> ${cur.durationMinutes} хв</span>
+        <span class="smart-test-chip"><img src="/img/icons/report.svg" class="pixel-icon inline" alt=""> ${cur.questionsCount} питань</span>
+        <span class="smart-test-chip highlight"><img src="/img/icons/star.svg" class="pixel-icon inline" alt=""> 12 балів</span>
       `;
     }
     if (startBtn) startBtn.classList.remove('start-btn-disabled');
   } else {
+    if (smartTestTopicBadge) smartTestTopicBadge.style.display = 'none';
     if (activeTestTitleDisplay) {
       activeTestTitleDisplay.innerHTML = '<div class="skeleton-line skeleton" style="width:80%"></div><div class="skeleton-line skeleton" style="width:55%"></div>';
     }
@@ -837,12 +830,12 @@ startTestBtn.addEventListener('click', async () => {
   const studentId = studentIdInput.value.trim() || (isDebugMode ? '10-Debug' : '');
 
   if (!name) {
-    alert('Будь ласка, введіть ваше прізвище та ім\'я');
+    showToast('Будь ласка, введіть ваше прізвище та ім\'я', 'warning');
     return;
   }
 
   if (!studentId) {
-    alert('Будь ласка, введіть ваш клас');
+    showToast('Будь ласка, введіть ваш клас', 'warning');
     return;
   }
 
@@ -959,7 +952,7 @@ startTestBtn.addEventListener('click', async () => {
     initTestUI(currentSession.isResumed);
   } catch (err) {
     console.error(err);
-    alert('Помилка запуску: ' + err.message);
+    showToast('Помилка запуску: ' + err.message, 'error');
     startTestBtn.disabled = false;
     startTestBtn.textContent = 'Розпочати тестування';
   }
@@ -995,7 +988,7 @@ function startTimer() {
 
     if (testSecondsRemaining <= 0) {
       clearInterval(testTimer);
-      alert('Час на складання тесту вичерпано!');
+      showToast('Час на складання тесту вичерпано!', 'warning');
       submitTest();
     }
   }, 1000);
@@ -1793,7 +1786,7 @@ async function submitTest() {
     showResults(result, questionsSnapshot, timingsToSend);
   } catch (err) {
     console.error(err);
-    alert('Помилка надсилання: ' + err.message);
+    showToast('Помилка надсилання: ' + err.message, 'error');
   }
 }
 
@@ -2285,7 +2278,7 @@ document.addEventListener('paste', e => {
     if (typeof window.showTeacherWarning === 'function') {
       window.showTeacherWarning('Вставка тексту заборонена! Вводьте відповідь власноруч з клавіатури.', 'warning');
     } else {
-      alert('Вставка тексту заборонена! Вводьте відповідь власноруч.');
+      showToast('Вставка тексту заборонена! Вводьте відповідь власноруч.', 'warning');
     }
   }
 }, true);

@@ -1,3 +1,4 @@
+import './fetch-polyfill.js';
 import express from 'express';
 import http from 'http';
 import os from 'os';

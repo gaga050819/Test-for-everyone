@@ -3,6 +3,6 @@
   "name": "SecureExam",
   "githubRepo": "gaga050819/Test-for-everyone",
   "updateManifestUrl": "https://raw.githubusercontent.com/gaga050819/Test-for-everyone/main/version.json",
-  "changelog": "Оновлення 1.0.9: Нові питання, кращий інтерфейс.",
-  "lastUpdated": 1792953600000
+  "changelog": "Оновлення 1.0.9: Мінімалістичний інтерфейс тестування, компактні правила та блок камери, Smart Test Card, плаваючий мобільний Header з годинником та сучасні Toasts.",
+  "lastUpdated": 1793041814521
 }
