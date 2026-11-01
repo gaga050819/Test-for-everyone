@@ -323,6 +323,7 @@ app.get('/api/tests', async (req, res) => {
 
 app.get('/api/active-test', async (req, res) => {
   const activeId = await db.getActiveTestId();
+  const liteMode = await db.getLiteMode();
   const test = await db.getTest(activeId);
   if (!test) {
     const all = await db.getAllTests();
@@ -333,7 +334,8 @@ app.get('/api/active-test', async (req, res) => {
       durationMinutes: all[0].durationMinutes || 15,
       questionsCount: (all[0].questions || []).length,
       topic: all[0].topic || '',
-      subject: all[0].subject || ''
+      subject: all[0].subject || '',
+      liteMode
     });
   }
   res.json({
@@ -342,16 +344,20 @@ app.get('/api/active-test', async (req, res) => {
     durationMinutes: test.durationMinutes || 15,
     questionsCount: (test.questions || []).length,
     topic: test.topic || '',
-    subject: test.subject || ''
+    subject: test.subject || '',
+    liteMode
   });
 });
 
 app.post('/api/admin/active-test', requireAdmin, async (req, res) => {
-  const { testId } = req.body;
-  if (!testId) return res.status(400).json({ error: 'testId required' });
-  const ok = await db.setActiveTestId(testId);
-  if (!ok) return res.status(404).json({ error: 'Test not found' });
-  res.json({ success: true, activeTestId: testId });
+  const { testId, liteMode } = req.body;
+  if (testId) {
+    const ok = await db.setActiveTestId(testId);
+    if (!ok) return res.status(404).json({ error: 'Test not found' });
+  }
+  if (typeof liteMode === 'boolean') await db.setLiteMode(liteMode);
+  const currentActiveId = await db.getActiveTestId();
+  res.json({ success: true, activeTestId: currentActiveId, liteMode: await db.getLiteMode() });
 });
 
 app.get('/api/classes', async (req, res) => {

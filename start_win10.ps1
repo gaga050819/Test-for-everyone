@@ -229,8 +229,10 @@ if (-not $nodeCmd) {
     exit 1
 }
 
-# 2. Зупиняємо старі процеси ngrok перед перевіркою чи оновленням
+# 2. Зупиняємо старі процеси node та ngrok
+Get-Process -Name "node" -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue
 Get-Process -Name "ngrok" -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue
+Start-Sleep -Seconds 2
 try {
     $occupied = Get-NetTCPConnection -LocalPort 3500 -ErrorAction SilentlyContinue | Select-Object -ExpandProperty OwningProcess -Unique
     foreach ($p in $occupied) {
@@ -239,6 +241,7 @@ try {
         }
     }
 } catch {}
+Start-Sleep -Seconds 1
 
 
 # 3. Перевірка та автоматичне завантаження ngrok
@@ -340,22 +343,6 @@ if ($ngrokCmd) {
 
 # 7. Відкриття адмін-панелі у браузері
 Start-Process "http://localhost:3500/admin.html"
-
-try {
-    $occupied = Get-NetTCPConnection -LocalPort 3500 -ErrorAction SilentlyContinue | Select-Object -ExpandProperty OwningProcess -Unique
-    foreach ($p in $occupied) {
-        if ($p -gt 0) {
-            Stop-Process -Id $p -Force -ErrorAction SilentlyContinue
-        }
-    }
-    $portPids = netstat -ano | Select-String ":3500\s.*LISTENING" | ForEach-Object { ($_ -split '\s+')[-1] } | Select-Object -Unique
-    foreach ($p in $portPids) {
-        if ($p -as [int] -and [int]$p -gt 0) {
-            Stop-Process -Id ([int]$p) -Force -ErrorAction SilentlyContinue
-        }
-    }
-    Start-Sleep -Milliseconds 400
-} catch {}
 
 try {
     while ($true) {

@@ -19,7 +19,6 @@ import { ProctorEngine } from './proctor.js';
   });
 })();
 
-
 let isDebugMode = sessionStorage.getItem('dev_debug_mode') === '1';
 
 async function checkDebugModeStatus() {
@@ -562,7 +561,26 @@ const subjectFilterSelect = document.getElementById('subjectFilterSelect');
 const topicFilterSelect = document.getElementById('topicFilterSelect');
 const testsCountBadge = document.getElementById('testsCountBadge');
 
+const _testUrlParam = new URLSearchParams(window.location.search).get('test');
+
+if (_testUrlParam) {
+  const classSelectWrap = document.getElementById('classSelectWrap');
+  const classSelectInput = document.getElementById('classSelectInput');
+  if (classSelectInput) classSelectInput.style.display = 'none';
+  if (classSelectWrap) classSelectWrap.style.gridTemplateColumns = '1fr';
+  const studentIdInputEl = document.getElementById('studentIdInput');
+  if (studentIdInputEl) {
+    studentIdInputEl.placeholder = 'Введіть клас: 10-А';
+    const saved = localStorage.getItem('student_class_manual');
+    if (saved) studentIdInputEl.value = saved;
+    studentIdInputEl.addEventListener('change', () => {
+      localStorage.setItem('student_class_manual', studentIdInputEl.value);
+    });
+  }
+}
+
 async function loadAvailableClasses() {
+  if (_testUrlParam) return;
   if (!classSelectInput) return;
   try {
     const res = await fetch('/api/classes');
@@ -659,14 +677,16 @@ function renderTestOptions() {
   const q = testTopicSearchInput ? testTopicSearchInput.value.trim().toLowerCase() : '';
   const selectedSubject = subjectFilterSelect ? subjectFilterSelect.value.trim().toLowerCase() : '';
   const selectedTopic = topicFilterSelect ? topicFilterSelect.value.trim().toLowerCase() : '';
-  const chosenClassId = classSelectInput ? classSelectInput.value : '';
-  const chosenClass = publicClasses.find(c => c.id === chosenClassId);
 
   let filtered = availableTests.slice();
 
-  if (chosenClass && Array.isArray(chosenClass.assignedTests) && chosenClass.assignedTests.length > 0) {
-    const assignedSet = new Set(chosenClass.assignedTests);
-    filtered = filtered.filter(t => assignedSet.has(t.id));
+  if (!_testUrlParam && !window._isServerLiteMode) {
+    const chosenClassId = classSelectInput ? classSelectInput.value : '';
+    const chosenClass = publicClasses.find(c => c.id === chosenClassId);
+    if (chosenClass && Array.isArray(chosenClass.assignedTests) && chosenClass.assignedTests.length > 0) {
+      const assignedSet = new Set(chosenClass.assignedTests);
+      filtered = filtered.filter(t => assignedSet.has(t.id));
+    }
   }
 
   if (selectedSubject) {
@@ -744,7 +764,7 @@ function renderTestOptions() {
 }
 
 function updateSelectedBadge() {
-  const cur = availableTests.find(t => t.id === (testSelectInput ? testSelectInput.value : selectedTestId));
+  const cur = availableTests.find(t => t.id === ((testSelectInput && testSelectInput.value) || selectedTestId));
   const activeTestTitleDisplay = document.getElementById('activeTestTitleDisplay');
   const smartTestSubjectText = document.getElementById('smartTestSubjectText');
   const smartTestTopicBadge = document.getElementById('smartTestTopicBadge');
@@ -789,20 +809,51 @@ async function loadAvailableTests() {
     availableTests = await res.json();
     if (!availableTests || availableTests.length === 0) return;
 
-    try {
-      const activeRes = await fetch('/api/active-test');
-      if (activeRes.ok) {
-        const activeData = await activeRes.json();
-        if (activeData && activeData.id) {
-          selectedTestId = activeData.id;
+    const urlParams = new URLSearchParams(window.location.search);
+    const testIdFromUrl = urlParams.get('test');
+
+    if (testIdFromUrl) {
+      selectedTestId = testIdFromUrl;
+    } else {
+      try {
+        const activeRes = await fetch('/api/active-test');
+        if (activeRes.ok) {
+          const activeData = await activeRes.json();
+          if (activeData && activeData.id) {
+            selectedTestId = activeData.id;
+          }
+          const isLite = !!(activeData && activeData.liteMode);
+          window._isServerLiteMode = isLite;
+          const classSelectWrap = document.getElementById('classSelectWrap');
+          const classSelectInput = document.getElementById('classSelectInput');
+          const studentIdInputEl = document.getElementById('studentIdInput');
+          if (isLite) {
+            if (classSelectInput) classSelectInput.style.display = 'none';
+            if (classSelectWrap) classSelectWrap.style.gridTemplateColumns = '1fr';
+            if (studentIdInputEl) {
+              studentIdInputEl.placeholder = 'Введіть клас: 10-А';
+              const saved = localStorage.getItem('student_class_manual');
+              if (saved) studentIdInputEl.value = saved;
+              studentIdInputEl.addEventListener('change', () => {
+                localStorage.setItem('student_class_manual', studentIdInputEl.value);
+              });
+            }
+          } else {
+            if (classSelectInput) classSelectInput.style.display = '';
+            if (classSelectWrap) classSelectWrap.style.gridTemplateColumns = '1fr 1fr';
+            if (studentIdInputEl) {
+              studentIdInputEl.placeholder = 'Або введіть: 10-А';
+            }
+          }
         }
-      }
-    } catch {}
+      } catch {}
+    }
 
     if (!selectedTestId || !availableTests.some(t => t.id === selectedTestId)) {
       if (availableTests[0]) selectedTestId = availableTests[0].id;
     }
 
+    renderTestOptions();
     if (testSelectInput) testSelectInput.value = selectedTestId;
     updateSelectedBadge();
   } catch (err) {
@@ -1023,6 +1074,11 @@ function updateTimerDisplay() {
       statusEl.textContent = 'Таймер';
       statusEl.style.color = 'var(--accent-blue)';
     }
+  }
+
+  if (testSecondsRemaining <= 300) {
+    const ts = document.getElementById('testScreen');
+    if (ts) ts.classList.remove('zen-timer-hidden');
   }
 }
 
@@ -2290,3 +2346,16 @@ document.addEventListener('drop', e => {
   }
 }, true);
 
+
+
+(function initZenMode() {
+  const btn = document.getElementById('zenModeBtn');
+  if (!btn) return;
+  btn.addEventListener('click', () => {
+    const ts = document.getElementById('testScreen');
+    if (!ts) return;
+    if (typeof testSecondsRemaining !== 'undefined' && testSecondsRemaining <= 300) return;
+    ts.classList.toggle('zen-timer-hidden');
+    btn.textContent = ts.classList.contains('zen-timer-hidden') ? '●' : '○';
+  });
+})();

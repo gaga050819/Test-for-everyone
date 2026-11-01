@@ -155,6 +155,15 @@ export class JsonFileDatabaseAdapter extends DatabaseAdapter {
     return false;
   }
 
+  async getLiteMode() {
+    return !!this.data.liteMode;
+  }
+
+  async setLiteMode(val) {
+    this.data.liteMode = !!val;
+    await this.persist();
+  }
+
   async createTest(testData) {
     const id = testData.id || ('test_' + Math.random().toString(36).substring(2, 9));
     const newTest = {

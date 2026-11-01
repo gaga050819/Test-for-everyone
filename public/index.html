@@ -79,7 +79,7 @@
 
         <div class="form-group">
           <label class="form-label" for="classSelectInput">Клас</label>
-          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px;">
+          <div id="classSelectWrap" style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px;">
             <select id="classSelectInput" class="form-input" style="font-size: 13px; font-weight: 600; cursor: pointer;">
               <option value="">Оберіть клас зі списку...</option>
             </select>
@@ -155,7 +155,8 @@
           </div>
         </div>
 
-        <div class="timer-badge-container">
+        <div class="timer-badge-container" style="position:relative;">
+          <button id="zenModeBtn" title="Zen Mode" type="button" style="position:absolute;top:2px;right:2px;background:none;border:none;cursor:pointer;opacity:0.4;font-size:10px;padding:2px 4px;line-height:1;z-index:10;" aria-label="Сховати таймер">○</button>
           <div class="timer-label-box">
             <span class="timer-title">Залишилось часу</span>
             <span class="timer-status-text" id="timerStatusText">Таймер</span>

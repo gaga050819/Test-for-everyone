@@ -11,6 +11,82 @@
   });
 })();
 
+(function initLiteMode() {
+  const syncSwitches = (val) => {
+    const s1 = document.getElementById('liteModeToggle');
+    if (s1) s1.checked = val;
+  };
+
+  const applyLite = (isLite) => {
+    if (isLite) {
+      document.body.classList.add('lite-mode');
+      document.documentElement.setAttribute('data-ui-mode', 'lite');
+    } else {
+      document.body.classList.remove('lite-mode');
+      document.documentElement.setAttribute('data-ui-mode', 'full');
+    }
+    syncSwitches(isLite);
+    localStorage.setItem('admin_lite_mode', isLite ? 'true' : 'false');
+    const pwBtn = document.getElementById('openChangePasswordModalBtn');
+    const updBtn = document.getElementById('manualCheckUpdateBtn');
+    if (pwBtn) pwBtn.style.setProperty('display', 'inline-flex', 'important');
+    if (updBtn) updBtn.style.setProperty('display', 'inline-flex', 'important');
+    if (isLite) {
+      const curTab = document.querySelector('.admin-tab-btn.active');
+      if (curTab && ['tabBtnLiveRadar', 'tabBtnAnalytics', 'tabBtnLeaderboard', 'tabBtnClasses'].includes(curTab.id)) {
+        if (typeof window.switchTabTo === 'function') {
+          window.switchTabTo('sessions');
+        }
+      }
+    }
+  };
+
+  window.setLiteMode = applyLite;
+
+  const bindEvents = () => {
+    const isLite = localStorage.getItem('admin_lite_mode') === 'true';
+    applyLite(isLite);
+
+    const s1 = document.getElementById('liteModeToggle');
+    if (s1) s1.addEventListener('change', (e) => {
+      const isChecked = e.target.checked;
+      applyLite(isChecked);
+      if (adminToken) {
+        adminFetch('/api/admin/active-test', {
+          method: 'POST',
+          body: JSON.stringify({ liteMode: isChecked })
+        }).catch(() => {});
+      }
+    });
+
+    const liteNewTestBtn = document.getElementById('liteNewTestBtn');
+    const openCreateBtn = document.getElementById('openCreateTestModalBtn');
+    if (liteNewTestBtn && openCreateBtn) {
+      liteNewTestBtn.addEventListener('click', () => openCreateBtn.click());
+    }
+  };
+
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', bindEvents);
+  } else {
+    bindEvents();
+  }
+})();
+
+(function autoLiteModeOnMobile() {
+  const mq = window.matchMedia('(max-width: 768px)');
+  const apply = (matches) => {
+    if (matches && localStorage.getItem('admin_lite_mode') === null) {
+      document.documentElement.setAttribute('data-ui-mode', 'lite');
+      localStorage.setItem('admin_lite_mode', 'true');
+      const t1 = document.getElementById('liteModeToggle');
+      if (t1) t1.checked = true;
+    }
+  };
+  apply(mq.matches);
+  mq.addEventListener('change', e => apply(e.matches));
+})();
+
 let sessions = [];
 let selectedSessionId = null;
 let currentDetailData = null;
@@ -155,7 +231,7 @@ function init() {
   const clearAllBtn = document.getElementById('clearAllSessionsBtn');
   if (clearAllBtn) {
     clearAllBtn.addEventListener('click', async () => {
-      if (!confirm('Ви дійсно бажаєте ВИДАЛИТИ ВСІ РЕЗУЛЬТАТИ ТЕСТУВАННЯ? Цю дію неможливо скасувати!')) return;
+      if (!await adminConfirm('Ви дійсно бажаєте ВИДАЛИТИ ВСІ РЕЗУЛЬТАТИ ТЕСТУВАННЯ? Цю дію неможливо скасувати!')) return;
       try {
         const res = await adminFetch('/api/admin/sessions', { method: 'DELETE' });
         if (res.ok) {
@@ -166,10 +242,10 @@ function init() {
           await loadSessions();
         } else {
           const err = await res.json();
-          alert(err.error || 'Помилка видалення');
+          adminAlert(err.error || 'Помилка видалення');
         }
       } catch (e) {
-        alert('Помилка: ' + e.message);
+        adminAlert('Помилка: ' + e.message);
       }
     });
   }
@@ -363,6 +439,9 @@ function init() {
   initSessionFiltersAndViewMode();
   initQuestionPreviewAndHotspotControls();
   loadAdminTestsList();
+  if (typeof window.setLiteMode === 'function') {
+    window.setLiteMode(localStorage.getItem('admin_lite_mode') === 'true');
+  }
 }
 
 let previewQuestionsList = [];
@@ -700,19 +779,19 @@ async function checkTunnelStatus() {
       const data = await res.json();
       if (data.active && data.publicUrl) {
         tunnelStatusText.innerHTML = '<span style="color: var(--accent-emerald);">● Активний ngrok тунель (доступний з будь-якого телефону)</span>';
-        tunnelUrlInput.value = data.publicUrl;
+        tunnelUrlInput.value = `${data.publicUrl}/?test=${selectedAdminTestId}`;
         return;
       }
       if (data.localUrl) {
         tunnelStatusText.innerHTML = `<span style="color: var(--accent-amber);">● Локальний Wi-Fi: <strong>${data.localUrl}</strong> (ngrok не активний)</span>`;
-        tunnelUrlInput.value = data.localUrl;
+        tunnelUrlInput.value = `${data.localUrl}/?test=${selectedAdminTestId}`;
         return;
       }
     }
   } catch {}
   const fallbackUrl = window.location.origin;
   tunnelStatusText.innerHTML = `<span style="color: var(--accent-amber);">Локальна адреса: <strong>${fallbackUrl}</strong></span>`;
-  tunnelUrlInput.value = fallbackUrl;
+  tunnelUrlInput.value = `${fallbackUrl}/?test=${selectedAdminTestId}`;
 }
 
 function initWebSocket() {
@@ -762,6 +841,26 @@ function showAdminToast(msg, isSuccess = true) {
     toast.style.transform = 'translateY(-10px)';
     setTimeout(() => toast.remove(), 350);
   }, 4000);
+}
+
+function adminAlert(msg, isSuccess = false) {
+  showAdminToast(msg, isSuccess);
+}
+
+function adminConfirm(msg) {
+  return new Promise(resolve => {
+    const overlay = document.createElement('div');
+    overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.55);z-index:99999;display:flex;align-items:center;justify-content:center;padding:16px;';
+    const box = document.createElement('div');
+    box.style.cssText = 'background:var(--surface-1,#fff);border-radius:14px;padding:28px 24px;max-width:420px;width:100%;box-shadow:0 8px 32px rgba(0,0,0,0.18);';
+    box.innerHTML = `<div style="font-size:15px;font-weight:600;margin-bottom:20px;line-height:1.4;">${msg.replace(/\n/g,'<br>')}</div><div style="display:flex;gap:10px;justify-content:flex-end;"><button id="_ac_cancel" class="btn-secondary" style="padding:8px 20px;">Скасувати</button><button id="_ac_ok" class="btn-primary" style="padding:8px 20px;">Підтвердити</button></div>`;
+    overlay.appendChild(box);
+    document.body.appendChild(overlay);
+    const cleanup = (val) => { overlay.remove(); resolve(val); };
+    box.querySelector('#_ac_ok').addEventListener('click', () => cleanup(true));
+    box.querySelector('#_ac_cancel').addEventListener('click', () => cleanup(false));
+    overlay.addEventListener('click', e => { if (e.target === overlay) cleanup(false); });
+  });
 }
 
 function handleWsMessage(data) {
@@ -1287,7 +1386,7 @@ window.inspectSession = async function(sessionId) {
       }
 
       bypassBtn.onclick = async () => {
-        if (!confirm('Вимкнути ВЕСЬ прокторинг (забрати безпеку) для цього студента?')) return;
+        if (!await adminConfirm('Вимкнути ВЕСЬ прокторинг (забрати безпеку) для цього студента?')) return;
         bypassBtn.disabled = true;
         overrideMsg.textContent = 'Відправка...';
         try {
@@ -1316,7 +1415,7 @@ window.inspectSession = async function(sessionId) {
 };
 
 window.deleteSession = async function(sessionId) {
-  if (!confirm(`Ви дійсно бажаєте видалити результат цієї сесії (${sessionId})?`)) return;
+  if (!await adminConfirm(`Ви дійсно бажаєте видалити результат цієї сесії (${sessionId})?`)) return;
   try {
     const res = await adminFetch(`/api/admin/sessions/${sessionId}`, { method: 'DELETE' });
     if (res.ok) {
@@ -1329,10 +1428,10 @@ window.deleteSession = async function(sessionId) {
       await loadSessions();
     } else {
       const err = await res.json();
-      alert(err.error || 'Помилка видалення');
+      adminAlert(err.error || 'Помилка видалення');
     }
   } catch (e) {
-    alert('Помилка: ' + e.message);
+    adminAlert('Помилка: ' + e.message);
   }
 };
 
@@ -1647,22 +1746,41 @@ function updateActiveTestBadge() {
 }
 
 function initMultiTestControls() {
+  const doSetActive = async () => {
+    if (!adminTestSelector || !adminTestSelector.value) return;
+    selectedAdminTestId = adminTestSelector.value;
+    updateActiveTestBadge();
+    const isLite = document.documentElement.getAttribute('data-ui-mode') === 'lite';
+    try {
+      await adminFetch('/api/admin/active-test', {
+        method: 'POST',
+        body: JSON.stringify({ testId: selectedAdminTestId, liteMode: isLite })
+      });
+      showAdminToast('Активний тест змінено для всіх учнів', true);
+    } catch {}
+    await loadAdminTest();
+    await loadTestAnalytics(selectedAdminTestId);
+    await loadAdminLeaderboard(selectedAdminTestId);
+    checkTunnelStatus();
+  };
+
   if (adminTestSelector) {
     adminTestSelector.addEventListener('change', async () => {
       if (!adminTestSelector.value) return;
-      selectedAdminTestId = adminTestSelector.value;
-      updateActiveTestBadge();
-      try {
-        await adminFetch('/api/admin/active-test', {
-          method: 'POST',
-          body: JSON.stringify({ testId: selectedAdminTestId })
-        });
-        showAdminToast('Активний тест змінено для всіх учнів', true);
-      } catch {}
-      await loadAdminTest();
-      await loadTestAnalytics(selectedAdminTestId);
-      await loadAdminLeaderboard(selectedAdminTestId);
+      const isLite = document.documentElement.getAttribute('data-ui-mode') === 'lite';
+      if (isLite) {
+        selectedAdminTestId = adminTestSelector.value;
+        updateActiveTestBadge();
+        checkTunnelStatus();
+      } else {
+        await doSetActive();
+      }
     });
+  }
+
+  const liteSetActiveBtn = document.getElementById('liteSetActiveBtn');
+  if (liteSetActiveBtn) {
+    liteSetActiveBtn.addEventListener('click', doSetActive);
   }
 
   if (adminTestSearchInput) {
@@ -1855,7 +1973,7 @@ function initMultiTestControls() {
     deleteActiveTestBtn.addEventListener('click', async () => {
       const current = allAdminTests.find(t => t.id === selectedAdminTestId);
       const name = current ? current.title : selectedAdminTestId;
-      if (!confirm(`Ви дійсно бажаєте видалити тест "${name}"?\nЦю дію неможливо скасувати!`)) return;
+      if (!await adminConfirm(`Ви дійсно бажаєте видалити тест "${name}"?\nЦю дію неможливо скасувати!`)) return;
 
       try {
         const res = await adminFetch(`/api/admin/tests/${selectedAdminTestId}`, { method: 'DELETE' });
@@ -1873,7 +1991,7 @@ function initMultiTestControls() {
         await loadTestAnalytics(selectedAdminTestId);
         await loadAdminLeaderboard(selectedAdminTestId);
       } catch (err) {
-        alert('Помилка: ' + err.message);
+        adminAlert('Помилка: ' + err.message);
       }
     });
   }
@@ -2748,7 +2866,7 @@ function renderMatchingInputs(pairsArray) {
 
     row.querySelector('.matching-del-btn').onclick = () => {
       if (container.children.length <= 2) {
-        alert('Потрібно залишити щонайменше 2 пари для відповідності');
+        adminAlert('Потрібно залишити щонайменше 2 пари для відповідності');
         return;
       }
       row.remove();
@@ -2796,7 +2914,7 @@ function renderOrderingInputs(itemsArray) {
 
     row.querySelector('.ordering-del-btn').onclick = () => {
       if (container.children.length <= 2) {
-        alert('Потрібно залишити щонайменше 2 кроки для послідовності');
+        adminAlert('Потрібно залишити щонайменше 2 кроки для послідовності');
         return;
       }
       row.remove();
@@ -2826,7 +2944,7 @@ function initTestEditor() {
       const topic = editTestTopicInput ? editTestTopicInput.value.trim() : '';
       const subject = editTestSubjectInput ? editTestSubjectInput.value.trim() : 'Географія';
       if (!title) {
-        alert('Введіть назву тесту');
+        adminAlert('Введіть назву тесту');
         return;
       }
       try {
@@ -2857,7 +2975,7 @@ function initTestEditor() {
           saveTestMetaBtn.innerHTML = '<img src="/img/icons/save.svg" class="pixel-icon inline" alt=""> Зберегти налаштування';
         }, 1500);
       } catch (err) {
-        alert('Помилка: ' + err.message);
+        adminAlert('Помилка: ' + err.message);
         saveTestMetaBtn.disabled = false;
         saveTestMetaBtn.innerHTML = '<img src="/img/icons/save.svg" class="pixel-icon inline" alt=""> Зберегти налаштування';
       }
@@ -2876,8 +2994,7 @@ function initTestEditor() {
         showAdminToast('Список питань вже порожній.', false);
         return;
       }
-      const confirmed = confirm(`Ви впевнені, що хочете видалити всі ${qCount} питань із тесту?\n\nЦю дію неможливо скасувати!`);
-      if (!confirmed) return;
+      if (!await adminConfirm(`Ви впевнені, що хочете видалити всі ${qCount} питань із тесту?\n\nЦю дію неможливо скасувати!`)) return;
       try {
         clearAllQuestionsBtn.disabled = true;
         const res = await adminFetch(`/api/admin/tests/${encodeURIComponent(selectedAdminTestId)}/questions`, { method: 'DELETE' });
@@ -2886,7 +3003,7 @@ function initTestEditor() {
         await loadAdminTest();
         showAdminToast(`Видалено ${data.removed} питань. Тест очищено.`);
       } catch (err) {
-        alert('Помилка: ' + err.message);
+        adminAlert('Помилка: ' + err.message);
       } finally {
         clearAllQuestionsBtn.disabled = false;
       }
@@ -3461,7 +3578,7 @@ function initImportQuestionsControls() {
     parseImportWithAiBtn.addEventListener('click', async () => {
       const text = importRawTextInput.value.trim();
       if (!text) {
-        alert('Вставте текст тесту або завантажте файл');
+        adminAlert('Вставте текст тесту або завантажте файл');
         return;
       }
       try {
@@ -3489,7 +3606,7 @@ function initImportQuestionsControls() {
         if (submitImportQuestionsBtn) submitImportQuestionsBtn.classList.remove('hidden');
       } catch (err) {
         if (importParsingStatus) importParsingStatus.textContent = 'Помилка: ' + err.message;
-        alert('Помилка імпорту: ' + err.message);
+        adminAlert('Помилка імпорту: ' + err.message);
       } finally {
         parseImportWithAiBtn.disabled = false;
       }
@@ -3548,7 +3665,7 @@ function initImportQuestionsControls() {
       const questionsToAdd = selectedIndices.map(idx => parsedQuestions[idx]).filter(Boolean);
 
       if (questionsToAdd.length === 0) {
-        alert('Оберіть хоча б одне питання для додавання');
+        adminAlert('Оберіть хоча б одне питання для додавання');
         return;
       }
 
@@ -3567,7 +3684,7 @@ function initImportQuestionsControls() {
         closeModal();
         await loadAdminTest();
       } catch (err) {
-        alert('Помилка: ' + err.message);
+        adminAlert('Помилка: ' + err.message);
       } finally {
         submitImportQuestionsBtn.disabled = false;
         submitImportQuestionsBtn.innerHTML = '<img src="/img/icons/plus.svg" class="pixel-icon inline" alt=""> Додати обрані питання до тесту';
@@ -3577,7 +3694,7 @@ function initImportQuestionsControls() {
 }
 
 async function deleteQuestion(questionId) {
-  if (!confirm('Ви впевнені, що хочете видалити це питання з тесту?')) return;
+  if (!await adminConfirm('Ви впевнені, що хочете видалити це питання з тесту?')) return;
   try {
     const res = await adminFetch(`/api/admin/tests/${encodeURIComponent(selectedAdminTestId)}/questions/${questionId}`, {
       method: 'DELETE'
@@ -3585,7 +3702,7 @@ async function deleteQuestion(questionId) {
     if (!res.ok) throw new Error('Помилка видалення');
     await loadAdminTest();
   } catch (err) {
-    alert('Помилка: ' + err.message);
+    adminAlert('Помилка: ' + err.message);
   }
 }
 
@@ -3841,7 +3958,7 @@ async function saveClassForm() {
 async function deleteClass(classId) {
   const cls = allClasses.find(c => c.id === classId);
   const name = cls ? cls.name : classId;
-  if (!confirm(`Ви дійсно бажаєте видалити клас "${name}"?\nЦю дію неможливо скасувати!`)) return;
+  if (!await adminConfirm(`Ви дійсно бажаєте видалити клас "${name}"?\nЦю дію неможливо скасувати!`)) return;
 
   try {
     const res = await adminFetch(`/api/admin/classes/${classId}`, { method: 'DELETE' });
@@ -3849,7 +3966,7 @@ async function deleteClass(classId) {
     showAdminToast('Клас видалено');
     await loadAdminClasses();
   } catch (e) {
-    alert('Помилка: ' + e.message);
+    adminAlert('Помилка: ' + e.message);
   }
 }
 
@@ -3918,7 +4035,7 @@ function renderClassStudents(cls) {
         renderClassStudents(updated);
         renderClassesList();
       } catch (e) {
-        alert(e.message);
+        adminAlert(e.message);
       }
     });
 
@@ -3975,7 +4092,7 @@ function renderClassAssignedTests(cls) {
         populateClassAssignTestSelector(updated);
         renderClassesList();
       } catch (e) {
-        alert(e.message);
+        adminAlert(e.message);
       }
     });
 
@@ -4086,7 +4203,7 @@ function initClassesControls() {
         renderClassStudents(updated);
         renderClassesList();
       } catch (e) {
-        alert(e.message);
+        adminAlert(e.message);
       } finally {
         addStudentBtn.disabled = false;
       }
@@ -4116,7 +4233,7 @@ function initClassesControls() {
         populateClassAssignTestSelector(updated);
         renderClassesList();
       } catch (e) {
-        alert(e.message);
+        adminAlert(e.message);
       } finally {
         assignTestBtn.disabled = false;
       }
@@ -4202,11 +4319,11 @@ async function checkSystemUpdate(silent = true) {
     } else {
       if (banner) banner.classList.add('hidden');
       if (!silent) {
-        alert(`У вас встановлена остання версія SecureExam (${data.currentVersion || '1.0.0'}). Оновлення не потрібне.`);
+        adminAlert(`У вас встановлена остання версія SecureExam (${data.currentVersion || '1.0.0'}). Оновлення не потрібне.`);
       }
     }
   } catch (err) {
-    if (!silent) alert('Помилка перевірки оновлення: ' + err.message);
+    if (!silent) adminAlert('Помилка перевірки оновлення: ' + err.message);
   }
 }
 
@@ -4312,7 +4429,7 @@ async function applySystemUpdate() {
     if (confirmBtn) confirmBtn.disabled = false;
     if (cancelBtn) cancelBtn.disabled = false;
     if (closeBtn) closeBtn.disabled = false;
-    alert('Помилка: ' + err.message);
+    adminAlert('Помилка: ' + err.message);
   }
 }
 
@@ -4585,7 +4702,7 @@ function initTeacherWarningControls() {
   if (openWarningBtn) {
     openWarningBtn.addEventListener('click', () => {
       if (!selectedSessionId) {
-        alert('Спочатку оберіть сесію студента');
+        adminAlert('Спочатку оберіть сесію студента');
         return;
       }
       const sess = sessions.find(s => s.id === selectedSessionId);

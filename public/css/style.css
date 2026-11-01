@@ -1902,3 +1902,248 @@ footer {
   color: var(--accent-amber) !important;
 }
 
+.lite-mode-switch-wrap {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 4px 10px;
+  background: var(--bg-surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-pill);
+  cursor: pointer;
+  transition: var(--ease);
+  user-select: none;
+}
+.lite-mode-switch-wrap:hover {
+  border-color: var(--border-active);
+  background: var(--bg-elevated);
+}
+.lite-mode-switch-text {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+.switch-control {
+  position: relative;
+  display: inline-block;
+  width: 34px;
+  height: 18px;
+  margin: 0;
+  flex-shrink: 0;
+}
+.switch-control input {
+  opacity: 0;
+  width: 0;
+  height: 0;
+  position: absolute;
+}
+.switch-slider {
+  position: absolute;
+  inset: 0;
+  background-color: rgba(140, 145, 175, 0.3);
+  border-radius: 20px;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  border: 1px solid var(--border);
+}
+.switch-slider:before {
+  position: absolute;
+  content: "";
+  height: 12px;
+  width: 12px;
+  left: 2px;
+  bottom: 2px;
+  background-color: #ffffff;
+  border-radius: 50%;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.25);
+}
+.switch-control input:checked + .switch-slider {
+  background: linear-gradient(135deg, var(--accent), #7c6af5);
+  border-color: transparent;
+  box-shadow: 0 0 8px rgba(91, 94, 244, 0.35);
+}
+.switch-control input:checked + .switch-slider:before {
+  transform: translateX(16px);
+  background-color: #ffffff;
+}
+body.lite-mode .lite-mode-switch-wrap,
+[data-ui-mode="lite"] .lite-mode-switch-wrap {
+  border-color: var(--accent);
+  background: rgba(91, 94, 244, 0.1);
+}
+body.lite-mode .lite-mode-switch-text,
+[data-ui-mode="lite"] .lite-mode-switch-text {
+  color: var(--accent);
+  font-weight: 700;
+}
+.lite-pill-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--accent-green);
+  background: rgba(16, 185, 129, 0.1);
+  border: 1px solid rgba(16, 185, 129, 0.3);
+  padding: 4px 10px;
+  border-radius: var(--radius-pill);
+}
+[data-ui-mode="lite"] #tabBtnLiveRadar,
+[data-ui-mode="lite"] #tabBtnAnalytics,
+[data-ui-mode="lite"] #tabBtnLeaderboard,
+[data-ui-mode="lite"] #tabBtnClasses,
+body.lite-mode #tabBtnLiveRadar,
+body.lite-mode #tabBtnAnalytics,
+body.lite-mode #tabBtnLeaderboard,
+body.lite-mode #tabBtnClasses {
+  display: none !important;
+}
+[data-ui-mode="lite"] #adminComplexFiltersRow,
+body.lite-mode #adminComplexFiltersRow {
+  display: none !important;
+}
+[data-ui-mode="lite"] #adminActiveTestRow,
+body.lite-mode #adminActiveTestRow {
+  padding-top: 0 !important;
+  border-top: none !important;
+}
+[data-ui-mode="lite"] .lite-only-inline-btn,
+body.lite-mode .lite-only-inline-btn {
+  display: inline-flex !important;
+}
+#openChangePasswordModalBtn,
+#manualCheckUpdateBtn {
+  display: inline-flex !important;
+}
+[data-ui-mode="lite"] #exportSessionsCsvBtn,
+[data-ui-mode="lite"] #exportSessionsPdfBtn,
+[data-ui-mode="lite"] #clearAllSessionsBtn,
+body.lite-mode #exportSessionsCsvBtn,
+body.lite-mode #exportSessionsPdfBtn,
+body.lite-mode #clearAllSessionsBtn {
+  display: none !important;
+}
+[data-ui-mode="lite"] #viewSessionsTab > div:first-child p,
+body.lite-mode #viewSessionsTab > div:first-child p {
+  display: none !important;
+}
+[data-ui-mode="lite"] #tunnelStatusText,
+body.lite-mode #tunnelStatusText {
+  display: none !important;
+}
+body.lite-mode .tunnel-full-card,
+[data-ui-mode="lite"] .tunnel-full-card {
+  padding: 9px 14px !important;
+  margin-bottom: 12px !important;
+}
+body.lite-mode .admin-tab-nav,
+[data-ui-mode="lite"] .admin-tab-nav {
+  gap: 10px;
+}
+body.lite-mode .admin-tab-btn,
+[data-ui-mode="lite"] .admin-tab-btn {
+  padding: 8px 18px;
+  font-size: 13px;
+  font-weight: 600;
+}
+[data-ui-mode="lite"] #networkStatusChip,
+body.lite-mode #networkStatusChip {
+  display: none !important;
+}
+[data-ui-mode="lite"] .shield-badge-banner,
+body.lite-mode .shield-badge-banner {
+  display: none !important;
+}
+[data-ui-mode="lite"] .device-badge-row,
+body.lite-mode .device-badge-row {
+  display: none !important;
+}
+[data-ui-mode="lite"] #antiAiWatermarkBadge,
+body.lite-mode #antiAiWatermarkBadge {
+  display: none !important;
+}
+[data-ui-mode="lite"] .swipe-hint,
+body.lite-mode .swipe-hint {
+  display: none !important;
+}
+[data-ui-mode="lite"] .test-header-ping,
+body.lite-mode .test-header-ping {
+  display: none !important;
+}
+[data-ui-mode="lite"] .test-header-clock,
+body.lite-mode .test-header-clock {
+  display: none !important;
+}
+
+.answer-option, .choice-btn, .answer-choice-item {
+  min-height: 48px;
+  display: flex;
+  align-items: center;
+}
+
+@media (max-width: 768px) {
+  .answer-option, .choice-btn, .answer-choice-item {
+    min-height: 52px;
+    padding-top: 10px;
+    padding-bottom: 10px;
+  }
+}
+
+@keyframes skeleton-shimmer {
+  0% { background-position: -400px 0; }
+  100% { background-position: 400px 0; }
+}
+
+.skeleton {
+  background: linear-gradient(90deg, var(--surface-2, #f0f0f0) 25%, var(--surface-3, #e0e0e0) 50%, var(--surface-2, #f0f0f0) 75%);
+  background-size: 800px 100%;
+  animation: skeleton-shimmer 1.4s infinite linear;
+  border-radius: 6px;
+}
+
+.skeleton-text {
+  height: 14px;
+  margin-bottom: 8px;
+  border-radius: 4px;
+}
+
+.skeleton-title {
+  height: 20px;
+  width: 60%;
+  margin-bottom: 12px;
+  border-radius: 4px;
+}
+
+.skeleton-card {
+  padding: 16px;
+  border-radius: 12px;
+  margin-bottom: 12px;
+}
+
+:root {
+  --base-font-size: 16px;
+}
+
+.zen-timer-hidden .timer-ring-wrap,
+.zen-timer-hidden [class*="timer-ring"],
+.zen-timer-hidden #testTimerDisplay,
+.zen-timer-hidden .timer-status-text,
+.zen-timer-hidden #timerStatusText {
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.3s;
+}
+
+.zen-timer-hidden #zenModeBtn {
+  opacity: 1;
+  font-size: 16px;
+}
+
+#zenModeBtn {
+  transition: opacity 0.2s;
+}
+
+#zenModeBtn:hover {
+  opacity: 1 !important;
+}

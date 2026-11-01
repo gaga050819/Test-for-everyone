@@ -17,6 +17,9 @@
     (function(){
       const t = localStorage.getItem('theme') || 'light';
       document.documentElement.setAttribute('data-theme', t);
+      if (localStorage.getItem('admin_lite_mode') === 'true') {
+        document.documentElement.setAttribute('data-ui-mode', 'lite');
+      }
     })();
   </script>
   <style>
@@ -204,11 +207,18 @@
           <span class="status-dot" id="adminWsStatusDot"></span>
           <span id="adminWsStatusText">Підключення...</span>
         </div>
-        <button class="btn-secondary" id="openChangePasswordModalBtn" title="Змінити пароль адміністратора" style="padding: 5px 10px; font-size: 11px; display: inline-flex; align-items: center; gap: 5px;" type="button">
+        <label class="lite-mode-switch-wrap" id="liteModeSwitchWrap" title="Спрощене легке меню">
+          <span class="lite-mode-switch-text" id="liteModeSwitchText">Спрощене меню</span>
+          <span class="switch-control">
+            <input type="checkbox" id="liteModeToggle">
+            <span class="switch-slider"></span>
+          </span>
+        </label>
+        <button class="btn-secondary" id="openChangePasswordModalBtn" title="Змінити пароль адміністратора" style="padding: 5px 10px; font-size: 11px; display: inline-flex !important; align-items: center; gap: 5px;" type="button">
           <img src="/img/icons/lock.svg" class="pixel-icon inline" alt=""> Пароль
         </button>
-        <button class="btn-secondary" id="manualCheckUpdateBtn" title="Перевірити оновлення" style="padding: 5px 10px; font-size: 11px; display: inline-flex; align-items: center; gap: 5px;" type="button">
-          <img src="/img/icons/refresh.svg" class="pixel-icon inline" alt=""> v<span id="currentVersionBadge">1.0.0</span>
+        <button class="btn-secondary" id="manualCheckUpdateBtn" title="Перевірити оновлення" style="padding: 5px 10px; font-size: 11px; display: inline-flex !important; align-items: center; gap: 5px;" type="button">
+          <img src="/img/icons/refresh.svg" class="pixel-icon inline" alt=""> v<span id="currentVersionBadge">1.1.0</span>
         </button>
         <button class="theme-toggle" id="themeToggleBtn" title="Змінити тему"><img src="/img/icons/sun.svg" class="pixel-icon" id="adminThemeIcon" alt=""></button>
         <a href="/" class="btn-secondary" style="text-decoration: none;">← До тесту</a>
@@ -235,17 +245,20 @@
 
     <main class="main-container" style="max-width: 1200px;">
 
-      <div class="admin-tab-nav" style="display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 14px;">
-        <button id="tabBtnSessions" class="admin-tab-btn active" type="button" onclick="window.switchTabTo('sessions')"><img src="/img/icons/analytics.svg" class="pixel-icon inline" alt=""> Моніторинг сесій</button>
-        <button id="tabBtnLiveRadar" class="admin-tab-btn" type="button" onclick="window.switchTabTo('liveRadar')"><img src="/img/icons/signal.svg" class="pixel-icon inline" alt=""> Живий дашборд (<span id="liveRadarOnlineCount">0</span>)</button>
-        <button id="tabBtnAnalytics" class="admin-tab-btn" type="button" onclick="window.switchTabTo('analytics')"><img src="/img/icons/chart.svg" class="pixel-icon inline" alt=""> Аналітика відповідей</button>
-        <button id="tabBtnLeaderboard" class="admin-tab-btn" type="button" onclick="window.switchTabTo('leaderboard')"><img src="/img/icons/star.svg" class="pixel-icon inline" alt=""> Рейтинг учнів</button>
-        <button id="tabBtnClasses" class="admin-tab-btn" type="button" onclick="window.switchTabTo('classes')"><img src="/img/icons/folder.svg" class="pixel-icon inline" alt=""> Класи</button>
-        <button id="tabBtnTestEditor" class="admin-tab-btn" type="button" onclick="window.switchTabTo('testEditor')"><img src="/img/icons/edit.svg" class="pixel-icon inline" alt=""> Редактор тестів</button>
+      <div class="admin-tab-nav-wrapper" style="display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 10px; margin-bottom: 14px;">
+        <div class="admin-tab-nav" style="display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 0;">
+          <button id="tabBtnSessions" class="admin-tab-btn active" type="button" onclick="window.switchTabTo('sessions')"><img src="/img/icons/analytics.svg" class="pixel-icon inline" alt=""> Моніторинг сесій</button>
+          <button id="tabBtnLiveRadar" class="admin-tab-btn" type="button" onclick="window.switchTabTo('liveRadar')"><img src="/img/icons/signal.svg" class="pixel-icon inline" alt=""> Живий дашборд (<span id="liveRadarOnlineCount">0</span>)</button>
+          <button id="tabBtnAnalytics" class="admin-tab-btn" type="button" onclick="window.switchTabTo('analytics')"><img src="/img/icons/chart.svg" class="pixel-icon inline" alt=""> Аналітика відповідей</button>
+          <button id="tabBtnLeaderboard" class="admin-tab-btn" type="button" onclick="window.switchTabTo('leaderboard')"><img src="/img/icons/star.svg" class="pixel-icon inline" alt=""> Рейтинг учнів</button>
+          <button id="tabBtnClasses" class="admin-tab-btn" type="button" onclick="window.switchTabTo('classes')"><img src="/img/icons/folder.svg" class="pixel-icon inline" alt=""> Класи</button>
+          <button id="tabBtnTestEditor" class="admin-tab-btn" type="button" onclick="window.switchTabTo('testEditor')"><img src="/img/icons/edit.svg" class="pixel-icon inline" alt=""> Редактор тестів</button>
+        </div>
+
       </div>
 
       <div class="card-panel" style="margin-bottom: 16px; padding: 12px 16px; display: flex; flex-direction: column; gap: 10px;">
-        <div style="display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 10px;">
+        <div id="adminComplexFiltersRow" style="display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 10px;">
           <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
             <div style="position: relative; display: inline-flex; align-items: center;">
               <input type="text" id="adminTestSearchInput" class="form-input search-input" style="width: auto; min-width: 175px; font-size: 12px; padding: 7px 24px 7px 32px;" placeholder="Пошук за темою / назвою...">
@@ -278,7 +291,7 @@
             </button>
           </div>
         </div>
-        <div style="display: flex; align-items: center; gap: 10px; flex-wrap: wrap; padding-top: 10px; border-top: 1px solid var(--border-color, rgba(255,255,255,0.06));">
+        <div id="adminActiveTestRow" style="display: flex; align-items: center; gap: 10px; flex-wrap: wrap; padding-top: 10px; border-top: 1px solid var(--border-color, rgba(255,255,255,0.06));">
           <label style="font-size: 12px; font-weight: 700; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.05em; display: flex; align-items: center; gap: 6px; white-space: nowrap;">
             <img src="/img/icons/folder.svg" class="pixel-icon inline" alt=""> Активний тест:
           </label>
@@ -286,6 +299,12 @@
             <option value="">Завантаження списку тестів...</option>
           </select>
           <span id="activeTestStatsBadge" style="font-size: 11px; color: var(--text-muted); white-space: nowrap;"></span>
+          <button id="liteSetActiveBtn" class="btn-primary lite-only-inline-btn" style="width: auto; padding: 7px 14px; font-size: 11px; display: none;" type="button">
+            <img src="/img/icons/check.svg" class="pixel-icon inline" alt=""> Призначити
+          </button>
+          <button id="liteNewTestBtn" class="btn-primary lite-only-inline-btn" style="width: auto; padding: 7px 14px; font-size: 11px; display: none;" type="button">
+            <img src="/img/icons/plus.svg" class="pixel-icon inline" alt=""> + Новий тест
+          </button>
         </div>
       </div>
 
