@@ -4297,7 +4297,10 @@ function initSystemUpdateControls() {
 async function checkSystemUpdate(silent = true) {
   try {
     const res = await adminFetch('/api/admin/update/check');
-    if (!res.ok) return;
+    if (!res.ok) {
+      if (!silent) adminAlert('Не вдалося зв\'язатися з сервером перевірки оновлень.');
+      return;
+    }
     const data = await res.json();
     cachedUpdateData = data;
 
@@ -4316,10 +4319,20 @@ async function checkSystemUpdate(silent = true) {
         bannerSub.textContent = data.changelog.length > 90 ? data.changelog.substring(0, 90) + '...' : data.changelog;
       }
       if (banner) banner.classList.remove('hidden');
+      if (!silent) {
+        openUpdateModal(data);
+      }
     } else {
       if (banner) banner.classList.add('hidden');
       if (!silent) {
-        adminAlert(`У вас встановлена остання версія SecureExam (${data.currentVersion || '1.0.0'}). Оновлення не потрібне.`);
+        const wantReinstall = await adminConfirm(`У вас встановлена версія SecureExam (${data.currentVersion || '1.1.0'}). Оновлення не виявлено.\n\nБажаєте завантажити та оновити системні файли з інтернету (GitHub)?`);
+        if (wantReinstall) {
+          openUpdateModal({
+            ...data,
+            latestVersion: data.currentVersion || '1.1.0',
+            changelog: data.changelog || 'Повторне завантаження та оновлення системних файлів з репозиторію GitHub.'
+          });
+        }
       }
     }
   } catch (err) {
@@ -4328,6 +4341,7 @@ async function checkSystemUpdate(silent = true) {
 }
 
 function openUpdateModal(data) {
+  cachedUpdateData = data;
   const modal = document.getElementById('systemUpdateModal');
   if (!modal) return;
   const verDisplay = document.getElementById('modalUpdateVersionDisplay');
@@ -4339,7 +4353,7 @@ function openUpdateModal(data) {
   const cancelBtn = document.getElementById('modalCancelUpdateBtn');
   const closeBtn = document.getElementById('closeUpdateModalBtn');
 
-  if (verDisplay) verDisplay.textContent = data.latestVersion || '1.2.0';
+  if (verDisplay) verDisplay.textContent = data.latestVersion || '1.1.0';
   if (changelogContent) changelogContent.textContent = data.changelog || 'Покращення інтерфейсу та виправлення помилок.';
   if (progressArea) progressArea.classList.add('hidden');
   if (successArea) successArea.classList.add('hidden');
@@ -4399,8 +4413,8 @@ async function applySystemUpdate() {
     const res = await adminFetch('/api/admin/update/apply', {
       method: 'POST',
       body: JSON.stringify({
-        targetVersion: cachedUpdateData.latestVersion,
-        downloadUrl: cachedUpdateData.downloadUrl
+        targetVersion: cachedUpdateData.latestVersion || '1.1.0',
+        downloadUrl: cachedUpdateData.downloadUrl || 'https://github.com/gaga050819/Test-for-everyone/archive/refs/heads/main.zip'
       })
     });
 

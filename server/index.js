@@ -1376,15 +1376,18 @@ app.get('/api/tunnel', async (req, res) => {
   });
 });
 
-function readLocalVersion() {
+function readLocalManifest() {
   try {
     const vPath = path.join(__dirname, '..', 'version.json');
     if (fs.existsSync(vPath)) {
-      const v = JSON.parse(fs.readFileSync(vPath, 'utf-8'));
-      return v.version || '1.0.0';
+      return JSON.parse(fs.readFileSync(vPath, 'utf-8'));
     }
   } catch {}
-  return '1.0.0';
+  return {};
+}
+
+function readLocalVersion() {
+  return readLocalManifest().version || '1.0.0';
 }
 
 function isNewerVersion(remote, local) {
@@ -1408,7 +1411,8 @@ function readLocalAnnouncement() {
 }
 
 app.get('/api/admin/update/check', requireAdmin, async (req, res) => {
-  const currentVersion = readLocalVersion();
+  const localManifest = readLocalManifest();
+  const currentVersion = localManifest.version || '1.0.0';
   const simulate = req.query.simulate === '1' || process.env.SIMULATE_UPDATE === 'true';
 
   if (simulate) {
@@ -1421,44 +1425,58 @@ app.get('/api/admin/update/check', requireAdmin, async (req, res) => {
     });
   }
 
-  const manifestUrl = process.env.UPDATE_MANIFEST_URL || '';
-  const githubRepo = process.env.GITHUB_REPO || 'gaga050819/Test-for-everyone';
+  const manifestUrl = process.env.UPDATE_MANIFEST_URL || localManifest.updateManifestUrl || 'https://raw.githubusercontent.com/gaga050819/Test-for-everyone/main/version.json';
+  const githubRepo = process.env.GITHUB_REPO || localManifest.githubRepo || 'gaga050819/Test-for-everyone';
 
   try {
     let remoteData = null;
 
-    if (manifestUrl && manifestUrl.includes('raw.githubusercontent.com')) {
-      const match = manifestUrl.match(/raw\.githubusercontent\.com\/([^/]+\/[^/]+)\/[^/]+\/(.+)/);
-      if (match) {
-        const apiUrl = `https://api.github.com/repos/${match[1]}/contents/${match[2]}`;
-        const resp = await fetch(apiUrl, {
-          headers: { 'User-Agent': 'SecureExam-Updater', 'Accept': 'application/vnd.github.v3.raw' }
+    if (manifestUrl) {
+      try {
+        const fetchUrl = manifestUrl.includes('?') ? `${manifestUrl}&_t=${Date.now()}` : `${manifestUrl}?_t=${Date.now()}`;
+        const resp = await fetch(fetchUrl, {
+          headers: {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) SecureExam-Updater',
+            'Cache-Control': 'no-cache, no-store, must-revalidate',
+            'Pragma': 'no-cache'
+          }
         });
-        if (resp.ok) remoteData = await resp.json();
-      }
+        if (resp.ok) {
+          remoteData = await resp.json();
+        }
+      } catch {}
     }
 
     if (!remoteData && githubRepo) {
-      const apiUrl = `https://api.github.com/repos/${githubRepo}/contents/version.json`;
-      const resp = await fetch(apiUrl, {
-        headers: { 'User-Agent': 'SecureExam-Updater', 'Accept': 'application/vnd.github.v3.raw' }
-      });
-      if (resp.ok) remoteData = await resp.json();
+      try {
+        const apiUrl = `https://api.github.com/repos/${githubRepo}/contents/version.json`;
+        const resp = await fetch(apiUrl, {
+          headers: {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) SecureExam-Updater',
+            'Accept': 'application/vnd.github.v3.raw'
+          }
+        });
+        if (resp.ok) {
+          remoteData = await resp.json();
+        }
+      } catch {}
     }
 
     if (!remoteData && githubRepo) {
-      const resp = await fetch(`https://api.github.com/repos/${githubRepo}/releases/latest`, {
-        headers: { 'User-Agent': 'SecureExam-Updater' }
-      });
-      if (resp.ok) {
-        const gh = await resp.json();
-        const zipAsset = (gh.assets || []).find(a => a.name.endsWith('.zip'));
-        remoteData = {
-          version: gh.tag_name ? gh.tag_name.replace(/^v/, '') : gh.name,
-          changelog: gh.body || 'Нова версія системи SecureExam',
-          downloadUrl: zipAsset ? zipAsset.browser_download_url : (gh.zipball_url || '')
-        };
-      }
+      try {
+        const resp = await fetch(`https://api.github.com/repos/${githubRepo}/releases/latest`, {
+          headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) SecureExam-Updater' }
+        });
+        if (resp.ok) {
+          const gh = await resp.json();
+          const zipAsset = (gh.assets || []).find(a => a.name.endsWith('.zip'));
+          remoteData = {
+            version: gh.tag_name ? gh.tag_name.replace(/^v/, '') : gh.name,
+            changelog: gh.body || 'Нова версія системи SecureExam',
+            downloadUrl: zipAsset ? zipAsset.browser_download_url : (gh.zipball_url || '')
+          };
+        }
+      } catch {}
     }
 
     const localAnnouncement = readLocalAnnouncement();
@@ -1466,10 +1484,12 @@ app.get('/api/admin/update/check', requireAdmin, async (req, res) => {
       ? remoteData.announcement
       : (localAnnouncement && localAnnouncement.enabled ? localAnnouncement : null);
 
+    const repo = githubRepo || 'gaga050819/Test-for-everyone';
+    const fallbackDlUrl = repo ? `https://github.com/${repo}/archive/refs/heads/main.zip` : '';
+
     if (remoteData && remoteData.version) {
       const hasUpdate = isNewerVersion(remoteData.version, currentVersion);
-      const repo = githubRepo || 'gaga050819/Test-for-everyone';
-      const dlUrl = remoteData.downloadUrl || (repo ? `https://github.com/${repo}/archive/refs/heads/main.zip` : '');
+      const dlUrl = remoteData.downloadUrl || fallbackDlUrl;
       return res.json({
         hasUpdate,
         currentVersion,
@@ -1482,12 +1502,13 @@ app.get('/api/admin/update/check', requireAdmin, async (req, res) => {
   } catch {}
 
   const fallbackAnnouncement = readLocalAnnouncement();
+  const fallbackRepo = githubRepo || 'gaga050819/Test-for-everyone';
   res.json({
     hasUpdate: false,
     currentVersion,
     latestVersion: currentVersion,
     changelog: '',
-    downloadUrl: '',
+    downloadUrl: fallbackRepo ? `https://github.com/${fallbackRepo}/archive/refs/heads/main.zip` : '',
     announcement: fallbackAnnouncement && fallbackAnnouncement.enabled ? fallbackAnnouncement : null
   });
 });
@@ -1557,44 +1578,19 @@ app.post('/api/admin/update/apply', requireAdmin, async (req, res) => {
       updateProgress.stage = 'Підключення до GitHub...';
       updateProgress.detail = 'Очікування відповіді сервера';
 
-      const response = await fetch(downloadUrl);
+      const response = await fetch(downloadUrl, {
+        headers: {
+          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) SecureExam-Updater'
+        }
+      });
       if (!response.ok) throw new Error('Помилка завантаження архіву оновлення (' + response.status + ')');
 
-      const contentLength = parseInt(response.headers.get('content-length') || '0', 10);
-      const approxTotalBytes = contentLength > 0 ? contentLength : 480 * 1024;
-      let receivedBytes = 0;
-      const fileStream = fs.createWriteStream(zipPath);
+      updateProgress.percent = 45;
+      updateProgress.stage = 'Завантаження архіву оновлення...';
+      updateProgress.detail = 'Отримання файлів з інтернету';
 
-      if (response.body && response.body.getReader) {
-        const reader = response.body.getReader();
-        while (true) {
-          const { done, value } = await reader.read();
-          if (done) break;
-          fileStream.write(value);
-          receivedBytes += value.length;
-
-          const p = Math.min(68, 15 + Math.floor((receivedBytes / Math.max(receivedBytes, approxTotalBytes)) * 53));
-          updateProgress.percent = p;
-
-          let sizeStr = '';
-          if (receivedBytes < 1048576) {
-            const kbRec = Math.round(receivedBytes / 1024);
-            const kbTot = Math.round(approxTotalBytes / 1024);
-            sizeStr = `${kbRec} КБ з ~${kbTot} КБ`;
-          } else {
-            const mbRec = (receivedBytes / 1048576).toFixed(2);
-            const mbTot = (approxTotalBytes / 1048576).toFixed(2);
-            sizeStr = `${mbRec} МБ з ~${mbTot} МБ`;
-          }
-
-          updateProgress.stage = `Завантаження архіву (${p}%)...`;
-          updateProgress.detail = `Завантажено ${sizeStr}`;
-        }
-        await new Promise(r => fileStream.end(r));
-      } else {
-        const arrayBuffer = await response.arrayBuffer();
-        fs.writeFileSync(zipPath, Buffer.from(arrayBuffer));
-      }
+      const arrayBuffer = await response.arrayBuffer();
+      fs.writeFileSync(zipPath, Buffer.from(arrayBuffer));
 
       updateProgress.percent = 70;
       updateProgress.stage = 'Розпакування архіву оновлення...';
@@ -1606,7 +1602,12 @@ app.post('/api/admin/update/apply', requireAdmin, async (req, res) => {
       fs.mkdirSync(tempExtractDir, { recursive: true });
 
       const { execSync } = await import('child_process');
-      execSync(`tar -xf "${zipPath}" -C "${tempExtractDir}"`);
+      try {
+        execSync(`tar -xf "${zipPath}" -C "${tempExtractDir}"`, { stdio: 'pipe' });
+      } catch {
+        const psCmd = `Expand-Archive -LiteralPath '${zipPath.replace(/'/g, "''")}' -DestinationPath '${tempExtractDir.replace(/'/g, "''")}' -Force`;
+        execSync(`powershell.exe -NoProfile -ExecutionPolicy Bypass -Command "${psCmd}"`, { stdio: 'pipe' });
+      }
 
       let sourceFolder = tempExtractDir;
       const subItems = fs.readdirSync(tempExtractDir);
@@ -1654,7 +1655,7 @@ app.post('/api/admin/update/apply', requireAdmin, async (req, res) => {
       } catch {}
     }
 
-    const newVer = targetVersion || '1.0.1';
+    const newVer = targetVersion || '1.1.0';
     const vPath = path.join(rootDir, 'version.json');
     let vObj = { version: newVer, name: 'SecureExam' };
     try {
@@ -1679,8 +1680,9 @@ app.post('/api/admin/update/apply', requireAdmin, async (req, res) => {
       try {
         const cp = await import('child_process');
         const serverPath = path.join(__dirname, 'index.js');
-        const psCmd = `Start-Sleep -Seconds 2; Set-Location -LiteralPath '${rootDir.replace(/'/g, "''")}'; $active = Get-NetTCPConnection -LocalPort 3500 -ErrorAction SilentlyContinue; if (-not $active) { Start-Process -FilePath 'node.exe' -ArgumentList '\"${serverPath.replace(/'/g, "''")}\"' -WorkingDirectory '${rootDir.replace(/'/g, "''")}' -WindowStyle Hidden }`;
-        cp.spawn('powershell.exe', ['-NoProfile', '-Command', psCmd], {
+        const nodeExe = process.execPath;
+        const psCmd = `Start-Sleep -Seconds 2; Set-Location -LiteralPath '${rootDir.replace(/'/g, "''")}'; $active = Get-NetTCPConnection -LocalPort 3500 -State Listen -ErrorAction SilentlyContinue; if (-not $active) { Start-Process -FilePath '${nodeExe.replace(/'/g, "''")}' -ArgumentList '\"${serverPath.replace(/'/g, "''")}\"' -WorkingDirectory '${rootDir.replace(/'/g, "''")}' }`;
+        cp.spawn('powershell.exe', ['-ExecutionPolicy', 'Bypass', '-Command', psCmd], {
           detached: true,
           stdio: 'ignore'
         }).unref();
