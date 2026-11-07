@@ -218,7 +218,7 @@
           <img src="/img/icons/lock.svg" class="pixel-icon inline" alt=""> Пароль
         </button>
         <button class="btn-secondary" id="manualCheckUpdateBtn" title="Перевірити оновлення" style="padding: 5px 10px; font-size: 11px; display: inline-flex !important; align-items: center; gap: 5px;" type="button">
-          <img src="/img/icons/refresh.svg" class="pixel-icon inline" alt=""> v<span id="currentVersionBadge">1.1.0</span>
+          <img src="/img/icons/refresh.svg" class="pixel-icon inline" alt=""> v<span id="currentVersionBadge">1.2.0</span>
         </button>
         <button class="theme-toggle" id="themeToggleBtn" title="Змінити тему"><img src="/img/icons/sun.svg" class="pixel-icon" id="adminThemeIcon" alt=""></button>
         <a href="/" class="btn-secondary" style="text-decoration: none;">← До тесту</a>
@@ -690,68 +690,393 @@
       </div>
 
       <div id="viewTestEditorTab" class="hidden">
-        <div class="security-callout">
-          <img src="/img/icons/shield.svg" class="pixel-icon" alt="">
-          <div>
-            <strong>Серверний захист від списування:</strong>
-            Правильні відповіді зберігаються виключно в базі даних сервера під паролем викладача.
-            Студентам у браузер відправляється лише список питань та перемішані варіанти — у коді клієнта, DOM чи запитах мережі <u>фізично немає</u> правильних відповідей.
+    <div class="test-selector-bar card-panel" style="margin-bottom: 12px; padding: 8px 14px; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 10px; max-width: 100%; box-sizing: border-box;">
+      <div style="display: flex; align-items: center; gap: 8px; flex: 1 1 240px; min-width: 0; max-width: 600px;">
+        <span style="font-size: 11px; font-weight: 700; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.05em; display: flex; align-items: center; gap: 5px; white-space: nowrap; flex-shrink: 0;">
+          <img src="/img/icons/folder.svg" class="pixel-icon inline" style="margin-right: 0;" alt=""> Тест:
+        </span>
+        <select id="editorTestSelector" class="form-input" style="flex: 1; min-width: 0; font-size: 12px; font-weight: 600; padding: 6px 12px; cursor: pointer; text-overflow: ellipsis;">
+          <option value="">Завантаження списку тестів...</option>
+        </select>
+      </div>
+
+      <div style="display: flex; align-items: center; gap: 8px; flex-shrink: 0;">
+        <button id="editorCreateTestBtn" class="btn-secondary" style="padding: 6px 14px; font-size: 12px; font-weight: 600; display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; flex-shrink: 0;" type="button">
+          <img src="/img/icons/plus.svg" class="pixel-icon inline" style="margin-right: 0;" alt="">
+          <span>Новий тест</span>
+        </button>
+        <button id="editorDeleteTestBtn" class="btn-secondary" style="padding: 6px 10px; font-size: 12px; border-color: rgba(239, 68, 68, 0.35); color: var(--accent-red); display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0;" type="button" title="Видалити поточний тест">
+          <img src="/img/icons/trash.svg" class="pixel-icon inline" style="margin-right: 0;" alt="">
+        </button>
+      </div>
+    </div>
+
+    <div class="test-doc-card card-panel" style="margin-bottom: 14px; padding: 14px 18px;">
+      <div style="position: relative; width: 100%;">
+        <input type="text" id="editTestTitleInput" class="doc-inline-title" value="Географія 10 клас: Загальна характеристика Азії" placeholder="Введіть назву тесту...">
+      </div>
+      <div class="doc-meta-chips-row" style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-top: 10px;">
+        <div class="meta-tag-chip" title="Предмет тесту">
+          <span class="meta-tag-icon"><img src="/img/icons/books.svg" class="pixel-icon inline" style="margin-right:0;" alt=""></span>
+          <span class="meta-tag-label">Предмет:</span>
+          <input type="text" id="editTestSubjectInput" class="meta-tag-input" value="Географія" placeholder="Предмет">
+        </div>
+        <div class="meta-tag-chip" title="Тема підручника">
+          <span class="meta-tag-icon"><img src="/img/icons/edit.svg" class="pixel-icon inline" style="margin-right:0;" alt=""></span>
+          <span class="meta-tag-label">Тема:</span>
+          <input type="text" id="editTestTopicInput" class="meta-tag-input" value="Загальна характеристика Азії" placeholder="Тема">
+        </div>
+        <div class="meta-tag-chip" title="Клас / Аудиторія">
+          <span class="meta-tag-icon"><img src="/img/icons/folder.svg" class="pixel-icon inline" style="margin-right:0;" alt=""></span>
+          <span class="meta-tag-label">Клас:</span>
+          <input type="text" id="editTestClassInput" class="meta-tag-input" value="10-А" placeholder="Клас" style="width: 50px; text-align: center;">
+        </div>
+        <div class="meta-tag-chip" title="Загальна тривалість тесту в хвилинах">
+          <span class="meta-tag-icon"><img src="/img/icons/timer.svg" class="pixel-icon inline" style="margin-right:0;" alt=""></span>
+          <span class="meta-tag-label">Час:</span>
+          <input type="number" id="editTestDurationInput" class="meta-tag-input" value="15" min="1" max="180" style="width: 38px; text-align: center;">
+          <span style="font-size: 11px; color: var(--text-muted); font-weight: 600;">хв</span>
+        </div>
+        <div class="badge-shield" style="margin-left: auto;">
+          <img src="/img/icons/shield.svg" class="pixel-icon inline" style="width: 13px; height: 13px;" alt="">
+          <span>Захищено</span>
+          <div class="badge-tooltip">
+            <strong>Серверний захист активний:</strong> Правильні відповіді зберігаються виключно в базі даних сервера під паролем викладача. Студентам у браузер правильні відповіді не передаються.
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div id="analyticsBar" class="card-panel analytics-bar" style="margin-bottom: 16px; padding: 12px 18px; display: flex; align-items: center; gap: 14px; flex-wrap: wrap;">
+      <div class="analytics-item">
+        <span class="analytics-label">Сума балів:</span>
+        <span id="statTotalScore" class="analytics-value primary">10 б.</span>
+      </div>
+      <div class="analytics-divider"></div>
+      <div class="analytics-item">
+        <span class="analytics-label">Орієнтовний час:</span>
+        <span id="statEstimatedTime" class="analytics-value">6.5 хв.</span>
+      </div>
+      <div class="analytics-divider"></div>
+      <div class="analytics-item">
+        <span class="analytics-label">Складність:</span>
+        <span id="statDifficultyBadge" class="diff-badge optimal">Оптимальний</span>
+      </div>
+      <div class="analytics-divider"></div>
+      <div class="analytics-item">
+        <span class="analytics-label">Структура:</span>
+        <span id="statDistribution" class="analytics-sub">3 простих • 1 пари • 1 відкрите</span>
+      </div>
+      <div class="analytics-divider"></div>
+      <div class="analytics-item" style="margin-left: auto;">
+        <span id="statQualityCheck" class="qa-badge success"><img src="/img/icons/check.svg" class="pixel-icon inline" alt=""> Усі відповіді заповнено</span>
+      </div>
+    </div>
+
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px; flex-wrap: wrap; gap: 10px;">
+      <div>
+        <h2 style="font-size: 16px; font-weight: 700;">Питання тесту</h2>
+        <div id="questionsCountLabel" style="font-size: 11px; color: var(--text-muted);">Завантаження списку питань...</div>
+      </div>
+      <div style="display: flex; gap: 8px; flex-wrap: wrap;">
+        <button id="previewWholeTestBtn" class="btn-secondary" style="width: auto; padding: 8px 14px; font-size: 12px; display: inline-flex; align-items: center; gap: 6px;" type="button">
+          <img src="/img/icons/eye.svg" class="pixel-icon inline" alt=""> Переглянути весь тест
+        </button>
+        <button id="printTestModalBtn" class="btn-secondary" style="width: auto; padding: 8px 14px; font-size: 12px; display: inline-flex; align-items: center; gap: 6px;" type="button" title="Друк на А4 / Експорт у Word та PDF">
+          <img src="/img/icons/report.svg" class="pixel-icon inline" alt=""> Друк / Word
+        </button>
+        <button id="openAiGenModalBtn" class="btn-primary" style="width: auto; padding: 8px 14px; font-size: 12px; background: linear-gradient(135deg, #6366f1, #8b5cf6); border: none; box-shadow: 0 2px 10px rgba(99,102,241,0.25);" type="button">
+          <img src="/img/icons/star.svg" class="pixel-icon inline" alt="" style="filter: brightness(0) invert(1);"> Майстер тестів Gemini
+        </button>
+        <button id="openImportModalBtn" class="btn-secondary" style="width: auto; padding: 8px 14px; font-size: 12px; display: inline-flex; align-items: center; gap: 6px;" type="button">
+          <img src="/img/icons/folder.svg" class="pixel-icon inline" alt=""> Масовий імпорт (Word / PDF)
+        </button>
+        <button id="addQuestionTopBtn" class="btn-secondary" style="width: auto; padding: 8px 14px; font-size: 12px; display: inline-flex; align-items: center; gap: 6px;" type="button">
+          <img src="/img/icons/plus.svg" class="pixel-icon inline" alt=""> Додати питання
+        </button>
+        <button id="quickSaveBtn" class="btn-primary" style="width: auto; padding: 8px 16px; font-size: 12px; display: inline-flex; align-items: center; gap: 6px;" type="button">
+          <img src="/img/icons/save.svg" class="pixel-icon inline" alt=""> Зберегти тест
+        </button>
+      </div>
+    </div>
+
+    <div class="studio-grid">
+
+      <aside class="studio-sidebar-left card-panel">
+        <div class="sidebar-top-bar">
+          <div class="sidebar-heading">
+            <span style="font-size: 13px; font-weight: 700;">Список питань</span>
+            <span id="questionsCountBadge" class="count-pill">0</span>
+          </div>
+          <button id="addQuestionSideBtn" class="btn-primary" style="padding: 5px 10px; font-size: 11px; width: auto;" type="button">
+            + Додати
+          </button>
+        </div>
+        <div style="position: relative; margin-bottom: 12px;">
+          <input type="text" id="questionSearchInput" class="form-input search-input" style="font-size: 12px; padding: 6px 12px 6px 30px; width: 100%;" placeholder="Пошук у питаннях...">
+        </div>
+        <div id="questionsNavList" class="questions-nav-list"></div>
+      </aside>
+
+      <section class="studio-editor-center card-panel">
+        <div class="editor-header-bar">
+          <div class="editor-left-group">
+            <span id="editorQuestionIndexBadge" class="q-badge-tag">Питання #1</span>
+            <div class="q-type-select-wrap">
+              <select id="editorQuestionType" class="q-type-dropdown">
+                <option value="single">Один правильний варіант</option>
+                <option value="multiple">Кілька правильних відповідей</option>
+                <option value="true_false">Правда / Неправда</option>
+                <option value="matching">Встановлення відповідності</option>
+                <option value="ordering">Хронологія / Послідовність</option>
+                <option value="fill_blanks">Заповнення пропусків [слово]</option>
+                <option value="short_answer">Коротка текстова відповідь</option>
+              </select>
+            </div>
+          </div>
+          <div class="editor-right-group">
+            <div class="q-numeric-capsule">
+              <div class="q-num-field" title="Кількість балів за правильну відповідь">
+                <span class="q-num-label">Бали</span>
+                <input type="number" id="editorPoints" value="1" min="1" max="100" class="q-num-input">
+              </div>
+              <div class="q-capsule-divider"></div>
+              <div class="q-num-field" title="Ліміт часу на запитання в секундах">
+                <span class="q-num-label">Час</span>
+                <input type="number" id="editorTimeLimit" value="60" min="5" max="600" class="q-num-input">
+                <span class="q-num-unit">с</span>
+              </div>
+            </div>
+            <div class="q-actions-toolbar">
+              <button id="undoActionBtn" class="q-action-btn" title="Скасувати останню дію (Ctrl+Z)" type="button" disabled>
+                <img src="/img/icons/refresh.svg" class="pixel-icon inline undo-icon-flip" alt="">
+                <span>Відмінити</span>
+              </button>
+              <button id="duplicateQuestionBtn" class="q-action-btn" title="Здублювати це запитання" type="button">
+                <img src="/img/icons/books.svg" class="pixel-icon inline" alt="">
+                <span>Копіювати</span>
+              </button>
+              <button id="deleteQuestionBtn" class="q-action-btn btn-danger-action" title="Видалити запитання" type="button">
+                <img src="/img/icons/trash.svg" class="pixel-icon inline" alt="">
+                <span>Видалити</span>
+              </button>
+            </div>
           </div>
         </div>
 
-        <div class="card-panel" style="margin-bottom: 16px;">
-          <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px; margin-bottom: 14px;">
-            <div>
-              <h2 style="font-size: 16px; font-weight: 700;">Параметри тесту</h2>
-              <div style="font-size: 11px; color: var(--text-muted); margin-top: 2px;">Назва тесту, тема, предмет та загальний ліміт часу для студентів</div>
+        <div class="editor-body-scroll">
+          <div class="form-row-block">
+            <div class="section-label-row">
+              <label for="editorQuestionText" class="form-label" style="margin-bottom: 0;">Текст питання або завдання *</label>
+              <div class="format-toolbar">
+                <button type="button" class="tool-btn" data-wrap="**" title="Жирний">B</button>
+                <button type="button" class="tool-btn" data-wrap="*" title="Курсив">I</button>
+                <button type="button" class="tool-btn" data-wrap="`" title="Код">&lt;/&gt;</button>
+                <button type="button" class="tool-btn" data-wrap="$" title="Формула LaTeX">∑</button>
+                <button type="button" class="tool-btn" id="toggleImageSectionBtn" title="Додати або завантажити фото"><img src="/img/icons/camera.svg" class="pixel-icon inline" alt=""> Додати фото</button>
+              </div>
             </div>
-            <button id="saveTestMetaBtn" class="btn-primary" style="width: auto; padding: 7px 16px; font-size: 12px;" type="button"><img src="/img/icons/save.svg" class="pixel-icon inline" alt=""> Зберегти налаштування</button>
+            <textarea id="editorQuestionText" class="form-input" rows="3" style="font-size: 13px; line-height: 1.5; resize: vertical;" placeholder="Введіть формулювання питання..."></textarea>
           </div>
-          <div style="display: grid; grid-template-columns: 1.5fr 1.2fr 1fr 120px; gap: 12px;">
-            <div>
-              <label class="form-label" for="editTestTitleInput">Назва тесту</label>
-              <input type="text" id="editTestTitleInput" class="form-input" style="font-size: 13px;" placeholder="Введіть назву тесту...">
+
+          <div id="imageAttachmentSection" class="form-row-block hidden">
+            <div class="section-label-row">
+              <label class="form-label" style="margin-bottom: 0; font-weight: 700;">Зображення до завдання</label>
+              <button type="button" id="closeImageSectionBtn" class="close-mini-btn" title="Приховати панель"><img src="/img/icons/cross.svg" class="pixel-icon inline" alt=""></button>
             </div>
-            <div>
-              <label class="form-label" for="editTestTopicInput">Тема підручника</label>
-              <input type="text" id="editTestTopicInput" class="form-input" style="font-size: 13px;" placeholder="Наприклад: Загальна характеристика Європи">
+            <div id="imageDropzone" class="image-dropzone">
+              <span class="image-dropzone-icon"><img src="/img/icons/camera.svg" class="pixel-icon" style="width:36px;height:36px;" alt=""></span>
+              <span class="image-dropzone-text">Виберіть фото з комп'ютера, перетягніть сюди або вставте з буфера (Ctrl+V)</span>
+              <span class="image-dropzone-sub">Підтримуються формати PNG, JPG, JPEG, WEBP, GIF (зберігаються безпосередньо в тесті)</span>
+              <div style="display: flex; gap: 8px; margin-top: 4px; flex-wrap: wrap; justify-content: center;">
+                <button type="button" id="uploadImageFileBtn" class="btn-primary" style="padding: 6px 14px; font-size: 11px; display: inline-flex; align-items: center; gap: 6px;">
+                  <img src="/img/icons/folder.svg" class="pixel-icon inline" alt="" style="filter: brightness(0) invert(1);"> Завантажити з комп'ютера
+                </button>
+                <button type="button" id="toggleUrlImageInputBtn" class="btn-secondary" style="padding: 6px 12px; font-size: 11px;">
+                  Або вставити URL
+                </button>
+              </div>
+              <input type="file" id="imageFileInput" accept="image/*" style="display: none;">
             </div>
-            <div>
-              <label class="form-label" for="editTestSubjectInput">Предмет</label>
-              <input type="text" id="editTestSubjectInput" class="form-input" style="font-size: 13px;" placeholder="Географія">
+            <div id="imageUrlRow" class="hidden" style="margin-top: 8px; display: flex; gap: 8px;">
+              <input type="text" id="editorImageUrl" class="form-input" style="flex: 1; font-size: 12px;" placeholder="Введіть URL зображення (https://...)">
+              <button type="button" id="applyImageUrlBtn" class="btn-secondary" style="padding: 6px 12px; font-size: 11px;">Застосувати</button>
             </div>
-            <div>
-              <label class="form-label" for="editTestDurationInput">Тривалість (хв)</label>
-              <input type="number" id="editTestDurationInput" class="form-input" style="font-size: 13px;" min="1" max="180" placeholder="15">
+            <div id="imagePreviewBox" class="image-preview-box hidden" style="margin-top: 10px;">
+              <div class="image-preview-card">
+                <img id="imagePreviewImg" src="" alt="Прев'ю завдання" class="image-preview-thumb">
+                <div style="display: flex; gap: 8px; width: 100%; justify-content: space-between; align-items: center; margin-top: 6px;">
+                  <span style="font-size: 11px; color: var(--accent-green); font-weight: 600;"><img src="/img/icons/check.svg" class="pixel-icon inline" alt=""> Фото прикріплено до запитання</span>
+                  <button type="button" id="clearImageBtn" class="btn-secondary" style="padding: 4px 10px; font-size: 11px; color: var(--accent-red); border-color: var(--accent-red);">
+                    <img src="/img/icons/cross.svg" class="pixel-icon inline" alt=""> Видалити фото
+                  </button>
+                </div>
+              </div>
             </div>
+          </div>
+
+          <div id="aiExplanationBox" class="form-row-block hidden">
+            <div class="explanation-box">
+              <div class="explanation-header">
+                <span><img src="/img/icons/bulb.svg" class="pixel-icon inline" alt=""> Пояснення правильної відповіді (для аналізу учня):</span>
+                <button type="button" id="closeExplanationBtn" class="close-mini-btn"><img src="/img/icons/cross.svg" class="pixel-icon inline" alt=""></button>
+              </div>
+              <textarea id="editorExplanationText" class="form-input" rows="2" style="font-size: 12px; line-height: 1.4; resize: vertical;" placeholder="Пояснення чому ця відповідь правильна..."></textarea>
+            </div>
+          </div>
+
+          <div id="optionsBuilderSection" class="form-row-block">
+            <div class="section-label-row">
+              <label id="optionsSectionHeader" class="form-label" style="margin-bottom: 0;">Варіанти відповідей (виберіть правильний)</label>
+              <button type="button" id="addOptionBtn" class="btn-secondary" style="padding: 4px 10px; font-size: 11px;">+ Варіант</button>
+            </div>
+            <div id="optionsContainer" class="options-container"></div>
+          </div>
+
+          <div id="matchingBuilderSection" class="form-row-block hidden">
+            <div class="section-label-row">
+              <label class="form-label" style="margin-bottom: 0;">Пари для встановлення відповідності</label>
+              <button type="button" id="addMatchingPairBtn" class="btn-secondary" style="padding: 4px 10px; font-size: 11px;">+ Додати пару</button>
+            </div>
+            <div id="matchingPairsContainer" class="options-container"></div>
+          </div>
+
+          <div id="fillBlanksHelperSection" class="form-row-block hidden">
+            <div class="helper-box">
+              <div class="helper-title"><img src="/img/icons/bulb.svg" class="pixel-icon inline" alt=""> Як додавати пропуски:</div>
+              <div class="helper-desc">У тексті завдання візьміть слово у квадратні дужки, наприклад: <code>Найглибше озеро — [Байкал].</code> Для синонімів використовуйте розділювач <code>|</code>: <code>[Київ|Kyiv]</code>.</div>
+            </div>
+            <div class="detected-blanks-wrap" style="margin-top: 10px;">
+              <span class="form-label">Розпізнані пропуски:</span>
+              <div id="detectedBlanksList" class="blanks-tags-list"></div>
+            </div>
+          </div>
+
+          <div id="shortAnswerSection" class="form-row-block hidden">
+            <label for="editorShortKeywords" class="form-label">Правильні варіанти відповіді (через кому)</label>
+            <input type="text" id="editorShortKeywords" class="form-input" style="font-size: 13px;" placeholder="Київ, київ, Kyiv">
+            <div style="font-size: 11px; color: var(--text-muted); margin-top: 5px;">Відповідь зараховується при збігу з будь-яким словом зі списку (регістр ігнорується).</div>
+          </div>
+        </div>
+      </section>
+
+      <aside class="studio-sidebar-right card-panel">
+        <div class="sidebar-right-nav">
+          <button type="button" id="rightTabChatBtn" class="right-nav-pill active">
+            <img src="/img/icons/star.svg" class="pixel-icon inline" alt=""> Gemini ШІ-Чат
+          </button>
+          <button type="button" id="rightTabPreviewBtn" class="right-nav-pill">
+            <img src="/img/icons/mobile.svg" class="pixel-icon inline" alt=""> Прев'ю учня
+          </button>
+        </div>
+
+        <div id="rightAiChatPanel" class="right-panel-view">
+          <div class="chat-header-bar">
+            <div class="chat-header-left">
+              <span class="chat-online-dot"></span>
+              <span class="chat-model-name">Gemini Flash</span>
+            </div>
+            <button type="button" id="clearChatBtn" class="chat-clear-btn" title="Очистити чат">Очистити</button>
+          </div>
+
+          <div id="aiChatMessages" class="ai-chat-messages">
+            <div class="chat-msg assistant">
+              <div class="chat-msg-avatar"><img src="/img/icons/star.svg" class="pixel-icon inline" alt=""></div>
+              <div class="chat-msg-bubble">
+                Привіт! Я твій інтерактивний ШІ-методист Gemini.
+                <br><br>
+                Напиши мені будь-яке прохання, наприклад:
+                <em>«Склади 4 правдоподібні варіанти про Східну Азію»</em> або <em>«Зроби запитання складнішим»</em> — і я згенерую якісний результат із можливістю вставити його в тест в 1 клік!
+              </div>
+            </div>
+          </div>
+
+          <div class="chat-quick-chips">
+            <button type="button" class="chat-chip" data-prompt="Згенеруй 4 правильні та правдоподібні варіанти відповідей до поточного запитання"><img src="/img/icons/star.svg" class="pixel-icon inline" alt=""> Варіанти</button>
+            <button type="button" class="chat-chip" data-prompt="Покращ формулювання цього запитання, щоб воно відповідало академічному стандарту тестування"><img src="/img/icons/edit.svg" class="pixel-icon inline" alt=""> Покращити</button>
+            <button type="button" class="chat-chip" data-prompt="Напиши докладне пояснення правильної відповіді з науковими фактами"><img src="/img/icons/bulb.svg" class="pixel-icon inline" alt=""> Пояснення</button>
+            <button type="button" class="chat-chip" data-prompt="Зроби це запитання більш складним та аналітичним"><img src="/img/icons/trophy.svg" class="pixel-icon inline" alt=""> Ускладнити</button>
+            <button type="button" class="chat-chip" data-prompt="Придумай наступне якісне запитання до цієї теми тесту"><img src="/img/icons/plus.svg" class="pixel-icon inline" alt=""> Нове питання</button>
+          </div>
+
+          <div class="chat-input-bar">
+            <textarea id="aiChatInput" class="chat-textarea" rows="2" placeholder="Запитайте у Gemini..."></textarea>
+            <button type="button" id="aiChatSendBtn" class="chat-send-btn" title="Надіслати"><img src="/img/icons/signal.svg" class="pixel-icon inline" alt=""></button>
           </div>
         </div>
 
-        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px; flex-wrap: wrap; gap: 10px;">
-          <div>
-            <h2 style="font-size: 16px; font-weight: 700;">Питання тесту</h2>
-            <div id="questionsCountLabel" style="font-size: 11px; color: var(--text-muted);">Завантаження списку питань...</div>
+        <div id="rightPreviewPanel" class="right-panel-view hidden">
+          <div class="preview-header-bar">
+            <div class="preview-heading">
+              <span style="font-size: 13px; font-weight: 700;">Живий перегляд учня</span>
+              <span class="live-pill">LIVE</span>
+            </div>
+            <div class="device-switch-wrap">
+              <button type="button" id="viewModeDesktopBtn" class="dev-btn active" data-view="desktop"><img src="/img/icons/desktop.svg" class="pixel-icon inline" alt=""> Десктоп</button>
+              <button type="button" id="viewModeMobileBtn" class="dev-btn" data-view="mobile"><img src="/img/icons/mobile.svg" class="pixel-icon inline" alt=""> Смартфон</button>
+            </div>
           </div>
-          <div style="display: flex; gap: 8px; flex-wrap: wrap;">
-            <button id="previewWholeTestBtn" class="btn-secondary" style="width: auto; padding: 8px 16px; font-size: 12px; display: inline-flex; align-items: center; gap: 6px;" type="button"><img src="/img/icons/eye.svg" class="pixel-icon inline" alt=""> Переглянути як учень</button>
-            <button id="openAiGenerateBtn" class="btn-primary" style="width: auto; padding: 8px 16px; font-size: 12px; background: linear-gradient(135deg, #6366f1, #8b5cf6); border: none; box-shadow: 0 2px 10px rgba(99,102,241,0.25);" type="button"><img src="/img/icons/star.svg" class="pixel-icon inline" alt="" style="filter: brightness(0) invert(1);"> Згенерувати через Gemini AI</button>
-            <button id="openImportModalBtn" class="btn-secondary" style="width: auto; padding: 8px 16px; font-size: 12px;" type="button"><img src="/img/icons/folder.svg" class="pixel-icon inline" alt=""> Масовий імпорт (ШІ / Текст / Файл)</button>
-            <button id="openAddQuestionBtn" class="btn-secondary" style="width: auto; padding: 8px 16px; font-size: 12px;" type="button"><img src="/img/icons/plus.svg" class="pixel-icon inline" alt=""> Додати вручну</button>
-            <button id="clearAllQuestionsBtn" class="btn-secondary" style="width: auto; padding: 8px 14px; font-size: 12px; border-color: var(--accent-red); color: var(--accent-red);" type="button" title="Видалити всі питання"><img src="/img/icons/trash.svg" class="pixel-icon inline" alt=""> Очистити</button>
-          </div>
-        </div>
 
-        <div id="aiStatusBanner" class="hidden" style="margin-bottom: 14px; padding: 12px 16px; border-radius: var(--radius-sm); background: rgba(22, 163, 74, 0.09); border: 1px solid var(--accent-green); color: var(--text); font-size: 13px; display: flex; align-items: center; justify-content: space-between; gap: 12px;">
-          <div style="display: flex; align-items: center; gap: 8px;">
-            <img src="/img/icons/check.svg" class="pixel-icon inline" alt="">
-            <span id="aiStatusBannerText" style="font-weight: 600;">ШІ успішно завершив генерацію тесту</span>
-          </div>
-          <button id="closeAiStatusBannerBtn" type="button" style="background: none; border: none; cursor: pointer; color: var(--text-muted); font-size: 16px; padding: 2px 6px; display: inline-flex; align-items: center;"><img src="/img/icons/cross.svg" class="pixel-icon inline" alt=""></button>
-        </div>
+          <div id="previewViewportBox" class="preview-viewport-box mode-desktop">
+            <div id="desktopBrowserFrame" class="desktop-browser-frame">
+              <div class="browser-top-bar">
+                <div class="browser-dots">
+                  <span class="b-dot red"></span>
+                  <span class="b-dot yellow"></span>
+                  <span class="b-dot green"></span>
+                </div>
+                <div class="browser-url-pill">
+                  <span><img src="/img/icons/lock.svg" class="pixel-icon inline" style="width:12px;height:12px;" alt=""></span> secure-exam.local/test
+                </div>
+              </div>
+              <div class="student-preview-card">
+                <div class="student-card-head">
+                  <span id="previewQNumberDesktop" class="student-q-tag">Питання 1 з 5</span>
+                  <span id="previewQTimerDesktop" class="student-timer-tag"><img src="/img/icons/timer.svg" class="pixel-icon inline" alt=""> 01:00</span>
+                </div>
+                <div id="previewQImageWrapDesktop" class="student-q-img-wrap hidden">
+                  <img id="previewQImageDesktop" src="" alt="Ілюстрація">
+                </div>
+                <div id="previewQTextDesktop" class="student-question-title">Завантаження питання...</div>
+                <div id="previewQOptionsDesktop" class="student-options-container"></div>
+                <div class="student-card-footer">
+                  <button type="button" class="btn-primary" style="width: 100%; padding: 8px 16px;">Відповісти</button>
+                </div>
+              </div>
+            </div>
 
-        <div id="adminQuestionsList">
-          <div style="text-align: center; padding: 32px; color: var(--text-muted); font-size: 13px;">Завантаження...</div>
+            <div id="mobilePhoneFrame" class="mobile-phone-frame hidden">
+              <div class="phone-dynamic-island"></div>
+              <div class="phone-status-bar">
+                <span>09:41</span>
+                <span style="display:flex; gap:4px; align-items:center;">
+                  <span><img src="/img/icons/signal.svg" class="pixel-icon inline" style="width:12px;height:12px;" alt=""></span>
+                  <span>5G</span>
+                  <span><img src="/img/icons/signal.svg" class="pixel-icon inline" style="width:12px;height:12px;" alt=""></span>
+                </span>
+              </div>
+              <div class="phone-screen-scroll">
+                <div class="phone-test-bar">
+                  <span class="phone-test-title">SecureExam Mobile</span>
+                  <span id="previewQTimerMobile" class="phone-timer-pill">01:00</span>
+                </div>
+                <div class="phone-progress-line"><div class="phone-progress-fill"></div></div>
+                <div class="phone-q-num" id="previewQNumberMobile">Завдання 1 з 5</div>
+                <div id="previewQImageWrapMobile" class="student-q-img-wrap hidden" style="margin-bottom:8px;">
+                  <img id="previewQImageMobile" src="" alt="Ілюстрація" style="max-height:100px;">
+                </div>
+                <div id="previewQTextMobile" class="phone-q-title">Завантаження...</div>
+                <div id="previewQOptionsMobile" class="phone-options-list"></div>
+                <div class="phone-submit-wrap">
+                  <button type="button" class="phone-submit-btn">Відповісти</button>
+                </div>
+              </div>
+            </div>
+          </div>
         </div>
+      </aside>
+
+    </div>
       </div>
 
     </main>
@@ -1398,5 +1723,220 @@
   </div>
 
   <script type="module" src="/js/admin.js"></script>
+  <div id="massImportModal" class="modal-backdrop hidden">
+    <div class="modal-window">
+      <div class="modal-window-head">
+        <div>
+          <div class="modal-window-title">Масовий імпорт із Word / Google Docs / PDF</div>
+          <div class="modal-window-sub">Вставте скопійований текст тесту — алгоритм автоматично розпізнає питання та варіанти</div>
+        </div>
+        <button type="button" id="closeImportModalBtn" class="close-win-btn"><img src="/img/icons/cross.svg" class="pixel-icon inline" alt=""></button>
+      </div>
+      <div class="modal-window-body">
+        <div class="import-format-tips">
+          <div class="tip-line"><strong>Підтримувані формати:</strong> <code>1. Питання? А) варіант Б) правильний* В) варіант</code></div>
+          <div class="tip-line">Правильну відповідь позначте зірочкою <code>*</code> або плюсом <code>+</code> після варіанту.</div>
+        </div>
+        <textarea id="importRawTextarea" class="form-input" style="width: 100%; min-height: 220px; font-family: monospace; font-size: 12px; line-height: 1.45; padding: 12px;" placeholder="1. Яка столиця України?
+А) Львів
+Б) Київ*
+В) Одеса
+Г) Харків
+
+2. Скільки континентів на Землі?
+А) 5
+Б) 6*
+В) 7"></textarea>
+        <div class="import-stats-panel">
+          <span id="importParsedCount" class="import-count-label">Розпізнано питань: 0</span>
+          <div style="display: flex; gap: 8px;">
+            <button type="button" id="importAppendBtn" class="btn-secondary" style="font-size: 12px; padding: 7px 14px;">Додати до існуючих</button>
+            <button type="button" id="importReplaceBtn" class="btn-primary" style="font-size: 12px; padding: 7px 14px;">Замінити весь тест</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div id="aiGenModal" class="modal-backdrop hidden">
+    <div class="modal-window">
+      <div class="modal-window-head">
+        <div>
+          <div class="modal-window-title"><img src="/img/icons/star.svg" class="pixel-icon inline" alt=""> ШІ Генератор тесту Gemini</div>
+          <div class="modal-window-sub">Автоматичне створення тестових завдань за навчальною програмою</div>
+        </div>
+        <button type="button" id="closeAiModalBtn" class="close-win-btn"><img src="/img/icons/cross.svg" class="pixel-icon inline" alt=""></button>
+      </div>
+      <div class="modal-window-body">
+        <div class="ai-form-grid">
+          <div>
+            <label class="form-label" for="aiTopicInput">Тема або параграф підручника</label>
+            <input type="text" id="aiTopicInput" class="form-input" style="font-size: 13px;" placeholder="напр. Загальна характеристика Азії">
+          </div>
+          <div>
+            <label class="form-label" for="aiSubjectInput">Предмет</label>
+            <input type="text" id="aiSubjectInput" class="form-input" style="font-size: 13px;" placeholder="Географія">
+          </div>
+          <div>
+            <label class="form-label" for="aiGradeInput">Клас / Аудиторія</label>
+            <input type="text" id="aiGradeInput" list="aiGradeList" class="form-input" style="font-size: 13px;" value="10-11 клас (Старша школа / ЗНО / НМТ)" placeholder="Оберіть або введіть клас...">
+            <datalist id="aiGradeList">
+              <option value="1-4 клас (Початкова школа)"></option>
+              <option value="5-6 клас (Середня школа)"></option>
+              <option value="7-9 клас (Основна школа)"></option>
+              <option value="10-11 клас (Старша школа / ЗНО / НМТ)"></option>
+              <option value="Коледж / 1-2 курс"></option>
+            </datalist>
+          </div>
+          <div>
+            <label class="form-label" for="aiDifficultySelect">Рівень складності</label>
+            <select id="aiDifficultySelect" class="form-input" style="font-size: 13px; cursor: pointer;">
+              <option value="Базовий (рівень стандарт, початкові терміни)">[Базовий] Рівень стандарт, базові терміни</option>
+              <option value="Середній (стандартне розуміння та типові факти)" selected>[Середній] Стандартне розуміння</option>
+              <option value="Достатній (поглиблений аналіз, комплексні задачі)">[Достатній] Поглиблений аналіз</option>
+              <option value="Високий / Олімпіадний / ЗНО (підвищена складність, неочевидні дистрактори)">[Високий] Олімпіадний / ЗНО</option>
+            </select>
+          </div>
+          <div style="grid-column: 1 / -1;">
+            <label class="form-label" for="aiCountInput">Кількість тестових питань (введіть або оберіть):</label>
+            <div style="display: flex; align-items: center; gap: 10px; flex-wrap: wrap;">
+              <input type="number" id="aiCountInput" class="form-input" min="1" max="50" value="5" style="width: 85px; font-size: 14px; font-weight: 700; text-align: center;" placeholder="5">
+              <div id="aiCountPresets" style="display: flex; gap: 6px; flex-wrap: wrap;">
+                <button type="button" class="preset-chip" data-count="3">3 питання</button>
+                <button type="button" class="preset-chip active" data-count="5">5 питань</button>
+                <button type="button" class="preset-chip" data-count="10">10 питань</button>
+                <button type="button" class="preset-chip" data-count="15">15 питань</button>
+                <button type="button" class="preset-chip" data-count="20">20 питань</button>
+              </div>
+              <span style="font-size: 11px; color: var(--text-muted);">(можна вписати від 1 до 50)</span>
+            </div>
+          </div>
+        </div>
+        <div id="aiGenProgressWrap" class="ai-progress-wrap hidden">
+          <div class="ai-spinner"></div>
+          <span id="aiProgressText" class="ai-progress-text">Gemini формує якісні тестові завдання та дистрактори...</span>
+        </div>
+      </div>
+      <div class="modal-window-footer">
+        <button type="button" id="cancelAiGenBtn" class="btn-secondary" style="font-size: 12px; padding: 7px 16px;">Скасувати</button>
+        <button type="button" id="startAiGenBtn" class="btn-primary" style="font-size: 12px; padding: 7px 18px; background: linear-gradient(135deg, #6366f1, #8b5cf6);"><img src="/img/icons/star.svg" class="pixel-icon inline" style="filter:brightness(0) invert(1);" alt=""> Згенерувати завдання</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="passwordModal" class="modal-backdrop hidden">
+    <div class="modal-window" style="max-width: 380px;">
+      <div class="modal-window-head">
+        <div class="modal-window-title">Зміна паролю викладача</div>
+        <button type="button" id="closePasswordModalBtn" class="close-win-btn"><img src="/img/icons/cross.svg" class="pixel-icon inline" alt=""></button>
+      </div>
+      <div class="modal-window-body">
+        <div style="font-size: 12px; color: var(--text-muted); margin-bottom: 12px;">Введіть новий пароль для доступу до панелі викладача:</div>
+        <input type="password" id="newAdminPasswordInput" class="form-input" style="font-size: 14px; text-align: center; margin-bottom: 14px;" placeholder="••••••••">
+        <div style="display: flex; justify-content: flex-end; gap: 8px;">
+          <button type="button" id="cancelPasswordBtn" class="btn-secondary" style="font-size: 12px; padding: 6px 14px;">Скасувати</button>
+          <button type="button" id="savePasswordBtn" class="btn-primary" style="font-size: 12px; padding: 6px 16px;">Зберегти</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div id="studentPreviewModal" class="modal-backdrop hidden">
+    <div class="modal-window" style="max-width: 720px; max-height: 90vh;">
+      <div class="modal-window-head">
+        <div>
+          <div class="modal-window-title" id="fullPreviewTitle">Перегляд тесту як учень</div>
+          <div class="modal-window-sub" id="fullPreviewSubtitle">5 питань • 15 хв • Максимум 10 балів</div>
+        </div>
+        <button type="button" id="closeFullPreviewBtn" class="close-win-btn"><img src="/img/icons/cross.svg" class="pixel-icon inline" alt=""></button>
+      </div>
+      <div class="modal-window-body" style="overflow-y: auto; max-height: calc(90vh - 120px);">
+        <div id="fullPreviewQuestionsList" style="display: flex; flex-direction: column; gap: 14px;"></div>
+      </div>
+    </div>
+  </div>
+
+  <div id="newTestModal" class="modal-backdrop hidden">
+    <div class="modal-window" style="max-width: 440px;">
+      <div class="modal-window-head">
+        <div class="modal-window-title">Створення нового тесту</div>
+        <button type="button" id="closeNewTestModalBtn" class="close-win-btn"><img src="/img/icons/cross.svg" class="pixel-icon inline" alt=""></button>
+      </div>
+      <div class="modal-window-body">
+        <div style="margin-bottom: 10px;">
+          <label class="form-label" for="newTestTitleInput">Назва тесту</label>
+          <input type="text" id="newTestTitleInput" class="form-input" style="font-size: 13px;" placeholder="напр. Історія України: Доба козацтва">
+        </div>
+        <div style="margin-bottom: 10px;">
+          <label class="form-label" for="newTestSubjectInput">Предмет</label>
+          <input type="text" id="newTestSubjectInput" class="form-input" style="font-size: 13px;" placeholder="Історія">
+        </div>
+        <div style="margin-bottom: 14px;">
+          <label class="form-label" for="newTestDurationInput">Тривалість (хв)</label>
+          <input type="number" id="newTestDurationInput" class="form-input" style="font-size: 13px;" value="15" min="1" max="180">
+        </div>
+        <div style="display: flex; justify-content: flex-end; gap: 8px;">
+          <button type="button" id="cancelNewTestBtn" class="btn-secondary" style="font-size: 12px; padding: 6px 14px;">Скасувати</button>
+          <button type="button" id="confirmCreateTestBtn" class="btn-primary" style="font-size: 12px; padding: 6px 16px;">Створити</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div id="printExportModal" class="modal-backdrop hidden">
+    <div class="modal-window" style="max-width: 860px; max-height: 92vh; display: flex; flex-direction: column;">
+      <div class="modal-window-head">
+        <div>
+          <div class="modal-window-title"><img src="/img/icons/report.svg" class="pixel-icon inline" alt=""> Друк тесту та експорт у Word / PDF</div>
+          <div class="modal-window-sub">Роздатковий бланк на А4 для очного тестування з ключем відповідей</div>
+        </div>
+        <button type="button" id="closePrintModalBtn" class="close-win-btn"><img src="/img/icons/cross.svg" class="pixel-icon inline" alt=""></button>
+      </div>
+
+      <div class="modal-window-body" style="overflow-y: auto; flex: 1; padding: 16px 20px;">
+        <div class="print-options-bar" style="display: flex; flex-wrap: wrap; gap: 14px; background: var(--bg-elevated); padding: 12px 16px; border-radius: var(--radius-sm); border: 1px solid var(--border); margin-bottom: 16px;">
+          <label style="display: inline-flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 600; cursor: pointer;">
+            <input type="checkbox" id="printOptStudentInfo" checked>
+            <span>Поле для учня (ПІБ, клас, дата, оцінка)</span>
+          </label>
+          <label style="display: inline-flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 600; cursor: pointer;">
+            <input type="checkbox" id="printOptAnswerKey" checked>
+            <span>Окрема сторінка з ключем для вчителя</span>
+          </label>
+          <label style="display: inline-flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 600; cursor: pointer;">
+            <input type="checkbox" id="printOptQrCode" checked>
+            <span>QR-код на онлайн-тест</span>
+          </label>
+          <label style="display: inline-flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 600; cursor: pointer;">
+            <input type="checkbox" id="printOptPoints" checked>
+            <span>Бали біля запитань</span>
+          </label>
+          <label style="display: inline-flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 600; cursor: pointer;">
+            <input type="checkbox" id="printOptTwoCols">
+            <span>2 колонки (економія паперу)</span>
+          </label>
+        </div>
+
+        <div style="font-size: 11px; font-weight: 700; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 8px;">Попередній перегляд роздаткового бланка (А4):</div>
+        <div id="printSheetPreview" class="print-sheet-preview"></div>
+      </div>
+
+      <div class="modal-window-footer" style="display: flex; justify-content: space-between; align-items: center; gap: 10px; flex-wrap: wrap;">
+        <button type="button" id="cancelPrintBtn" class="btn-secondary" style="font-size: 12px; padding: 7px 16px;">Скасувати</button>
+        <div style="display: flex; gap: 8px;">
+          <button type="button" id="downloadWordBtn" class="btn-secondary" style="font-size: 12px; padding: 7px 16px; display: inline-flex; align-items: center; gap: 6px; font-weight: 600;">
+            <img src="/img/icons/report.svg" class="pixel-icon inline" style="margin-right: 0;" alt="">
+            <span>Завантажити Word (.doc)</span>
+          </button>
+          <button type="button" id="executePrintBtn" class="btn-primary" style="font-size: 12px; padding: 7px 18px; display: inline-flex; align-items: center; gap: 6px; font-weight: 600; background: linear-gradient(135deg, #6366f1, #8b5cf6);">
+            <img src="/img/icons/download.svg" class="pixel-icon inline" style="margin-right: 0; filter: brightness(0) invert(1);" alt="">
+            <span>Друкувати / Зберегти як PDF</span>
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+<script src="/js/test-editor.js"></script>
 </body>
 </html>

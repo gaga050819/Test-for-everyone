@@ -1,8 +1,8 @@
 {
-  "version": "1.1.0",
+  "version": "1.2.0",
   "name": "SecureExam",
   "githubRepo": "gaga050819/Test-for-everyone",
   "updateManifestUrl": "https://raw.githubusercontent.com/gaga050819/Test-for-everyone/main/version.json",
-  "changelog": "Оновлення 1.1.0: Спрощене меню в адмін-панелі, закріплення активного тесту для всіх учнів, виправлення вибору класів та стабільність запуску сервера.",
-  "lastUpdated": 1793889773975
+  "changelog": "Оновлення 1.2.0: Новий інтерактивний Studio-редактор тестів, живий мобільний/десктопний прев'ю в реальному часі, ШІ-асистент Gemini, масовий імпорт завдань, компактний бейдж безпеки та векторні іконки.",
+  "lastUpdated": 1794071660000
 }

@@ -681,6 +681,7 @@ app.put('/api/admin/tests/:id', requireAdmin, async (req, res) => {
   if (req.body.topic !== undefined) test.topic = req.body.topic;
   if (req.body.subject !== undefined) test.subject = req.body.subject;
   if (req.body.tags !== undefined) test.tags = Array.isArray(req.body.tags) ? req.body.tags : [];
+  if (req.body.questions !== undefined && Array.isArray(req.body.questions)) test.questions = req.body.questions;
   await db.saveTest(test);
   res.json(test);
 });
@@ -1200,6 +1201,53 @@ ${customInstructions ? `Додаткові вимоги: ${customInstructions.tr
     });
   } catch (err) {
     res.status(500).json({ error: err.message || 'Внутрішня помилка сервера' });
+  }
+});
+
+app.post('/api/admin/gemini/prompt', requireAdmin, async (req, res) => {
+  try {
+    const { prompt, expectJson } = req.body;
+    if (!prompt || typeof prompt !== 'string' || !prompt.trim()) {
+      return res.status(400).json({ error: 'Порожній запит' });
+    }
+    const keyToUse = DEFAULT_GEMINI_KEY;
+    if (!keyToUse) {
+      return res.status(400).json({ error: 'Не вказано Gemini API ключ' });
+    }
+    const modelsToTry = ['gemini-2.5-flash', 'gemini-1.5-flash', 'gemini-flash-latest'];
+    for (const model of modelsToTry) {
+      try {
+        const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${encodeURIComponent(keyToUse)}`;
+        const reqBody = {
+          contents: [{ parts: [{ text: prompt }] }]
+        };
+        if (expectJson) {
+          reqBody.generationConfig = { responseMimeType: 'application/json' };
+        }
+        const gRes = await fetch(apiUrl, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(reqBody)
+        });
+        if (!gRes.ok) continue;
+        const data = await gRes.json();
+        const rawText = data.candidates?.[0]?.content?.parts?.[0]?.text;
+        if (rawText) {
+          if (expectJson) {
+            try {
+              const cleaned = rawText.replace(/^```json\s*/i, '').replace(/```\s*$/i, '').trim();
+              return res.json({ success: true, result: JSON.parse(cleaned) });
+            } catch {
+              return res.json({ success: true, result: rawText });
+            }
+          }
+          return res.json({ success: true, result: rawText });
+        }
+      } catch {}
+    }
+    res.status(502).json({ error: 'Не вдалося отримати відповідь від Gemini' });
+  } catch (err) {
+    res.status(500).json({ error: err.message || 'Помилка' });
   }
 });
 

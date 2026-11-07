@@ -1658,51 +1658,60 @@ function renderAdminTestSelectorOptions() {
     filtered.sort((a, b) => (a.subject || '').localeCompare(b.subject || '', 'uk') || (a.topic || '').localeCompare(b.topic || '', 'uk') || (a.title || '').localeCompare(b.title || '', 'uk'));
   }
 
-  adminTestSelector.innerHTML = '';
-  if (filtered.length === 0) {
-    const opt = document.createElement('option');
-    opt.value = '';
-    opt.textContent = 'Тестів за фільтром не знайдено';
-    adminTestSelector.appendChild(opt);
-    return;
-  }
-
+  const editorSelector = document.getElementById('editorTestSelector');
   const distinctSubjects = [...new Set(filtered.map(t => (t.subject || '').trim() || 'Без предмета'))];
-  if (sortMode === 'subject' && distinctSubjects.length > 1) {
-    const grouped = {};
-    filtered.forEach(t => {
-      const s = (t.subject || '').trim() || 'Інші предмети';
-      if (!grouped[s]) grouped[s] = [];
-      grouped[s].push(t);
-    });
-    Object.keys(grouped).sort((a, b) => a.localeCompare(b, 'uk')).forEach(subjName => {
-      const grp = document.createElement('optgroup');
-      grp.label = subjName;
-      grouped[subjName].forEach(t => {
+
+  const fillSelector = (targetEl) => {
+    if (!targetEl) return;
+    targetEl.innerHTML = '';
+    if (filtered.length === 0) {
+      const opt = document.createElement('option');
+      opt.value = '';
+      opt.textContent = 'Тестів за фільтром не знайдено';
+      targetEl.appendChild(opt);
+      return;
+    }
+    if (sortMode === 'subject' && distinctSubjects.length > 1) {
+      const grouped = {};
+      filtered.forEach(t => {
+        const s = (t.subject || '').trim() || 'Інші предмети';
+        if (!grouped[s]) grouped[s] = [];
+        grouped[s].push(t);
+      });
+      Object.keys(grouped).sort((a, b) => a.localeCompare(b, 'uk')).forEach(subjName => {
+        const grp = document.createElement('optgroup');
+        grp.label = subjName;
+        grouped[subjName].forEach(t => {
+          const opt = document.createElement('option');
+          opt.value = t.id;
+          const topicLabel = t.topic ? `[${t.topic}] ` : '';
+          opt.textContent = `${topicLabel}${t.title} (${(t.questions || []).length} пит., ${t.durationMinutes || 15} хв)`;
+          grp.appendChild(opt);
+        });
+        targetEl.appendChild(grp);
+      });
+    } else {
+      filtered.forEach(t => {
         const opt = document.createElement('option');
         opt.value = t.id;
+        const subjLabel = (distinctSubjects.length > 1 && t.subject) ? `[${t.subject}] ` : '';
         const topicLabel = t.topic ? `[${t.topic}] ` : '';
-        opt.textContent = `${topicLabel}${t.title} (${(t.questions || []).length} пит., ${t.durationMinutes || 15} хв)`;
-        grp.appendChild(opt);
+        opt.textContent = `${subjLabel}${topicLabel}${t.title} (${(t.questions || []).length} пит., ${t.durationMinutes || 15} хв)`;
+        targetEl.appendChild(opt);
       });
-      adminTestSelector.appendChild(grp);
-    });
-  } else {
-    filtered.forEach(t => {
-      const opt = document.createElement('option');
-      opt.value = t.id;
-      const subjLabel = (distinctSubjects.length > 1 && t.subject) ? `[${t.subject}] ` : '';
-      const topicLabel = t.topic ? `[${t.topic}] ` : '';
-      opt.textContent = `${subjLabel}${topicLabel}${t.title} (${(t.questions || []).length} пит., ${t.durationMinutes || 15} хв)`;
-      adminTestSelector.appendChild(opt);
-    });
-  }
+    }
+    if (filtered.some(t => t.id === selectedAdminTestId)) {
+      targetEl.value = selectedAdminTestId;
+    }
+  };
 
-  if (filtered.some(t => t.id === selectedAdminTestId)) {
-    adminTestSelector.value = selectedAdminTestId;
-  } else if (filtered[0]) {
+  if (adminTestSelector) fillSelector(adminTestSelector);
+  if (editorSelector) fillSelector(editorSelector);
+
+  if (!filtered.some(t => t.id === selectedAdminTestId) && filtered[0]) {
     selectedAdminTestId = filtered[0].id;
-    adminTestSelector.value = selectedAdminTestId;
+    if (adminTestSelector) adminTestSelector.value = selectedAdminTestId;
+    if (editorSelector) editorSelector.value = selectedAdminTestId;
     loadAdminTest();
     loadTestAnalytics(selectedAdminTestId);
     loadAdminLeaderboard(selectedAdminTestId);
@@ -1716,6 +1725,7 @@ async function loadAdminTestsList() {
     if (!res.ok) return;
     allAdminTests = await res.json();
     if (!allAdminTests || allAdminTests.length === 0) return;
+    window.allAdminTests = allAdminTests;
 
     try {
       const activeRes = await fetch('/api/active-test');
@@ -1747,8 +1757,12 @@ function updateActiveTestBadge() {
 
 function initMultiTestControls() {
   const doSetActive = async () => {
-    if (!adminTestSelector || !adminTestSelector.value) return;
-    selectedAdminTestId = adminTestSelector.value;
+    const editorSel = document.getElementById('editorTestSelector');
+    const val = (adminTestSelector && adminTestSelector.value) || (editorSel && editorSel.value);
+    if (!val) return;
+    selectedAdminTestId = val;
+    if (adminTestSelector) adminTestSelector.value = selectedAdminTestId;
+    if (editorSel) editorSel.value = selectedAdminTestId;
     updateActiveTestBadge();
     const isLite = document.documentElement.getAttribute('data-ui-mode') === 'lite';
     try {
@@ -1767,6 +1781,8 @@ function initMultiTestControls() {
   if (adminTestSelector) {
     adminTestSelector.addEventListener('change', async () => {
       if (!adminTestSelector.value) return;
+      const editorSel = document.getElementById('editorTestSelector');
+      if (editorSel) editorSel.value = adminTestSelector.value;
       const isLite = document.documentElement.getAttribute('data-ui-mode') === 'lite';
       if (isLite) {
         selectedAdminTestId = adminTestSelector.value;
@@ -1776,6 +1792,31 @@ function initMultiTestControls() {
         await doSetActive();
       }
     });
+  }
+
+  const editorSelector = document.getElementById('editorTestSelector');
+  if (editorSelector) {
+    editorSelector.addEventListener('change', async () => {
+      if (!editorSelector.value) return;
+      if (adminTestSelector) adminTestSelector.value = editorSelector.value;
+      const isLite = document.documentElement.getAttribute('data-ui-mode') === 'lite';
+      if (isLite) {
+        selectedAdminTestId = editorSelector.value;
+        updateActiveTestBadge();
+        checkTunnelStatus();
+      } else {
+        await doSetActive();
+      }
+    });
+  }
+
+  const editorCreateBtn = document.getElementById('editorCreateTestBtn');
+  if (editorCreateBtn && openCreateTestModalBtn) {
+    editorCreateBtn.addEventListener('click', () => openCreateTestModalBtn.click());
+  }
+  const editorDelBtn = document.getElementById('editorDeleteTestBtn');
+  if (editorDelBtn && deleteActiveTestBtn) {
+    editorDelBtn.addEventListener('click', () => deleteActiveTestBtn.click());
   }
 
   const liteSetActiveBtn = document.getElementById('liteSetActiveBtn');
@@ -2403,6 +2444,11 @@ async function loadAdminTest() {
     if (questionsCountLabel) {
       const qCount = (currentAdminTest.questions || []).length;
       questionsCountLabel.textContent = `Всього питань: ${qCount}`;
+    }
+
+    window.currentAdminTest = currentAdminTest;
+    if (typeof window.loadTestIntoStudio === 'function') {
+      window.loadTestIntoStudio(currentAdminTest);
     }
 
     renderQuestionsList();
@@ -4325,11 +4371,11 @@ async function checkSystemUpdate(silent = true) {
     } else {
       if (banner) banner.classList.add('hidden');
       if (!silent) {
-        const wantReinstall = await adminConfirm(`У вас встановлена версія SecureExam (${data.currentVersion || '1.1.0'}). Оновлення не виявлено.\n\nБажаєте завантажити та оновити системні файли з інтернету (GitHub)?`);
+        const wantReinstall = await adminConfirm(`У вас встановлена версія SecureExam (${data.currentVersion || '1.2.0'}). Оновлення не виявлено.\n\nБажаєте завантажити та оновити системні файли з інтернету (GitHub)?`);
         if (wantReinstall) {
           openUpdateModal({
             ...data,
-            latestVersion: data.currentVersion || '1.1.0',
+            latestVersion: data.currentVersion || '1.2.0',
             changelog: data.changelog || 'Повторне завантаження та оновлення системних файлів з репозиторію GitHub.'
           });
         }
@@ -4353,7 +4399,7 @@ function openUpdateModal(data) {
   const cancelBtn = document.getElementById('modalCancelUpdateBtn');
   const closeBtn = document.getElementById('closeUpdateModalBtn');
 
-  if (verDisplay) verDisplay.textContent = data.latestVersion || '1.1.0';
+  if (verDisplay) verDisplay.textContent = data.latestVersion || '1.2.0';
   if (changelogContent) changelogContent.textContent = data.changelog || 'Покращення інтерфейсу та виправлення помилок.';
   if (progressArea) progressArea.classList.add('hidden');
   if (successArea) successArea.classList.add('hidden');
@@ -4413,7 +4459,7 @@ async function applySystemUpdate() {
     const res = await adminFetch('/api/admin/update/apply', {
       method: 'POST',
       body: JSON.stringify({
-        targetVersion: cachedUpdateData.latestVersion || '1.1.0',
+        targetVersion: cachedUpdateData.latestVersion || '1.2.0',
         downloadUrl: cachedUpdateData.downloadUrl || 'https://github.com/gaga050819/Test-for-everyone/archive/refs/heads/main.zip'
       })
     });
@@ -4765,3 +4811,6 @@ function initTeacherWarningControls() {
     });
   }
 }
+
+window.loadAdminTest = loadAdminTest;
+window.refreshAdminTestsList = loadAdminTestsList;

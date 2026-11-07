@@ -3276,5 +3276,5 @@
     }
   },
   "activeTestId": "geo-america-1",
-  "liteMode": false
+  "liteMode": true
 }
