@@ -1653,12 +1653,8 @@ app.post('/api/admin/update/apply', requireAdmin, async (req, res) => {
       fs.mkdirSync(tempExtractDir, { recursive: true });
 
       const { execSync } = await import('child_process');
-      try {
-        execSync(`tar -xf "${zipPath}" -C "${tempExtractDir}"`, { stdio: 'pipe' });
-      } catch {
-        const psCmd = `Expand-Archive -LiteralPath '${zipPath.replace(/'/g, "''")}' -DestinationPath '${tempExtractDir.replace(/'/g, "''")}' -Force`;
-        execSync(`powershell.exe -NoProfile -ExecutionPolicy Bypass -Command "${psCmd}"`, { stdio: 'pipe' });
-      }
+      const psCmd = `Expand-Archive -LiteralPath '${zipPath.replace(/'/g, "''")}' -DestinationPath '${tempExtractDir.replace(/'/g, "''")}' -Force`;
+      execSync(`powershell.exe -NoProfile -ExecutionPolicy Bypass -Command "${psCmd}"`, { stdio: 'pipe' });
 
       let sourceFolder = tempExtractDir;
       const subItems = fs.readdirSync(tempExtractDir);
