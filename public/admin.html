@@ -1872,23 +1872,6 @@
     </div>
   </div>
 
-  <div id="passwordModal" class="modal-backdrop hidden">
-    <div class="modal-window" style="max-width: 380px;">
-      <div class="modal-window-head">
-        <div class="modal-window-title">Зміна паролю викладача</div>
-        <button type="button" id="closePasswordModalBtn" class="close-win-btn"><img src="/img/icons/cross.svg" class="pixel-icon inline" alt=""></button>
-      </div>
-      <div class="modal-window-body">
-        <div style="font-size: 12px; color: var(--text-muted); margin-bottom: 12px;">Введіть новий пароль для доступу до панелі викладача:</div>
-        <input type="password" id="newAdminPasswordInput" class="form-input" style="font-size: 14px; text-align: center; margin-bottom: 14px;" placeholder="••••••••">
-        <div style="display: flex; justify-content: flex-end; gap: 8px;">
-          <button type="button" id="cancelPasswordBtn" class="btn-secondary" style="font-size: 12px; padding: 6px 14px;">Скасувати</button>
-          <button type="button" id="savePasswordBtn" class="btn-primary" style="font-size: 12px; padding: 6px 16px;">Зберегти</button>
-        </div>
-      </div>
-    </div>
-  </div>
-
   <div id="studentPreviewModal" class="modal-backdrop hidden">
     <div class="modal-window" style="max-width: 720px; max-height: 90vh;">
       <div class="modal-window-head">
@@ -1900,33 +1883,6 @@
       </div>
       <div class="modal-window-body" style="overflow-y: auto; max-height: calc(90vh - 120px);">
         <div id="fullPreviewQuestionsList" style="display: flex; flex-direction: column; gap: 14px;"></div>
-      </div>
-    </div>
-  </div>
-
-  <div id="newTestModal" class="modal-backdrop hidden">
-    <div class="modal-window" style="max-width: 440px;">
-      <div class="modal-window-head">
-        <div class="modal-window-title">Створення нового тесту</div>
-        <button type="button" id="closeNewTestModalBtn" class="close-win-btn"><img src="/img/icons/cross.svg" class="pixel-icon inline" alt=""></button>
-      </div>
-      <div class="modal-window-body">
-        <div style="margin-bottom: 10px;">
-          <label class="form-label" for="newTestTitleInput">Назва тесту</label>
-          <input type="text" id="newTestTitleInput" class="form-input" style="font-size: 13px;" placeholder="напр. Історія України: Доба козацтва">
-        </div>
-        <div style="margin-bottom: 10px;">
-          <label class="form-label" for="newTestSubjectInput">Предмет</label>
-          <input type="text" id="newTestSubjectInput" class="form-input" style="font-size: 13px;" placeholder="Історія">
-        </div>
-        <div style="margin-bottom: 14px;">
-          <label class="form-label" for="newTestDurationInput">Тривалість (хв)</label>
-          <input type="number" id="newTestDurationInput" class="form-input" style="font-size: 13px;" value="15" min="1" max="180">
-        </div>
-        <div style="display: flex; justify-content: flex-end; gap: 8px;">
-          <button type="button" id="cancelNewTestBtn" class="btn-secondary" style="font-size: 12px; padding: 6px 14px;">Скасувати</button>
-          <button type="button" id="confirmCreateTestBtn" class="btn-primary" style="font-size: 12px; padding: 6px 16px;">Створити</button>
-        </div>
       </div>
     </div>
   </div>

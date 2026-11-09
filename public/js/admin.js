@@ -4581,6 +4581,16 @@ function closeChangePasswordModal() {
 if (openChangePasswordModalBtn) openChangePasswordModalBtn.addEventListener('click', openChangePasswordModal);
 if (closeChangePasswordModalBtn) closeChangePasswordModalBtn.addEventListener('click', closeChangePasswordModal);
 if (cancelChangePasswordBtn) cancelChangePasswordBtn.addEventListener('click', closeChangePasswordModal);
+if (changePasswordModal) {
+  changePasswordModal.addEventListener('click', (e) => {
+    if (e.target === changePasswordModal) closeChangePasswordModal();
+  });
+}
+window.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape' && changePasswordModal && !changePasswordModal.classList.contains('hidden')) {
+    closeChangePasswordModal();
+  }
+});
 
 if (submitChangePasswordBtn) {
   submitChangePasswordBtn.addEventListener('click', async () => {
