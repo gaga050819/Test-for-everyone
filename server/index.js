@@ -1594,6 +1594,9 @@ app.get('/api/admin/update/progress', requireAdmin, (req, res) => {
 app.post('/api/admin/update/apply', requireAdmin, async (req, res) => {
   const { targetVersion, downloadUrl } = req.body;
   const currentVersion = readLocalVersion();
+  if (targetVersion && !isNewerVersion(targetVersion, currentVersion)) {
+    return res.status(400).json({ error: 'Поточна версія програми вже є найновішою. Оновлення не потрібне.' });
+  }
   const rootDir = path.join(__dirname, '..');
 
   updateProgress = {

@@ -4,7 +4,11 @@ import { ProctorEngine } from './proctor.js';
   const btn = document.getElementById('themeToggleBtn');
   const apply = (t) => {
     document.documentElement.setAttribute('data-theme', t);
-    if (btn) btn.innerHTML = `<img src="/img/icons/${t === 'dark' ? 'moon' : 'sun'}.svg" class="pixel-icon" alt="">`;
+    if (document.body) document.body.setAttribute('data-theme', t);
+    if (btn) {
+      btn.innerHTML = `<img src="/img/icons/${t === 'dark' ? 'sun' : 'moon'}.svg" class="pixel-icon" alt="">`;
+      btn.title = t === 'dark' ? 'Увімкнути світлу тему' : 'Увімкнути темну тему';
+    }
     localStorage.setItem('theme', t);
     requestAnimationFrame(() => {
       if (typeof drawQuestionCanvas === 'function' && window.currentTest && window.currentTest.questions) {

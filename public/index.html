@@ -17,6 +17,7 @@
     (function(){
       const t = localStorage.getItem('theme') || 'light';
       document.documentElement.setAttribute('data-theme', t);
+      if (document.body) document.body.setAttribute('data-theme', t);
     })();
   </script>
 </head>
@@ -35,7 +36,7 @@
         <span class="status-dot" id="networkStatusDot"></span>
         <span id="networkStatusText">Мережа готова</span>
       </div>
-      <button class="theme-toggle" id="themeToggleBtn" title="Змінити тему"><img src="/img/icons/sun.svg" class="pixel-icon" id="themeIcon" alt=""></button>
+      <button class="theme-toggle" id="themeToggleBtn" title="Змінити тему"><img src="/img/icons/moon.svg" class="pixel-icon" id="themeIcon" alt=""></button>
       <a href="/admin.html" class="btn-secondary" id="adminPortalLink" style="font-size: 11px; padding: 5px 10px; text-decoration: none;">Викладач →</a>
     </div>
   </header>

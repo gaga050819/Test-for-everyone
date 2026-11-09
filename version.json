@@ -1,8 +1,8 @@
 {
-    "version":  "1.3.0",
-    "name":  "SecureExam",
-    "githubRepo":  "gaga050819/Test-for-everyone",
-    "updateManifestUrl":  "https://raw.githubusercontent.com/gaga050819/Test-for-everyone/main/version.json",
-    "changelog":  "Оновлення 1.3.0: Lightbox зображень з зумом, sticky compact navbar, клікабельні статус-пілюлі з лічильниками, attention pulse для критичних учнів, skeleton loaders, плавні переходи кольорів теми.",
-    "lastUpdated":  1794245278398
+  "version": "1.3.0",
+  "name": "SecureExam",
+  "githubRepo": "gaga050819/Test-for-everyone",
+  "updateManifestUrl": "https://raw.githubusercontent.com/gaga050819/Test-for-everyone/main/version.json",
+  "changelog": "РћРЅРѕРІР»РµРЅРЅСЏ 1.3.0: Lightbox Р·РѕР±СЂР°Р¶РµРЅСЊ С–Р· Р·СѓРјРѕРј, sticky compact navbar, РєР»С–РєР°Р±РµР»СЊРЅС– СЃС‚Р°С‚СѓСЃ-РїС–Р»СЋР»С– Р· Р»С–С‡РёР»СЊРЅРёРєР°РјРё, attention pulse РґР»СЏ РєСЂРёС‚РёС‡РЅРёС… СѓС‡РЅС–РІ, skeleton loaders, РїР»Р°РІРЅС– РїРµСЂРµС…РѕРґРё РєРѕР»СЊРѕСЂС–РІ С‚РµРјРё.",
+  "lastUpdated": 1794246614969
 }

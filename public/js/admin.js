@@ -2,7 +2,11 @@
   const btn = document.getElementById('themeToggleBtn');
   const apply = (t) => {
     document.documentElement.setAttribute('data-theme', t);
-    if (btn) btn.innerHTML = `<img src="/img/icons/${t === 'dark' ? 'moon' : 'sun'}.svg" class="pixel-icon" alt="">`;
+    if (document.body) document.body.setAttribute('data-theme', t);
+    if (btn) {
+      btn.innerHTML = `<img src="/img/icons/${t === 'dark' ? 'sun' : 'moon'}.svg" class="pixel-icon" alt="">`;
+      btn.title = t === 'dark' ? 'Увімкнути світлу тему' : 'Увімкнути темну тему';
+    }
     localStorage.setItem('theme', t);
   };
   apply(localStorage.getItem('theme') || 'light');
@@ -4407,14 +4411,7 @@ async function checkSystemUpdate(silent = true) {
     } else {
       if (banner) banner.classList.add('hidden');
       if (!silent) {
-        const wantReinstall = await adminConfirm(`У вас встановлена версія SecureExam (${data.currentVersion || '1.2.0'}). Оновлення не виявлено.\n\nБажаєте завантажити та оновити системні файли з інтернету (GitHub)?`);
-        if (wantReinstall) {
-          openUpdateModal({
-            ...data,
-            latestVersion: data.currentVersion || '1.2.0',
-            changelog: data.changelog || 'Повторне завантаження та оновлення системних файлів з репозиторію GitHub.'
-          });
-        }
+        showAdminToast('У вас встановлено актуальну версію SecureExam v' + (data.currentVersion || '1.3.0') + '. Оновлення не потрібне.');
       }
     }
   } catch (err) {
@@ -4423,6 +4420,7 @@ async function checkSystemUpdate(silent = true) {
 }
 
 function openUpdateModal(data) {
+  if (!data || !data.hasUpdate) return;
   cachedUpdateData = data;
   const modal = document.getElementById('systemUpdateModal');
   if (!modal) return;
@@ -4453,7 +4451,7 @@ function closeUpdateModal() {
 }
 
 async function applySystemUpdate() {
-  if (!cachedUpdateData) return;
+  if (!cachedUpdateData || !cachedUpdateData.hasUpdate) return;
   const progressArea = document.getElementById('modalUpdateProgressArea');
   const progressText = document.getElementById('modalUpdateProgressText');
   const percentText = document.getElementById('modalUpdatePercentText');
