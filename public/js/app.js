@@ -1196,7 +1196,7 @@ function renderQuestion(index, direction = 'right') {
       : (question.imageUrl ? [question.imageUrl] : []);
     if (qImages.length > 0) {
       qImgWrap.innerHTML = qImages.map((u, i) => `
-        <img class="question-img" src="${escapeHtml(u)}" alt="Зображення ${i + 1}" style="max-height: 280px; max-width: 100%; border-radius: var(--radius-sm); border: 1px solid var(--border); object-fit: contain; background: var(--bg-elevated); margin: 4px; cursor: zoom-in;" onclick="window.open('${escapeHtml(u)}', '_blank')">
+        <img class="question-img" src="${escapeHtml(u)}" alt="Зображення ${i + 1}" style="max-height: 280px; max-width: 100%; border-radius: var(--radius-sm); border: 1px solid var(--border); object-fit: contain; background: var(--bg-elevated); margin: 4px; cursor: zoom-in;" onclick="window.openImageLightbox('${escapeHtml(u)}')">
       `).join('');
       qImgWrap.classList.remove('hidden');
     } else {
@@ -2359,3 +2359,168 @@ document.addEventListener('drop', e => {
     btn.textContent = ts.classList.contains('zen-timer-hidden') ? '●' : '○';
   });
 })();
+
+function initImageLightbox() {
+  const modal = document.getElementById('imageLightboxModal');
+  const img = document.getElementById('lightboxImg');
+  const canvas = document.getElementById('lightboxCanvas');
+  const badge = document.getElementById('lightboxZoomBadge');
+  const btnIn = document.getElementById('lightboxZoomInBtn');
+  const btnOut = document.getElementById('lightboxZoomOutBtn');
+  const btnReset = document.getElementById('lightboxZoomResetBtn');
+  const btnClose = document.getElementById('lightboxCloseBtn');
+  const backdrop = document.getElementById('lightboxBackdrop');
+
+  if (!modal || !img || !canvas) return;
+
+  let scale = 1;
+  let panX = 0;
+  let panY = 0;
+  let isDragging = false;
+  let startX = 0;
+  let startY = 0;
+
+  function updateTransform() {
+    img.style.transform = `translate(${panX}px, ${panY}px) scale(${scale})`;
+    if (badge) badge.textContent = `${Math.round(scale * 100)}%`;
+  }
+
+  function resetState() {
+    scale = 1;
+    panX = 0;
+    panY = 0;
+    updateTransform();
+  }
+
+  window.openImageLightbox = function(src, alt) {
+    if (!src) return;
+    img.src = src;
+    img.alt = alt || 'Зображення';
+    resetState();
+    modal.classList.remove('hidden');
+    modal.setAttribute('aria-hidden', 'false');
+    document.body.style.overflow = 'hidden';
+  };
+
+  function closeLightbox() {
+    modal.classList.add('hidden');
+    modal.setAttribute('aria-hidden', 'true');
+    document.body.style.overflow = '';
+    setTimeout(resetState, 200);
+  }
+
+  if (btnClose) btnClose.addEventListener('click', closeLightbox);
+  if (backdrop) backdrop.addEventListener('click', closeLightbox);
+
+  if (btnIn) {
+    btnIn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      scale = Math.min(4, Number((scale + 0.25).toFixed(2)));
+      updateTransform();
+    });
+  }
+
+  if (btnOut) {
+    btnOut.addEventListener('click', (e) => {
+      e.stopPropagation();
+      scale = Math.max(0.5, Number((scale - 0.25).toFixed(2)));
+      updateTransform();
+    });
+  }
+
+  if (btnReset) {
+    btnReset.addEventListener('click', (e) => {
+      e.stopPropagation();
+      resetState();
+    });
+  }
+
+  canvas.addEventListener('wheel', (e) => {
+    e.preventDefault();
+    const delta = e.deltaY < 0 ? 0.2 : -0.2;
+    scale = Math.min(4, Math.max(0.5, Number((scale + delta).toFixed(2))));
+    updateTransform();
+  }, { passive: false });
+
+  canvas.addEventListener('dblclick', (e) => {
+    if (e.target !== canvas && e.target !== img) return;
+    if (scale !== 1) {
+      resetState();
+    } else {
+      scale = 2;
+      updateTransform();
+    }
+  });
+
+  const onStart = (clientX, clientY) => {
+    isDragging = true;
+    startX = clientX - panX;
+    startY = clientY - panY;
+    canvas.classList.add('is-dragging');
+  };
+
+  const onMove = (clientX, clientY) => {
+    if (!isDragging) return;
+    panX = clientX - startX;
+    panY = clientY - startY;
+    updateTransform();
+  };
+
+  const onEnd = () => {
+    if (!isDragging) return;
+    isDragging = false;
+    canvas.classList.remove('is-dragging');
+  };
+
+  canvas.addEventListener('mousedown', (e) => {
+    if (e.button !== 0) return;
+    onStart(e.clientX, e.clientY);
+  });
+
+  window.addEventListener('mousemove', (e) => {
+    onMove(e.clientX, e.clientY);
+  });
+
+  window.addEventListener('mouseup', onEnd);
+
+  canvas.addEventListener('touchstart', (e) => {
+    if (e.touches && e.touches.length === 1) {
+      onStart(e.touches[0].clientX, e.touches[0].clientY);
+    }
+  }, { passive: true });
+
+  canvas.addEventListener('touchmove', (e) => {
+    if (e.touches && e.touches.length === 1 && isDragging) {
+      onMove(e.touches[0].clientX, e.touches[0].clientY);
+    }
+  }, { passive: true });
+
+  canvas.addEventListener('touchend', onEnd);
+
+  window.addEventListener('keydown', (e) => {
+    if (modal.classList.contains('hidden')) return;
+    if (e.key === 'Escape') {
+      closeLightbox();
+    } else if (e.key === '+' || e.key === '=') {
+      scale = Math.min(4, Number((scale + 0.25).toFixed(2)));
+      updateTransform();
+    } else if (e.key === '-' || e.key === '_') {
+      scale = Math.max(0.5, Number((scale - 0.25).toFixed(2)));
+      updateTransform();
+    } else if (e.key === '0') {
+      resetState();
+    }
+  });
+
+  document.addEventListener('click', (e) => {
+    const target = e.target;
+    if (target && target.tagName === 'IMG' && (target.classList.contains('question-img') || target.dataset.lightbox)) {
+      e.preventDefault();
+      e.stopPropagation();
+      window.openImageLightbox(target.src, target.alt);
+    }
+  });
+}
+
+initImageLightbox();
+

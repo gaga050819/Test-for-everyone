@@ -98,7 +98,7 @@
           </div>
 
           <div id="activeTestTitleDisplay" class="smart-test-title">
-            Завантаження тесту...
+            <span class="skeleton-shimmer" style="display:inline-block; width: 65%; max-width: 280px; height: 24px; border-radius: 6px;"></span>
           </div>
 
           <div id="selectedTestInfoBadge" class="smart-test-meta-row"></div>
@@ -278,7 +278,11 @@
             </thead>
             <tbody id="resultLeaderboardTbody">
               <tr>
-                <td colspan="7" style="text-align: center; color: var(--text-dim); padding: 16px;">Завантаження рейтингу...</td>
+                <td colspan="7" style="padding: 16px;">
+                  <div class="skeleton-shimmer" style="width: 100%; height: 24px; border-radius: 4px; margin-bottom: 6px;"></div>
+                  <div class="skeleton-shimmer" style="width: 90%; height: 24px; border-radius: 4px; margin-bottom: 6px;"></div>
+                  <div class="skeleton-shimmer" style="width: 95%; height: 24px; border-radius: 4px;"></div>
+                </td>
               </tr>
             </tbody>
           </table>
@@ -338,6 +342,35 @@
       <div class="teacher-warning-title">Повідомлення від викладача</div>
       <div class="teacher-warning-msg" id="teacherWarningMsg"></div>
       <button class="btn-primary" id="teacherWarningOkBtn" type="button" style="margin-top:16px; width:100%;">Зрозумів(ла)</button>
+    </div>
+  </div>
+
+  <div id="imageLightboxModal" class="image-lightbox-modal hidden" aria-hidden="true">
+    <div class="lightbox-backdrop" id="lightboxBackdrop"></div>
+    <div class="lightbox-toolbar">
+      <div class="lightbox-info">
+        <span class="lightbox-zoom-badge" id="lightboxZoomBadge">100%</span>
+      </div>
+      <div class="lightbox-controls">
+        <button type="button" class="lightbox-btn" id="lightboxZoomOutBtn" title="Зменшити (-)">
+          <span>−</span>
+        </button>
+        <button type="button" class="lightbox-btn" id="lightboxZoomResetBtn" title="Скинути масштаб (1:1)">
+          <span>1:1</span>
+        </button>
+        <button type="button" class="lightbox-btn" id="lightboxZoomInBtn" title="Збільшити (+)">
+          <span>+</span>
+        </button>
+        <button type="button" class="lightbox-btn lightbox-close-btn" id="lightboxCloseBtn" title="Закрити (Esc)">
+          <img src="/img/icons/cross.svg" class="pixel-icon inline" alt="">
+        </button>
+      </div>
+    </div>
+    <div class="lightbox-canvas" id="lightboxCanvas">
+      <img id="lightboxImg" class="lightbox-img" src="" alt="Перегляд зображення">
+    </div>
+    <div class="lightbox-hint">
+      <span>Коліщатко — зум • Перетягування — огляд • Esc — вихід</span>
     </div>
   </div>
 

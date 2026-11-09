@@ -194,12 +194,22 @@
 
   <div id="adminContent" style="display: none;">
 
-    <header class="top-navbar">
+    <header class="top-navbar" id="topNavbar">
       <div class="brand-wrapper">
         <div class="brand-icon"><img src="/img/icons/analytics.svg" class="pixel-icon brand" alt=""></div>
         <div>
           <div class="brand-title">SecureExam — Панель викладача</div>
           <div class="brand-subtitle">Моніторинг сесій у реальному часі</div>
+        </div>
+      </div>
+      <div class="sticky-compact-bar" id="stickyCompactBar">
+        <div class="sticky-compact-chip">
+          <img src="/img/icons/report.svg" class="pixel-icon inline" alt="">
+          <span class="sticky-compact-title-text" id="compactActiveTestTitle">Завантаження тесту...</span>
+        </div>
+        <div class="sticky-compact-chip sticky-compact-online-chip">
+          <span class="status-dot green"></span>
+          <span id="compactOnlineCount">0</span> онлайн
         </div>
       </div>
       <div class="nav-indicators">
@@ -393,12 +403,26 @@
               </div>
             </div>
 
-            <div id="sessionStatusFilters" style="display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 10px;">
-              <button type="button" class="session-filter-chip active" data-filter="all" style="padding: 5px 12px; font-size: 11px; border-radius: 999px; border: 1px solid var(--border); background: var(--accent); color: #fff; cursor: pointer; font-weight: 600; transition: all 0.15s;">Всі</button>
-              <button type="button" class="session-filter-chip" data-filter="active" style="padding: 5px 12px; font-size: 11px; border-radius: 999px; border: 1px solid rgba(16,185,129,0.4); background: rgba(16,185,129,0.08); color: #10b981; cursor: pointer; font-weight: 600; transition: all 0.15s; display: inline-flex; align-items: center; gap: 4px;"><img src="/img/icons/signal.svg" class="pixel-icon inline" alt=""> Пишуть зараз</button>
-              <button type="button" class="session-filter-chip" data-filter="suspicious" style="padding: 5px 12px; font-size: 11px; border-radius: 999px; border: 1px solid rgba(245,158,11,0.4); background: rgba(245,158,11,0.08); color: #f59e0b; cursor: pointer; font-weight: 600; transition: all 0.15s; display: inline-flex; align-items: center; gap: 4px;"><img src="/img/icons/warning.svg" class="pixel-icon inline" alt=""> Підозрілі</button>
-              <button type="button" class="session-filter-chip" data-filter="completed" style="padding: 5px 12px; font-size: 11px; border-radius: 999px; border: 1px solid rgba(59,130,246,0.4); background: rgba(59,130,246,0.08); color: #3b82f6; cursor: pointer; font-weight: 600; transition: all 0.15s; display: inline-flex; align-items: center; gap: 4px;"><img src="/img/icons/check.svg" class="pixel-icon inline" alt=""> Завершили</button>
-              <button type="button" class="session-filter-chip" data-filter="critical" style="padding: 5px 12px; font-size: 11px; border-radius: 999px; border: 1px solid rgba(239,68,68,0.4); background: rgba(239,68,68,0.08); color: #ef4444; cursor: pointer; font-weight: 600; transition: all 0.15s; display: inline-flex; align-items: center; gap: 4px;"><img src="/img/icons/blocked.svg" class="pixel-icon inline" alt=""> Критичні</button>
+            <div id="sessionStatusFilters" class="session-status-filter-pills" style="margin-bottom: 12px;">
+              <button type="button" class="session-filter-pill session-filter-chip active" data-filter="all">
+                <span>Всі:</span> <strong id="filterBadgeAll">0</strong>
+              </button>
+              <button type="button" class="session-filter-pill session-filter-chip pill-online" data-filter="active">
+                <span class="status-dot green"></span>
+                <span>Онлайн:</span> <strong id="filterBadgeOnline">0</strong>
+              </button>
+              <button type="button" class="session-filter-pill session-filter-chip pill-suspicious" data-filter="suspicious">
+                <img src="/img/icons/warning.svg" class="pixel-icon inline" alt="">
+                <span>Підозрілі:</span> <strong id="filterBadgeSuspicious">0</strong>
+              </button>
+              <button type="button" class="session-filter-pill session-filter-chip pill-critical" data-filter="critical">
+                <img src="/img/icons/blocked.svg" class="pixel-icon inline" alt="">
+                <span>Заблоковані:</span> <strong id="filterBadgeCritical">0</strong>
+              </button>
+              <button type="button" class="session-filter-pill session-filter-chip pill-completed" data-filter="completed">
+                <img src="/img/icons/check.svg" class="pixel-icon inline" alt="">
+                <span>Здали:</span> <strong id="filterBadgeCompleted">0</strong>
+              </button>
             </div>
 
             <div id="sessionsTableWrap" style="overflow-x: auto;">
@@ -598,7 +622,16 @@
         <div class="card-panel">
           <h2 style="font-size: 14px; font-weight: 700; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 14px;">Аналітика по кожному питанню та розподіл відповідей (Heatmap)</h2>
           <div id="analyticsQuestionsContainer" style="display: flex; flex-direction: column; gap: 14px;">
-            <div style="text-align: center; padding: 32px; color: var(--text-muted);">Завантаження аналітики відповідей...</div>
+            <div class="skeleton-card">
+              <div class="skeleton-shimmer" style="width: 35%; height: 20px;"></div>
+              <div class="skeleton-shimmer" style="width: 80%; height: 16px;"></div>
+              <div class="skeleton-shimmer" style="width: 60%; height: 14px;"></div>
+            </div>
+            <div class="skeleton-card">
+              <div class="skeleton-shimmer" style="width: 45%; height: 20px;"></div>
+              <div class="skeleton-shimmer" style="width: 75%; height: 16px;"></div>
+              <div class="skeleton-shimmer" style="width: 65%; height: 14px;"></div>
+            </div>
           </div>
         </div>
       </div>
@@ -648,7 +681,11 @@
               </thead>
               <tbody id="adminLeaderboardTbody">
                 <tr>
-                  <td colspan="9" style="text-align: center; color: var(--text-dim); padding: 24px;">Завантаження рейтингу...</td>
+                  <td colspan="9" style="padding: 20px;">
+                    <div class="skeleton-shimmer" style="width: 100%; height: 24px; border-radius: 4px; margin-bottom: 8px;"></div>
+                    <div class="skeleton-shimmer" style="width: 90%; height: 24px; border-radius: 4px; margin-bottom: 8px;"></div>
+                    <div class="skeleton-shimmer" style="width: 95%; height: 24px; border-radius: 4px;"></div>
+                  </td>
                 </tr>
               </tbody>
             </table>
@@ -685,7 +722,18 @@
         </div>
 
         <div id="classesListContainer" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 16px;">
-          <div style="grid-column: 1 / -1; text-align: center; padding: 36px; color: var(--text-muted);">Завантаження класів...</div>
+          <div class="skeleton-card">
+            <div class="skeleton-shimmer" style="width: 45%; height: 20px;"></div>
+            <div class="skeleton-shimmer" style="width: 80%; height: 14px;"></div>
+          </div>
+          <div class="skeleton-card">
+            <div class="skeleton-shimmer" style="width: 50%; height: 20px;"></div>
+            <div class="skeleton-shimmer" style="width: 70%; height: 14px;"></div>
+          </div>
+          <div class="skeleton-card">
+            <div class="skeleton-shimmer" style="width: 40%; height: 20px;"></div>
+            <div class="skeleton-shimmer" style="width: 85%; height: 14px;"></div>
+          </div>
         </div>
       </div>
 
@@ -1934,6 +1982,35 @@
           </button>
         </div>
       </div>
+    </div>
+  </div>
+
+  <div id="imageLightboxModal" class="image-lightbox-modal hidden" aria-hidden="true">
+    <div class="lightbox-backdrop" id="lightboxBackdrop"></div>
+    <div class="lightbox-toolbar">
+      <div class="lightbox-info">
+        <span class="lightbox-zoom-badge" id="lightboxZoomBadge">100%</span>
+      </div>
+      <div class="lightbox-controls">
+        <button type="button" class="lightbox-btn" id="lightboxZoomOutBtn" title="Зменшити (-)">
+          <span>−</span>
+        </button>
+        <button type="button" class="lightbox-btn" id="lightboxZoomResetBtn" title="Скинути масштаб (1:1)">
+          <span>1:1</span>
+        </button>
+        <button type="button" class="lightbox-btn" id="lightboxZoomInBtn" title="Збільшити (+)">
+          <span>+</span>
+        </button>
+        <button type="button" class="lightbox-btn lightbox-close-btn" id="lightboxCloseBtn" title="Закрити (Esc)">
+          <img src="/img/icons/cross.svg" class="pixel-icon inline" alt="">
+        </button>
+      </div>
+    </div>
+    <div class="lightbox-canvas" id="lightboxCanvas">
+      <img id="lightboxImg" class="lightbox-img" src="" alt="Перегляд зображення">
+    </div>
+    <div class="lightbox-hint">
+      <span>Коліщатко — зум • Перетягування — огляд • Esc — вихід</span>
     </div>
   </div>
 

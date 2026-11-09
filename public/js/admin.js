@@ -437,6 +437,8 @@ function init() {
   initTeacherWarningControls();
   initImageUpload();
   initSessionFiltersAndViewMode();
+  initStickyCompactNavbar();
+  initAdminLightbox();
   initQuestionPreviewAndHotspotControls();
   loadAdminTestsList();
   if (typeof window.setLiteMode === 'function') {
@@ -1003,7 +1005,28 @@ function populateSessionClassFilter() {
   });
 }
 
+function updateSessionFilterCounts() {
+  const bAll = document.getElementById('filterBadgeAll');
+  const bOnline = document.getElementById('filterBadgeOnline');
+  const bSuspicious = document.getElementById('filterBadgeSuspicious');
+  const bCritical = document.getElementById('filterBadgeCritical');
+  const bCompleted = document.getElementById('filterBadgeCompleted');
+
+  const totalAll = sessions.length;
+  const totalOnline = sessions.filter(s => s.status === 'in_progress').length;
+  const totalSuspicious = sessions.filter(s => s.trustScore < 80 && s.trustScore >= 50 && s.status !== 'disqualified').length;
+  const totalCritical = sessions.filter(s => s.status === 'disqualified' || (s.trustScore !== undefined && s.trustScore < 50)).length;
+  const totalCompleted = sessions.filter(s => s.status === 'completed').length;
+
+  if (bAll) bAll.textContent = totalAll;
+  if (bOnline) bOnline.textContent = totalOnline;
+  if (bSuspicious) bSuspicious.textContent = totalSuspicious;
+  if (bCritical) bCritical.textContent = totalCritical;
+  if (bCompleted) bCompleted.textContent = totalCompleted;
+}
+
 function renderSessionsTable() {
+  updateSessionFilterCounts();
   populateSessionClassFilter();
 
   const list = getFilteredSortedSessions();
@@ -1023,6 +1046,10 @@ function renderSessionsTable() {
   sessionsTableBody.innerHTML = '';
   list.forEach((s) => {
     const tr = document.createElement('tr');
+    const isCritical = (s.trustScore !== undefined && s.trustScore < 50) || s.status === 'disqualified';
+    if (isCritical) {
+      tr.classList.add('critical-pulse-row');
+    }
 
     let trustBadgeClass = 'approved';
     if (s.trustScore < 50) trustBadgeClass = 'danger';
@@ -1105,16 +1132,16 @@ let sessionStatusFilter = 'all';
 let sessionViewMode = 'table';
 
 function initSessionFiltersAndViewMode() {
-  const chips = document.querySelectorAll('.session-filter-chip');
+  const chips = document.querySelectorAll('.session-filter-pill, .session-filter-chip');
   chips.forEach(chip => {
     chip.addEventListener('click', () => {
       chips.forEach(c => {
-        c.style.background = 'transparent';
-        c.style.color = 'var(--text-muted)';
+        c.classList.remove('active');
+        c.style.background = '';
+        c.style.color = '';
       });
-      chip.style.background = 'var(--accent)';
-      chip.style.color = '#fff';
-      sessionStatusFilter = chip.dataset.filter;
+      chip.classList.add('active');
+      sessionStatusFilter = chip.dataset.filter || 'all';
       renderSessionsTable();
       if (sessionViewMode === 'tiles') renderSessionsTiles();
     });
@@ -1219,6 +1246,7 @@ function renderSessionsTiles() {
       : null;
 
     const tile = document.createElement('div');
+    if (isCritical) tile.classList.add('critical-pulse');
     tile.style.cssText = `background: ${bgColor}; border: 2px solid ${borderColor}; border-radius: 10px; padding: 12px; cursor: pointer; transition: transform 0.15s ease, box-shadow 0.15s ease;`;
     tile.onmouseover = () => { tile.style.transform = 'translateY(-2px)'; tile.style.boxShadow = `0 4px 16px ${borderColor}`; };
     tile.onmouseout = () => { tile.style.transform = ''; tile.style.boxShadow = ''; };
@@ -1753,6 +1781,9 @@ function updateActiveTestBadge() {
   if (activeTestStatsBadge && current) {
     activeTestStatsBadge.textContent = `${(current.questions || []).length} питань • ${current.durationMinutes || 15} хв`;
   }
+  if (typeof window.updateCompactNavbar === 'function') {
+    window.updateCompactNavbar();
+  }
 }
 
 function initMultiTestControls() {
@@ -2039,6 +2070,7 @@ function initMultiTestControls() {
 }
 
 function renderLiveRadarGrid() {
+  if (typeof window.updateCompactNavbar === 'function') window.updateCompactNavbar();
   const grid = document.getElementById('liveRadarGrid');
   const countBadge = document.getElementById('liveRadarOnlineCount');
   const statOnline = document.getElementById('radarStatOnline');
@@ -2092,6 +2124,10 @@ function renderLiveRadarGrid() {
     const isOffline = (Date.now() - (student.lastSeen || 0)) > 15000;
 
     const card = document.createElement('div');
+    const isCritical = trust < 50 || (sess && sess.status === 'disqualified');
+    if (isCritical) {
+      card.classList.add('critical-pulse');
+    }
     card.style.cssText = 'background: var(--bg-surface); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 14px; display: flex; flex-direction: column; gap: 10px; transition: transform 0.15s ease; cursor: pointer;';
     card.onmouseover = () => card.style.transform = 'translateY(-2px)';
     card.onmouseout = () => card.style.transform = 'none';
@@ -4814,3 +4850,197 @@ function initTeacherWarningControls() {
 
 window.loadAdminTest = loadAdminTest;
 window.refreshAdminTestsList = loadAdminTestsList;
+
+function initStickyCompactNavbar() {
+  const navbar = document.getElementById('topNavbar') || document.querySelector('.top-navbar');
+  const titleEl = document.getElementById('compactActiveTestTitle');
+  const countEl = document.getElementById('compactOnlineCount');
+
+  window.addEventListener('scroll', () => {
+    if (!navbar) return;
+    if (window.scrollY > 70) {
+      navbar.classList.add('is-compact');
+    } else if (window.scrollY < 40) {
+      navbar.classList.remove('is-compact');
+    }
+  }, { passive: true });
+
+  window.updateCompactNavbar = function() {
+    if (titleEl) {
+      const current = (typeof allAdminTests !== 'undefined' && Array.isArray(allAdminTests))
+        ? allAdminTests.find(t => t.id === selectedAdminTestId)
+        : null;
+      if (current && current.title) {
+        titleEl.textContent = current.title;
+      } else {
+        const sel = document.getElementById('adminTestSelector');
+        if (sel && sel.selectedIndex >= 0 && sel.options[sel.selectedIndex]) {
+          titleEl.textContent = sel.options[sel.selectedIndex].text;
+        }
+      }
+    }
+    if (countEl) {
+      countEl.textContent = typeof onlineStudentsMap !== 'undefined' ? onlineStudentsMap.size : 0;
+    }
+  };
+}
+
+function initAdminLightbox() {
+  const modal = document.getElementById('imageLightboxModal');
+  const img = document.getElementById('lightboxImg');
+  const canvas = document.getElementById('lightboxCanvas');
+  const badge = document.getElementById('lightboxZoomBadge');
+  const btnIn = document.getElementById('lightboxZoomInBtn');
+  const btnOut = document.getElementById('lightboxZoomOutBtn');
+  const btnReset = document.getElementById('lightboxZoomResetBtn');
+  const btnClose = document.getElementById('lightboxCloseBtn');
+  const backdrop = document.getElementById('lightboxBackdrop');
+
+  if (!modal || !img || !canvas) return;
+
+  let scale = 1;
+  let panX = 0;
+  let panY = 0;
+  let isDragging = false;
+  let startX = 0;
+  let startY = 0;
+
+  function updateTransform() {
+    img.style.transform = `translate(${panX}px, ${panY}px) scale(${scale})`;
+    if (badge) badge.textContent = `${Math.round(scale * 100)}%`;
+  }
+
+  function resetState() {
+    scale = 1;
+    panX = 0;
+    panY = 0;
+    updateTransform();
+  }
+
+  window.openImageLightbox = function(src, alt) {
+    if (!src) return;
+    img.src = src;
+    img.alt = alt || 'Зображення';
+    resetState();
+    modal.classList.remove('hidden');
+    modal.setAttribute('aria-hidden', 'false');
+  };
+
+  function closeLightbox() {
+    modal.classList.add('hidden');
+    modal.setAttribute('aria-hidden', 'true');
+    setTimeout(resetState, 200);
+  }
+
+  if (btnClose) btnClose.addEventListener('click', closeLightbox);
+  if (backdrop) backdrop.addEventListener('click', closeLightbox);
+
+  if (btnIn) {
+    btnIn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      scale = Math.min(4, Number((scale + 0.25).toFixed(2)));
+      updateTransform();
+    });
+  }
+
+  if (btnOut) {
+    btnOut.addEventListener('click', (e) => {
+      e.stopPropagation();
+      scale = Math.max(0.5, Number((scale - 0.25).toFixed(2)));
+      updateTransform();
+    });
+  }
+
+  if (btnReset) {
+    btnReset.addEventListener('click', (e) => {
+      e.stopPropagation();
+      resetState();
+    });
+  }
+
+  canvas.addEventListener('wheel', (e) => {
+    e.preventDefault();
+    const delta = e.deltaY < 0 ? 0.2 : -0.2;
+    scale = Math.min(4, Math.max(0.5, Number((scale + delta).toFixed(2))));
+    updateTransform();
+  }, { passive: false });
+
+  canvas.addEventListener('dblclick', (e) => {
+    if (e.target !== canvas && e.target !== img) return;
+    if (scale !== 1) {
+      resetState();
+    } else {
+      scale = 2;
+      updateTransform();
+    }
+  });
+
+  const onStart = (clientX, clientY) => {
+    isDragging = true;
+    startX = clientX - panX;
+    startY = clientY - panY;
+    canvas.classList.add('is-dragging');
+  };
+
+  const onMove = (clientX, clientY) => {
+    if (!isDragging) return;
+    panX = clientX - startX;
+    panY = clientY - startY;
+    updateTransform();
+  };
+
+  const onEnd = () => {
+    if (!isDragging) return;
+    isDragging = false;
+    canvas.classList.remove('is-dragging');
+  };
+
+  canvas.addEventListener('mousedown', (e) => {
+    if (e.button !== 0) return;
+    onStart(e.clientX, e.clientY);
+  });
+
+  window.addEventListener('mousemove', (e) => {
+    onMove(e.clientX, e.clientY);
+  });
+
+  window.addEventListener('mouseup', onEnd);
+
+  canvas.addEventListener('touchstart', (e) => {
+    if (e.touches && e.touches.length === 1) {
+      onStart(e.touches[0].clientX, e.touches[0].clientY);
+    }
+  }, { passive: true });
+
+  canvas.addEventListener('touchmove', (e) => {
+    if (e.touches && e.touches.length === 1 && isDragging) {
+      onMove(e.touches[0].clientX, e.touches[0].clientY);
+    }
+  }, { passive: true });
+
+  canvas.addEventListener('touchend', onEnd);
+
+  window.addEventListener('keydown', (e) => {
+    if (modal.classList.contains('hidden')) return;
+    if (e.key === 'Escape') {
+      closeLightbox();
+    } else if (e.key === '+' || e.key === '=') {
+      scale = Math.min(4, Number((scale + 0.25).toFixed(2)));
+      updateTransform();
+    } else if (e.key === '-' || e.key === '_') {
+      scale = Math.max(0.5, Number((scale - 0.25).toFixed(2)));
+      updateTransform();
+    } else if (e.key === '0') {
+      resetState();
+    }
+  });
+
+  document.addEventListener('click', (e) => {
+    const target = e.target;
+    if (target && target.tagName === 'IMG' && (target.classList.contains('preview-q-img') || target.dataset.lightbox || target.id === 'previewQImageDesktop' || target.id === 'previewQImageMobile' || target.id === 'imagePreviewImg')) {
+      e.preventDefault();
+      e.stopPropagation();
+      window.openImageLightbox(target.src, target.alt);
+    }
+  });
+}
