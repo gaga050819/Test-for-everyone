@@ -14,7 +14,10 @@ const __dirname = path.dirname(__filename);
 
 function loadEnv() {
   try {
-    const envFile = path.join(__dirname, '..', '.env');
+    let envFile = path.join(__dirname, '.env');
+    if (!fs.existsSync(envFile)) {
+      envFile = path.join(__dirname, '..', '.env');
+    }
     if (fs.existsSync(envFile)) {
       const lines = fs.readFileSync(envFile, 'utf-8').split(/\r?\n/);
       for (const line of lines) {
@@ -218,7 +221,7 @@ function broadcastToAdmins(payload) {
 }
 
 const secretPath = path.join(__dirname, 'admin_secret.json');
-const envPath = path.join(__dirname, '..', '.env');
+const envPath = fs.existsSync(path.join(__dirname, '.env')) ? path.join(__dirname, '.env') : path.join(__dirname, '..', '.env');
 
 function saveAdminPasswordToFile(pwd) {
   try {
@@ -1616,7 +1619,7 @@ app.post('/api/admin/update/apply', requireAdmin, async (req, res) => {
     if (fs.existsSync(dataFile)) {
       fs.copyFileSync(dataFile, path.join(backupDir, `data_backup_${Date.now()}.json`));
     }
-    const envFile = path.join(rootDir, '.env');
+    const envFile = fs.existsSync(path.join(__dirname, '.env')) ? path.join(__dirname, '.env') : path.join(rootDir, '.env');
     if (fs.existsSync(envFile)) {
       fs.copyFileSync(envFile, path.join(backupDir, `env_backup_${Date.now()}.json`));
     }
@@ -1677,7 +1680,7 @@ app.post('/api/admin/update/apply', requireAdmin, async (req, res) => {
           const dPath = path.join(dest, entry.name);
           const rel = path.relative(rootDir, dPath).replace(/\\/g, '/').toLowerCase();
 
-          if (rel === 'server/data.json' || rel === '.env' || rel.startsWith('.env') || rel.startsWith('node_modules') || rel.startsWith('server/backups') || rel === 'server/admin_secret.json' || rel === 'update_temp.zip' || rel.startsWith('temp_update') || rel.startsWith('.runtime') || rel.startsWith('bin/runtime') || rel === 'bin/ngrok.exe' || rel === 'ngrok.exe') {
+          if (rel === 'server/data.json' || rel === '.env' || rel.startsWith('.env') || rel === 'server/.env' || rel.startsWith('server/.env') || rel.startsWith('node_modules') || rel.startsWith('server/node_modules') || rel.startsWith('server/backups') || rel === 'server/admin_secret.json' || rel === 'update_temp.zip' || rel.startsWith('temp_update') || rel.startsWith('.runtime') || rel.startsWith('bin/runtime') || rel === 'bin/ngrok.exe' || rel === 'ngrok.exe') {
             continue;
           }
 

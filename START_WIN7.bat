@@ -27,10 +27,13 @@ if errorlevel 1 (
     exit /b 1
 )
 
-if not exist ".env" (
-    if exist ".env.flash" (
-        copy /y ".env.flash" ".env" >nul
+set "ENV_FILE=%~dp0server\.env"
+if not exist "%ENV_FILE%" (
+    if exist "%~dp0server\.env.flash" (
+        copy /y "%~dp0server\.env.flash" "%ENV_FILE%" >nul
         echo [+] Створено файл конфігурації .env
+    ) else if exist "%~dp0.env" (
+        set "ENV_FILE=%~dp0.env"
     )
 )
 
@@ -60,8 +63,8 @@ if not exist "%NGROK_CMD%" (
 )
 
 set "ENV_TOKEN="
-if exist ".env" (
-    for /f "usebackq tokens=1,2 delims==" %%A in (".env") do (
+if exist "%ENV_FILE%" (
+    for /f "usebackq tokens=1,2 delims==" %%A in ("%ENV_FILE%") do (
         set "KEY=%%A"
         set "VAL=%%B"
         if "!KEY!"=="NGROK_AUTHTOKEN" set "ENV_TOKEN=!VAL!"
@@ -73,11 +76,13 @@ if defined ENV_TOKEN (
     "%NGROK_CMD%" config add-authtoken !ENV_TOKEN! >nul 2>&1
 )
 
-if not exist "node_modules" (
+if not exist "%~dp0server\node_modules" (
     echo =============================================================
     echo [ВСТАНОВЛЕННЯ] Перший запуск: встановлення бібліотек...
     echo =============================================================
+    cd "%~dp0server"
     call npm install
+    cd "%~dp0"
     if errorlevel 1 (
         echo [ПОМИЛКА] Не вдалося встановити бібліотеки через npm install.
         pause

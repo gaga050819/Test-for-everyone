@@ -23,20 +23,27 @@ else
   NGROK_ARCH="darwin-amd64"
 fi
 
-if [ ! -f ".env" ] && [ -f ".env.flash" ]; then
-  cp ".env.flash" ".env"
-  echo "[+] Файл .env скопійовано автоматично."
+SERVER_DIR="$SCRIPT_DIR/server"
+ENV_FILE="$SERVER_DIR/.env"
+ENV_FLASH="$SERVER_DIR/.env.flash"
+if [ ! -f "$ENV_FILE" ]; then
+  if [ -f "$SCRIPT_DIR/.env" ]; then
+    ENV_FILE="$SCRIPT_DIR/.env"
+  elif [ -f "$ENV_FLASH" ]; then
+    cp "$ENV_FLASH" "$ENV_FILE"
+    echo "[+] Файл .env скопійовано автоматично."
+  fi
 fi
 
 ENV_TOKEN=""
-if [ -f ".env" ]; then
+if [ -f "$ENV_FILE" ]; then
   while IFS='=' read -r key val || [ -n "$key" ]; do
     key=$(echo "$key" | tr -d ' \r\n')
     val=$(echo "$val" | tr -d '\r\n' | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//')
     if [ "$key" = "NGROK_AUTHTOKEN" ] || [ "$key" = "NGROK_TOKEN" ]; then
       ENV_TOKEN="$val"
     fi
-  done < ".env"
+  done < "$ENV_FILE"
 fi
 
 for p in "/opt/homebrew/bin" "/usr/local/bin" "$SCRIPT_DIR/bin/runtime/node/bin" "$SCRIPT_DIR/.runtime/node/bin"; do
@@ -110,11 +117,11 @@ if [ -n "$NGROK_BIN" ] && [ -n "$ENV_TOKEN" ]; then
   "$NGROK_BIN" config add-authtoken "$ENV_TOKEN" >/dev/null 2>&1 || true
 fi
 
-if [ ! -d "node_modules" ]; then
+if [ ! -d "$SERVER_DIR/node_modules" ]; then
   echo "=========================================================="
   echo "[ІНІЦІАЛІЗАЦІЯ] Встановлення залежностей пакетів (npm install)..."
   echo "=========================================================="
-  npm install
+  cd "$SERVER_DIR" && npm install && cd "$SCRIPT_DIR"
   if [ $? -ne 0 ]; then
     echo "[ПОМИЛКА] Не вдалося встановити бібліотеки через npm install."
     exit 1

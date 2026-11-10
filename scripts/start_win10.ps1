@@ -148,12 +148,17 @@ function Extract-ArchiveWithFallbacks {
     return (Test-Path -LiteralPath $targetFile)
 }
 
-# Якщо .env немає — пробуємо скопіювати з .env.flash
-$envFile = Join-Path $scriptDir ".env"
-$envFlash = Join-Path $scriptDir ".env.flash"
-if (-not (Test-Path -LiteralPath $envFile) -and (Test-Path -LiteralPath $envFlash)) {
-    Copy-Item -LiteralPath $envFlash -Destination $envFile -Force
-    Write-Host "[+] Файл .env скопійовано автоматично." -ForegroundColor Green
+$serverDir = Join-Path $scriptDir "server"
+$envFile = Join-Path $serverDir ".env"
+$envFlash = Join-Path $serverDir ".env.flash"
+if (-not (Test-Path -LiteralPath $envFile)) {
+    $envRoot = Join-Path $scriptDir ".env"
+    if (Test-Path -LiteralPath $envRoot) {
+        $envFile = $envRoot
+    } elseif (Test-Path -LiteralPath $envFlash) {
+        Copy-Item -LiteralPath $envFlash -Destination $envFile -Force
+        Write-Host "[+] Файл .env скопійовано автоматично." -ForegroundColor Green
+    }
 }
 
 # Зчитування конфігурації .env для токена ngrok
@@ -311,13 +316,14 @@ if ($ngrokCmd -and $envNgrokToken) {
     } catch {}
 }
 
-# 5. Встановлення node_modules
-$nodeModulesDir = Join-Path $scriptDir "node_modules"
+$nodeModulesDir = Join-Path $serverDir "node_modules"
 if (-not (Test-Path -LiteralPath $nodeModulesDir)) {
     Write-Host "==========================================================" -ForegroundColor Cyan
     Write-Host "[ІНІЦІАЛІЗАЦІЯ] Встановлення залежностей пакетів (npm install)..." -ForegroundColor Cyan
     Write-Host "==========================================================" -ForegroundColor Cyan
+    Push-Location -LiteralPath $serverDir
     & npm install
+    Pop-Location
     if ($LASTEXITCODE -ne 0) {
         Write-Host "[ПОМИЛКА] Не вдалося встановити бібліотеки." -ForegroundColor Red
         Read-Host 'Натисніть Enter для виходу...'
