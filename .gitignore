@@ -2,9 +2,14 @@ node_modules/
 .env
 .env.*
 ngrok.exe
+bin/ngrok*
 *.zip
 server/backups/
 server/admin_secret.json
 public/uploads/
 win7_x86/node/
 win7_x86/ngrok.exe
+bin/win7_x86/node/
+bin/win7_x86/ngrok.exe
+bin/runtime/
+.runtime/

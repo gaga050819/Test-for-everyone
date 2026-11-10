@@ -10,7 +10,7 @@ try {
 # Вимикаємо інтерактивний прогрес-бар PowerShell, що гальмує або заморожує завантаження у консолі
 $ProgressPreference = 'SilentlyContinue'
 
-$scriptDir = $PSScriptRoot
+$scriptDir = Split-Path -Parent $PSScriptRoot
 if (-not $scriptDir) { $scriptDir = (Get-Location).Path }
 Set-Location -LiteralPath $scriptDir
 
@@ -244,8 +244,12 @@ try {
 Start-Sleep -Seconds 1
 
 
-# 3. Перевірка та автоматичне завантаження ngrok
-$ngrokFile = Join-Path $scriptDir "ngrok.exe"
+$binDir = Join-Path $scriptDir "bin"
+$ngrokFile = Join-Path $binDir "ngrok.exe"
+if (-not (Test-Path -LiteralPath $ngrokFile)) {
+    $ngrokLegacy = Join-Path $scriptDir "ngrok.exe"
+    if (Test-Path -LiteralPath $ngrokLegacy) { $ngrokFile = $ngrokLegacy }
+}
 $ngrokCmd = $null
 
 if (Test-Path -LiteralPath $ngrokFile) {
@@ -274,7 +278,10 @@ if (-not $ngrokCmd -or -not (Test-Path -LiteralPath $ngrokFile)) {
 
     if ($downloadOk) {
         Write-Host "Розпакування ngrok.exe у робочу директорію..." -ForegroundColor Gray
-        $extractOk = Extract-ArchiveWithFallbacks -ZipPath $zipPath -DestinationPath $scriptDir -ExpectedFileName "ngrok.exe"
+        if (-not (Test-Path -LiteralPath $binDir)) {
+            New-Item -ItemType Directory -LiteralPath $binDir -Force | Out-Null
+        }
+        $extractOk = Extract-ArchiveWithFallbacks -ZipPath $zipPath -DestinationPath $binDir -ExpectedFileName "ngrok.exe"
         Remove-Item -LiteralPath $zipPath -Force -ErrorAction SilentlyContinue
         Unblock-File -LiteralPath $ngrokFile -ErrorAction SilentlyContinue
     } else {

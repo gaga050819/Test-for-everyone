@@ -1677,7 +1677,7 @@ app.post('/api/admin/update/apply', requireAdmin, async (req, res) => {
           const dPath = path.join(dest, entry.name);
           const rel = path.relative(rootDir, dPath).replace(/\\/g, '/').toLowerCase();
 
-          if (rel === 'server/data.json' || rel === '.env' || rel.startsWith('.env') || rel.startsWith('node_modules') || rel.startsWith('server/backups') || rel === 'server/admin_secret.json' || rel === 'update_temp.zip' || rel.startsWith('temp_update') || rel.startsWith('.runtime')) {
+          if (rel === 'server/data.json' || rel === '.env' || rel.startsWith('.env') || rel.startsWith('node_modules') || rel.startsWith('server/backups') || rel === 'server/admin_secret.json' || rel === 'update_temp.zip' || rel.startsWith('temp_update') || rel.startsWith('.runtime') || rel.startsWith('bin/runtime') || rel === 'bin/ngrok.exe' || rel === 'ngrok.exe') {
             continue;
           }
 

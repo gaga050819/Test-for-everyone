@@ -1,3 +1,3 @@
 #!/bin/bash
 cd "$(dirname "$0")"
-exec bash ./start_mac.sh
+exec bash ./scripts/start_mac.sh

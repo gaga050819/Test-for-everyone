@@ -34,7 +34,10 @@ if not exist ".env" (
     )
 )
 
-set "NGROK_CMD=%~dp0ngrok.exe"
+set "NGROK_CMD=%~dp0bin\ngrok.exe"
+if not exist "%NGROK_CMD%" (
+    if exist "%~dp0ngrok.exe" set "NGROK_CMD=%~dp0ngrok.exe"
+)
 if not exist "%NGROK_CMD%" (
     where ngrok >nul 2>&1
     if not errorlevel 1 (

@@ -1,5 +1,5 @@
 #!/bin/bash
-SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+SCRIPT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$SCRIPT_DIR"
 
 ARCH="$(uname -m)"
@@ -39,7 +39,7 @@ if [ -f ".env" ]; then
   done < ".env"
 fi
 
-for p in "/opt/homebrew/bin" "/usr/local/bin" "$SCRIPT_DIR/.runtime/node/bin"; do
+for p in "/opt/homebrew/bin" "/usr/local/bin" "$SCRIPT_DIR/bin/runtime/node/bin" "$SCRIPT_DIR/.runtime/node/bin"; do
   if [ -d "$p" ]; then
     case ":$PATH:" in
       *":$p:"*) ;;
@@ -57,12 +57,12 @@ if ! command -v node >/dev/null 2>&1 || ! command -v npm >/dev/null 2>&1; then
   NODE_URL="https://nodejs.org/dist/${NODE_VER}/${NODE_TAR}"
   TMP_TAR="/tmp/${NODE_TAR}"
 
-  mkdir -p "$SCRIPT_DIR/.runtime/node"
+  mkdir -p "$SCRIPT_DIR/bin/runtime/node"
   curl -fSL --retry 2 --connect-timeout 15 -o "$TMP_TAR" "$NODE_URL"
   if [ $? -eq 0 ] && [ -f "$TMP_TAR" ]; then
-    tar -xzf "$TMP_TAR" -C "$SCRIPT_DIR/.runtime/node" --strip-components=1
+    tar -xzf "$TMP_TAR" -C "$SCRIPT_DIR/bin/runtime/node" --strip-components=1
     rm -f "$TMP_TAR"
-    export PATH="$SCRIPT_DIR/.runtime/node/bin:$PATH"
+    export PATH="$SCRIPT_DIR/bin/runtime/node/bin:$PATH"
   fi
 fi
 
@@ -78,7 +78,9 @@ pkill -f "node server/index.js" 2>/dev/null || true
 sleep 1
 
 NGROK_BIN=""
-if [ -x "$SCRIPT_DIR/ngrok" ]; then
+if [ -x "$SCRIPT_DIR/bin/ngrok" ]; then
+  NGROK_BIN="$SCRIPT_DIR/bin/ngrok"
+elif [ -x "$SCRIPT_DIR/ngrok" ]; then
   NGROK_BIN="$SCRIPT_DIR/ngrok"
 elif command -v ngrok >/dev/null 2>&1; then
   NGROK_BIN="$(command -v ngrok)"
@@ -92,13 +94,14 @@ if [ -z "$NGROK_BIN" ]; then
   NGROK_URL2="https://bin.ngrok.com/c/bNyj1mQVY4c/ngrok-v3-stable-${NGROK_ARCH}.zip"
   TMP_ZIP="/tmp/ngrok_mac.zip"
 
+  mkdir -p "$SCRIPT_DIR/bin"
   curl -fSL --retry 2 --connect-timeout 15 -o "$TMP_ZIP" "$NGROK_URL1" || curl -fSL --retry 2 --connect-timeout 15 -o "$TMP_ZIP" "$NGROK_URL2"
   if [ -f "$TMP_ZIP" ]; then
-    unzip -q -o "$TMP_ZIP" -d "$SCRIPT_DIR"
+    unzip -q -o "$TMP_ZIP" -d "$SCRIPT_DIR/bin"
     rm -f "$TMP_ZIP"
-    chmod +x "$SCRIPT_DIR/ngrok"
-    xattr -d com.apple.quarantine "$SCRIPT_DIR/ngrok" 2>/dev/null || true
-    NGROK_BIN="$SCRIPT_DIR/ngrok"
+    chmod +x "$SCRIPT_DIR/bin/ngrok"
+    xattr -d com.apple.quarantine "$SCRIPT_DIR/bin/ngrok" 2>/dev/null || true
+    NGROK_BIN="$SCRIPT_DIR/bin/ngrok"
     echo "[УСПІХ] Ngrok успішно завантажено та встановлено!"
   fi
 fi
@@ -163,3 +166,4 @@ while true; do
   fi
   break
 done
+

@@ -6,7 +6,9 @@ cd /d "%~dp0"
 
 set NODE_SKIP_PLATFORM_CHECK=1
 
-if exist "%~dp0win7_x86\node\node.exe" (
+if exist "%~dp0bin\win7_x86\node\node.exe" (
+    set "PATH=%~dp0bin\win7_x86\node;%PATH%"
+) else if exist "%~dp0win7_x86\node\node.exe" (
     set "PATH=%~dp0win7_x86\node;%PATH%"
 ) else if exist "%~dp0node\node.exe" (
     set "PATH=%~dp0node;%PATH%"
@@ -36,8 +38,10 @@ if not exist ".env" (
     )
 )
 
-set "NGROK_CMD=%~dp0win7_x86\ngrok.exe"
+set "NGROK_CMD=%~dp0bin\win7_x86\ngrok.exe"
 if not exist "%NGROK_CMD%" (
+    if exist "%~dp0win7_x86\ngrok.exe" set "NGROK_CMD=%~dp0win7_x86\ngrok.exe"
+    if exist "%~dp0bin\ngrok.exe" set "NGROK_CMD=%~dp0bin\ngrok.exe"
     if exist "%~dp0ngrok.exe" set "NGROK_CMD=%~dp0ngrok.exe"
 )
 
