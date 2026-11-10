@@ -1653,8 +1653,12 @@ app.post('/api/admin/update/apply', requireAdmin, async (req, res) => {
       fs.mkdirSync(tempExtractDir, { recursive: true });
 
       const { execSync } = await import('child_process');
-      const psCmd = `Expand-Archive -LiteralPath '${zipPath.replace(/'/g, "''")}' -DestinationPath '${tempExtractDir.replace(/'/g, "''")}' -Force`;
-      execSync(`powershell.exe -NoProfile -ExecutionPolicy Bypass -Command "${psCmd}"`, { stdio: 'pipe' });
+      if (process.platform === 'win32') {
+        const psCmd = `Expand-Archive -LiteralPath '${zipPath.replace(/'/g, "''")}' -DestinationPath '${tempExtractDir.replace(/'/g, "''")}' -Force`;
+        execSync(`powershell.exe -NoProfile -ExecutionPolicy Bypass -Command "${psCmd}"`, { stdio: 'pipe' });
+      } else {
+        execSync(`unzip -q -o "${zipPath}" -d "${tempExtractDir}"`, { stdio: 'pipe' });
+      }
 
       let sourceFolder = tempExtractDir;
       const subItems = fs.readdirSync(tempExtractDir);
@@ -1673,7 +1677,7 @@ app.post('/api/admin/update/apply', requireAdmin, async (req, res) => {
           const dPath = path.join(dest, entry.name);
           const rel = path.relative(rootDir, dPath).replace(/\\/g, '/').toLowerCase();
 
-          if (rel === 'server/data.json' || rel === '.env' || rel.startsWith('.env') || rel.startsWith('node_modules') || rel.startsWith('server/backups') || rel === 'server/admin_secret.json' || rel === 'update_temp.zip' || rel.startsWith('temp_update')) {
+          if (rel === 'server/data.json' || rel === '.env' || rel.startsWith('.env') || rel.startsWith('node_modules') || rel.startsWith('server/backups') || rel === 'server/admin_secret.json' || rel === 'update_temp.zip' || rel.startsWith('temp_update') || rel.startsWith('.runtime')) {
             continue;
           }
 
@@ -1725,14 +1729,16 @@ app.post('/api/admin/update/apply', requireAdmin, async (req, res) => {
 
     setTimeout(async () => {
       try {
-        const cp = await import('child_process');
-        const serverPath = path.join(__dirname, 'index.js');
-        const nodeExe = process.execPath;
-        const psCmd = `Start-Sleep -Seconds 2; Set-Location -LiteralPath '${rootDir.replace(/'/g, "''")}'; $active = Get-NetTCPConnection -LocalPort 3500 -State Listen -ErrorAction SilentlyContinue; if (-not $active) { Start-Process -FilePath '${nodeExe.replace(/'/g, "''")}' -ArgumentList '\"${serverPath.replace(/'/g, "''")}\"' -WorkingDirectory '${rootDir.replace(/'/g, "''")}' }`;
-        cp.spawn('powershell.exe', ['-ExecutionPolicy', 'Bypass', '-Command', psCmd], {
-          detached: true,
-          stdio: 'ignore'
-        }).unref();
+        if (process.platform === 'win32') {
+          const cp = await import('child_process');
+          const serverPath = path.join(__dirname, 'index.js');
+          const nodeExe = process.execPath;
+          const psCmd = `Start-Sleep -Seconds 2; Set-Location -LiteralPath '${rootDir.replace(/'/g, "''")}'; $active = Get-NetTCPConnection -LocalPort 3500 -State Listen -ErrorAction SilentlyContinue; if (-not $active) { Start-Process -FilePath '${nodeExe.replace(/'/g, "''")}' -ArgumentList '\"${serverPath.replace(/'/g, "''")}\"' -WorkingDirectory '${rootDir.replace(/'/g, "''")}' }`;
+          cp.spawn('powershell.exe', ['-ExecutionPolicy', 'Bypass', '-Command', psCmd], {
+            detached: true,
+            stdio: 'ignore'
+          }).unref();
+        }
       } catch {}
       process.exit(100);
     }, 1000);
