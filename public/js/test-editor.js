@@ -2636,15 +2636,15 @@ function startTestEditorTutorial() {
       <div class="tour-tooltip" id="tourTooltip">
         <div class="tour-tooltip-header">
           <span class="tour-step-badge" id="tourStepBadge">Крок 1 з ${steps.length}</span>
-          <button type="button" class="tour-close-btn" id="tourCloseBtn" title="Закрити навчання">✕</button>
+          <button type="button" class="tour-close-btn" id="tourCloseBtn" title="Закрити навчання"><img src="/img/icons/cross.svg" class="pixel-icon inline" alt=""></button>
         </div>
         <div class="tour-tooltip-title" id="tourTitle"></div>
         <div class="tour-tooltip-body" id="tourBody"></div>
         <div class="tour-tooltip-footer">
           <button type="button" class="tour-btn-skip" id="tourSkipBtn">Пропустити</button>
           <div class="tour-nav-btns">
-            <button type="button" class="tour-btn tour-btn-prev" id="tourPrevBtn">⬅ Назад</button>
-            <button type="button" class="tour-btn tour-btn-next" id="tourNextBtn">Далі ➔</button>
+            <button type="button" class="tour-btn tour-btn-prev" id="tourPrevBtn"><img src="/img/icons/refresh.svg" class="pixel-icon inline" alt=""> Назад</button>
+            <button type="button" class="tour-btn tour-btn-next" id="tourNextBtn">Далі <img src="/img/icons/plus.svg" class="pixel-icon inline" alt=""></button>
           </div>
         </div>
       </div>
@@ -2751,7 +2751,7 @@ function startTestEditorTutorial() {
       bodyEl.textContent = s.text;
 
       prevBtn.style.display = currentStep === 0 ? 'none' : 'inline-block';
-      nextBtn.textContent = currentStep === steps.length - 1 ? 'Завершити 🎉' : 'Далі ➔';
+      nextBtn.textContent = currentStep === steps.length - 1 ? 'Завершити' : 'Далі';
 
       el.scrollIntoView({ behavior: 'smooth', block: 'center', inline: 'nearest' });
 
