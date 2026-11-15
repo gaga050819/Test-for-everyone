@@ -47,6 +47,14 @@ const wss = new WebSocketServer({ server, path: '/ws' });
 
 app.use(express.json({ limit: '15mb' }));
 app.use(express.urlencoded({ extended: true, limit: '15mb' }));
+app.use((req, res, next) => {
+  if (/\.(html|js|css)$/.test(req.path)) {
+    res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+    res.setHeader('Pragma', 'no-cache');
+    res.setHeader('Expires', '0');
+  }
+  next();
+});
 app.use(express.static(path.join(__dirname, '..', 'public')));
 
 const connectedClients = new Map();
