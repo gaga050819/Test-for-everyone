@@ -2519,209 +2519,232 @@ function bindTutorialTour() {
 }
 
 function startTestEditorTutorial() {
-  if (typeof window.switchTabTo === 'function') {
-    window.switchTabTo('test-editor');
-  }
-
   const existing = document.getElementById('tourOverlayRoot');
   if (existing) existing.remove();
 
-  const steps = [
-    {
-      target: '#editTestTitleInput',
-      title: '1. Назва та предмет тесту',
-      text: 'Почніть із введення зрозумілої назви (наприклад, «Підсумковий тест з історії»), оберіть предмет і тему. Також вкажіть загальний час у хвилинах.'
-    },
-    {
-      target: '#openAiGenModalBtn',
-      title: '2. ШІ-генерація за кілька секунд',
-      text: 'Натисніть «Майстер тестів Gemini», щоб автоматично створити цілий тест за темою. Штучний інтелект сформує будь-яку кількість запитань та варіантів.'
-    },
-    {
-      target: '#openImportModalBtn',
-      title: '3. Масовий імпорт з Word та PDF',
-      text: 'Якщо у вас вже є файл із тестами у форматі .docx або .txt — скористайтеся імпортом. Система автоматично розбере завдання на окремі блоки.'
-    },
-    {
-      target: '#addQuestionSideBtn',
-      title: '4. Список завдань та нові питання',
-      text: 'У лівій колонці відображаються всі питання тесту. Кнопка «+ Додати» створює нове завдання. Ви можете перемикатися між ними одним кліком.'
-    },
-    {
-      target: '#editorQuestionText',
-      title: '5. Текст питання, бали та ліміт часу',
-      text: 'Введіть текст завдання. Зверху вкажіть кількість балів за правильну відповідь та персональний таймер у секундах для цього конкретного питання.'
-    },
-    {
-      target: '#toggleImageSectionBtn',
-      title: '6. Малюнки, карти та графіки',
-      text: 'Натисніть «Додати фото», щоб завантажити малюнок, історичну карту чи схему. Під час тестування учні зможуть наближати її через зум-Lightbox.'
-    },
-    {
-      target: '#optionsContainer',
-      title: '7. Варіанти відповідей',
-      text: 'Заповніть варіанти і обов\'язково позначте кружечком правильний. Кнопка «+ Варіант» додає нові пункти, а тип питання можна змінити на кілька правильних.'
-    },
-    {
-      target: '#rightTabPreviewBtn',
-      title: '8. ШІ-методист та Прев\'ю учня',
-      text: 'Праворуч доступний ШІ-чат для швидкої генерації варіантів і пояснень, а у вкладці «Прев\'ю учня» ви побачите точний вигляд завдання на смартфоні чи ПК.'
-    },
-    {
-      target: '#quickSaveBtn',
-      title: '9. Збереження тесту',
-      text: 'Коли всі питання готові — натисніть «Зберегти тест». Він миттєво зберігається в базу даних та готовий до проведення онлайн-іспиту!'
-    }
-  ];
+  const editorTab = document.getElementById('viewTestEditorTab');
+  const isEditorVisible = editorTab && !editorTab.classList.contains('hidden');
 
-  let currentStep = 0;
+  function launchTour() {
+    const existing2 = document.getElementById('tourOverlayRoot');
+    if (existing2) existing2.remove();
 
-  const root = document.createElement('div');
-  root.id = 'tourOverlayRoot';
-  root.innerHTML = `
-    <div class="tour-overlay-backdrop"></div>
-    <div class="tour-spotlight" id="tourSpotlight"></div>
-    <div class="tour-virtual-cursor" id="tourCursor">
-      <svg width="26" height="26" viewBox="0 0 24 24" fill="none">
-        <path d="M4.5 2.5V19.8l4.8-4.8.4-.2h6.4l-11.6-12.3z" fill="#6366f1" stroke="#ffffff" stroke-width="2" stroke-linejoin="round"/>
-      </svg>
-      <div class="tour-cursor-ripple"></div>
-    </div>
-    <div class="tour-tooltip" id="tourTooltip">
-      <div class="tour-tooltip-header">
-        <span class="tour-step-badge" id="tourStepBadge">Крок 1 з ${steps.length}</span>
-        <button type="button" class="tour-close-btn" id="tourCloseBtn" title="Закрити навчання">✕</button>
+    const steps = [
+      {
+        target: '#editTestTitleInput',
+        title: '1. Назва та предмет тесту',
+        text: 'Почніть із введення зрозумілої назви (наприклад, «Підсумковий тест з історії»), оберіть предмет і тему. Також вкажіть загальний час у хвилинах.'
+      },
+      {
+        target: '#openAiGenModalBtn',
+        title: '2. ШІ-генерація за кілька секунд',
+        text: 'Натисніть «Майстер тестів Gemini», щоб автоматично створити цілий тест за темою. Штучний інтелект сформує будь-яку кількість запитань та варіантів.'
+      },
+      {
+        target: '#openImportModalBtn',
+        title: '3. Масовий імпорт з Word та PDF',
+        text: 'Якщо у вас вже є файл із тестами у форматі .docx або .txt — скористайтеся імпортом. Система автоматично розбере завдання на окремі блоки.'
+      },
+      {
+        target: '#addQuestionSideBtn',
+        title: '4. Список завдань та нові питання',
+        text: 'У лівій колонці відображаються всі питання тесту. Кнопка «+ Додати» створює нове завдання. Ви можете перемикатися між ними одним кліком.'
+      },
+      {
+        target: '#editorQuestionText',
+        title: '5. Текст питання, бали та ліміт часу',
+        text: 'Введіть текст завдання. Зверху вкажіть кількість балів за правильну відповідь та персональний таймер у секундах для цього конкретного питання.'
+      },
+      {
+        target: '#toggleImageSectionBtn',
+        title: '6. Малюнки, карти та графіки',
+        text: 'Натисніть «Додати фото», щоб завантажити малюнок, історичну карту чи схему. Під час тестування учні зможуть наближати її через зум-Lightbox.'
+      },
+      {
+        target: '#optionsContainer',
+        title: '7. Варіанти відповідей',
+        text: 'Заповніть варіанти і обов\'язково позначте кружечком правильний. Кнопка «+ Варіант» додає нові пункти, а тип питання можна змінити на кілька правильних.'
+      },
+      {
+        target: '#rightTabPreviewBtn',
+        title: '8. ШІ-методист та Прев\'ю учня',
+        text: 'Праворуч доступний ШІ-чат для швидкої генерації варіантів і пояснень, а у вкладці «Прев\'ю учня» ви побачите точний вигляд завдання на смартфоні чи ПК.'
+      },
+      {
+        target: '#quickSaveBtn',
+        title: '9. Збереження тесту',
+        text: 'Коли всі питання готові — натисніть «Зберегти тест». Він миттєво зберігається в базу даних та готовий до проведення онлайн-іспиту!'
+      }
+    ];
+
+    let currentStep = 0;
+
+    const root = document.createElement('div');
+    root.id = 'tourOverlayRoot';
+    root.innerHTML = `
+      <div class="tour-overlay-backdrop"></div>
+      <div class="tour-spotlight" id="tourSpotlight"></div>
+      <div class="tour-virtual-cursor" id="tourCursor">
+        <svg width="26" height="26" viewBox="0 0 24 24" fill="none">
+          <path d="M4.5 2.5V19.8l4.8-4.8.4-.2h6.4l-11.6-12.3z" fill="#6366f1" stroke="#ffffff" stroke-width="2" stroke-linejoin="round"/>
+        </svg>
+        <div class="tour-cursor-ripple"></div>
       </div>
-      <div class="tour-tooltip-title" id="tourTitle"></div>
-      <div class="tour-tooltip-body" id="tourBody"></div>
-      <div class="tour-tooltip-footer">
-        <button type="button" class="tour-btn-skip" id="tourSkipBtn">Пропустити</button>
-        <div class="tour-nav-btns">
-          <button type="button" class="tour-btn tour-btn-prev" id="tourPrevBtn">⬅ Назад</button>
-          <button type="button" class="tour-btn tour-btn-next" id="tourNextBtn">Далі ➔</button>
+      <div class="tour-tooltip" id="tourTooltip">
+        <div class="tour-tooltip-header">
+          <span class="tour-step-badge" id="tourStepBadge">Крок 1 з ${steps.length}</span>
+          <button type="button" class="tour-close-btn" id="tourCloseBtn" title="Закрити навчання">✕</button>
+        </div>
+        <div class="tour-tooltip-title" id="tourTitle"></div>
+        <div class="tour-tooltip-body" id="tourBody"></div>
+        <div class="tour-tooltip-footer">
+          <button type="button" class="tour-btn-skip" id="tourSkipBtn">Пропустити</button>
+          <div class="tour-nav-btns">
+            <button type="button" class="tour-btn tour-btn-prev" id="tourPrevBtn">⬅ Назад</button>
+            <button type="button" class="tour-btn tour-btn-next" id="tourNextBtn">Далі ➔</button>
+          </div>
         </div>
       </div>
-    </div>
-  `;
-  document.body.appendChild(root);
+    `;
+    document.body.appendChild(root);
 
-  const backdrop = root.querySelector('.tour-overlay-backdrop');
-  const spotlight = root.querySelector('#tourSpotlight');
-  const cursor = root.querySelector('#tourCursor');
-  const tooltip = root.querySelector('#tourTooltip');
-  const stepBadge = root.querySelector('#tourStepBadge');
-  const titleEl = root.querySelector('#tourTitle');
-  const bodyEl = root.querySelector('#tourBody');
-  const prevBtn = root.querySelector('#tourPrevBtn');
-  const nextBtn = root.querySelector('#tourNextBtn');
-  const skipBtn = root.querySelector('#tourSkipBtn');
-  const closeBtn = root.querySelector('#tourCloseBtn');
+    const backdrop = root.querySelector('.tour-overlay-backdrop');
+    const spotlight = root.querySelector('#tourSpotlight');
+    const cursor = root.querySelector('#tourCursor');
+    const tooltip = root.querySelector('#tourTooltip');
+    const stepBadge = root.querySelector('#tourStepBadge');
+    const titleEl = root.querySelector('#tourTitle');
+    const bodyEl = root.querySelector('#tourBody');
+    const prevBtn = root.querySelector('#tourPrevBtn');
+    const nextBtn = root.querySelector('#tourNextBtn');
+    const skipBtn = root.querySelector('#tourSkipBtn');
+    const closeBtn = root.querySelector('#tourCloseBtn');
 
-  function cleanup() {
-    window.removeEventListener('resize', updatePositions);
-    window.removeEventListener('scroll', updatePositions, true);
-    document.removeEventListener('keydown', handleKey);
-    root.remove();
-  }
-
-  function handleKey(e) {
-    if (e.key === 'Escape') cleanup();
-    if (e.key === 'ArrowRight') goNext();
-    if (e.key === 'ArrowLeft') goPrev();
-  }
-
-  function goNext() {
-    if (currentStep < steps.length - 1) {
-      currentStep++;
-      renderStep();
-    } else {
-      cleanup();
-      showToast('Навчання завершено! Успішного створення тестів!');
+    function cleanup() {
+      window.removeEventListener('resize', updatePositions);
+      window.removeEventListener('scroll', updatePositions, true);
+      document.removeEventListener('keydown', handleKey);
+      root.remove();
     }
-  }
 
-  function goPrev() {
-    if (currentStep > 0) {
-      currentStep--;
-      renderStep();
+    function handleKey(e) {
+      if (e.key === 'Escape') cleanup();
+      if (e.key === 'ArrowRight') goNext();
+      if (e.key === 'ArrowLeft') goPrev();
     }
-  }
 
-  function updatePositions() {
-    const s = steps[currentStep];
-    if (!s) return;
-    const el = document.querySelector(s.target);
-    if (!el) return;
-
-    const rect = el.getBoundingClientRect();
-    const pad = 8;
-    spotlight.style.top = `${Math.max(0, rect.top - pad)}px`;
-    spotlight.style.left = `${Math.max(0, rect.left - pad)}px`;
-    spotlight.style.width = `${rect.width + pad * 2}px`;
-    spotlight.style.height = `${rect.height + pad * 2}px`;
-
-    const targetX = rect.left + Math.min(rect.width * 0.45, 60);
-    const targetY = rect.top + Math.min(rect.height * 0.45, 30);
-    cursor.style.transform = `translate3d(${targetX}px, ${targetY}px, 0)`;
-
-    const tipWidth = 360;
-    const tipHeight = tooltip.offsetHeight || 220;
-    const margin = 14;
-
-    let left = rect.left + (rect.width / 2) - (tipWidth / 2);
-    if (left < 16) left = 16;
-    if (left + tipWidth > window.innerWidth - 16) left = window.innerWidth - tipWidth - 16;
-
-    let top = rect.bottom + margin;
-    if (top + tipHeight > window.innerHeight - 16) {
-      top = rect.top - tipHeight - margin;
-      if (top < 16) {
-        top = Math.max(16, (window.innerHeight - tipHeight) / 2);
+    function goNext() {
+      if (currentStep < steps.length - 1) {
+        currentStep++;
+        renderStep();
+      } else {
+        cleanup();
+        showToast('Навчання завершено! Успішного створення тестів!');
       }
     }
 
-    tooltip.style.left = `${left}px`;
-    tooltip.style.top = `${top}px`;
-  }
+    function goPrev() {
+      if (currentStep > 0) {
+        currentStep--;
+        renderStep();
+      }
+    }
 
-  function renderStep() {
-    const s = steps[currentStep];
-    if (!s) return;
-    const el = document.querySelector(s.target);
-    if (!el) return;
+    function updatePositions() {
+      const s = steps[currentStep];
+      if (!s) return;
+      const el = document.querySelector(s.target);
+      if (!el) return;
 
-    stepBadge.textContent = `Крок ${currentStep + 1} з ${steps.length}`;
-    titleEl.textContent = s.title;
-    bodyEl.textContent = s.text;
+      const rect = el.getBoundingClientRect();
+      const pad = 8;
+      spotlight.style.top = `${Math.max(0, rect.top - pad)}px`;
+      spotlight.style.left = `${Math.max(0, rect.left - pad)}px`;
+      spotlight.style.width = `${rect.width + pad * 2}px`;
+      spotlight.style.height = `${rect.height + pad * 2}px`;
 
-    prevBtn.style.display = currentStep === 0 ? 'none' : 'inline-block';
-    nextBtn.textContent = currentStep === steps.length - 1 ? 'Завершити 🎉' : 'Далі ➔';
+      const targetX = rect.left + Math.min(rect.width * 0.45, 60);
+      const targetY = rect.top + Math.min(rect.height * 0.45, 30);
+      cursor.style.transform = `translate3d(${targetX}px, ${targetY}px, 0)`;
 
-    el.scrollIntoView({ behavior: 'smooth', block: 'center', inline: 'nearest' });
+      const tipWidth = 360;
+      const tipHeight = tooltip.offsetHeight || 220;
+      const margin = 14;
 
-    cursor.classList.remove('clicking');
-    tooltip.classList.remove('visible');
+      let left = rect.left + (rect.width / 2) - (tipWidth / 2);
+      if (left < 16) left = 16;
+      if (left + tipWidth > window.innerWidth - 16) left = window.innerWidth - tipWidth - 16;
 
-    setTimeout(() => {
-      updatePositions();
-      tooltip.classList.add('visible');
+      let top = rect.bottom + margin;
+      if (top + tipHeight > window.innerHeight - 16) {
+        top = rect.top - tipHeight - margin;
+        if (top < 16) {
+          top = Math.max(16, (window.innerHeight - tipHeight) / 2);
+        }
+      }
+
+      tooltip.style.left = `${left}px`;
+      tooltip.style.top = `${top}px`;
+    }
+
+    function renderStep() {
+      const s = steps[currentStep];
+      if (!s) return;
+      const el = document.querySelector(s.target);
+
+      if (!el) {
+        if (currentStep < steps.length - 1) {
+          currentStep++;
+          renderStep();
+        } else {
+          cleanup();
+          showToast('Навчання завершено! Успішного створення тестів!');
+        }
+        return;
+      }
+
+      stepBadge.textContent = `Крок ${currentStep + 1} з ${steps.length}`;
+      titleEl.textContent = s.title;
+      bodyEl.textContent = s.text;
+
+      prevBtn.style.display = currentStep === 0 ? 'none' : 'inline-block';
+      nextBtn.textContent = currentStep === steps.length - 1 ? 'Завершити 🎉' : 'Далі ➔';
+
+      el.scrollIntoView({ behavior: 'smooth', block: 'center', inline: 'nearest' });
+
+      cursor.classList.remove('clicking');
+      tooltip.classList.remove('visible');
+
       setTimeout(() => {
-        cursor.classList.add('clicking');
-      }, 500);
-    }, 220);
+        updatePositions();
+        tooltip.classList.add('visible');
+        setTimeout(() => {
+          cursor.classList.add('clicking');
+        }, 500);
+      }, 350);
+    }
+
+    nextBtn.addEventListener('click', goNext);
+    prevBtn.addEventListener('click', goPrev);
+    skipBtn.addEventListener('click', cleanup);
+    closeBtn.addEventListener('click', cleanup);
+    backdrop.addEventListener('click', cleanup);
+
+    window.addEventListener('resize', updatePositions);
+    window.addEventListener('scroll', updatePositions, true);
+    document.addEventListener('keydown', handleKey);
+
+    renderStep();
   }
 
-  nextBtn.addEventListener('click', goNext);
-  prevBtn.addEventListener('click', goPrev);
-  skipBtn.addEventListener('click', cleanup);
-  closeBtn.addEventListener('click', cleanup);
-  backdrop.addEventListener('click', cleanup);
-
-  window.addEventListener('resize', updatePositions);
-  window.addEventListener('scroll', updatePositions, true);
-  document.addEventListener('keydown', handleKey);
-
-  setTimeout(renderStep, 180);
+  if (!isEditorVisible) {
+    if (typeof window.switchTabTo === 'function') {
+      window.switchTabTo('testEditor');
+    }
+    setTimeout(launchTour, 700);
+  } else {
+    launchTour();
+  }
 }
 
 document.addEventListener('DOMContentLoaded', init);
