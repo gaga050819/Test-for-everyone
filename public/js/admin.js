@@ -4411,7 +4411,7 @@ async function checkSystemUpdate(silent = true) {
     } else {
       if (banner) banner.classList.add('hidden');
       if (!silent) {
-        showAdminToast('У вас встановлено актуальну версію SecureExam v' + (data.currentVersion || '1.3.0') + '. Оновлення не потрібне.');
+        showAdminToast('У вас встановлено актуальну версію SecureExam v' + (data.currentVersion || '1.2.2') + '. Оновлення не потрібне.');
       }
     }
   } catch (err) {
@@ -4433,7 +4433,7 @@ function openUpdateModal(data) {
   const cancelBtn = document.getElementById('modalCancelUpdateBtn');
   const closeBtn = document.getElementById('closeUpdateModalBtn');
 
-  if (verDisplay) verDisplay.textContent = data.latestVersion || '1.2.0';
+  if (verDisplay) verDisplay.textContent = data.latestVersion || '1.2.2';
   if (changelogContent) changelogContent.textContent = data.changelog || 'Покращення інтерфейсу та виправлення помилок.';
   if (progressArea) progressArea.classList.add('hidden');
   if (successArea) successArea.classList.add('hidden');
@@ -4493,7 +4493,7 @@ async function applySystemUpdate() {
     const res = await adminFetch('/api/admin/update/apply', {
       method: 'POST',
       body: JSON.stringify({
-        targetVersion: cachedUpdateData.latestVersion || '1.2.0',
+        targetVersion: cachedUpdateData.latestVersion || '1.2.2',
         downloadUrl: cachedUpdateData.downloadUrl || 'https://github.com/gaga050819/Test-for-everyone/archive/refs/heads/main.zip'
       })
     });

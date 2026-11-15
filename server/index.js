@@ -1471,15 +1471,15 @@ function readLocalAnnouncement() {
 
 app.get('/api/admin/update/check', requireAdmin, async (req, res) => {
   const localManifest = readLocalManifest();
-  const currentVersion = localManifest.version || '1.0.0';
+  const currentVersion = localManifest.version || '1.2.2';
   const simulate = req.query.simulate === '1' || process.env.SIMULATE_UPDATE === 'true';
 
   if (simulate) {
     return res.json({
       hasUpdate: true,
       currentVersion,
-      latestVersion: '1.2.0',
-      changelog: 'Оновлено інтерфейс тестування, покращено роботу з класами, додано швидкі фільтри та оптимізовано збереження оцінок.',
+      latestVersion: '1.2.2',
+      changelog: 'Оновлено інтерфейс тестування, інтерактивний тур, оптимізовано збереження оцінок.',
       downloadUrl: ''
     });
   }
@@ -1490,12 +1490,13 @@ app.get('/api/admin/update/check', requireAdmin, async (req, res) => {
   try {
     let remoteData = null;
 
-    if (manifestUrl) {
+    if (githubRepo) {
       try {
-        const fetchUrl = manifestUrl.includes('?') ? `${manifestUrl}&_t=${Date.now()}` : `${manifestUrl}?_t=${Date.now()}`;
-        const resp = await fetch(fetchUrl, {
+        const apiUrl = `https://api.github.com/repos/${githubRepo}/contents/version.json?ref=main&_t=${Date.now()}`;
+        const resp = await fetch(apiUrl, {
           headers: {
             'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) SecureExam-Updater',
+            'Accept': 'application/vnd.github.v3.raw',
             'Cache-Control': 'no-cache, no-store, must-revalidate',
             'Pragma': 'no-cache'
           }
@@ -1506,13 +1507,14 @@ app.get('/api/admin/update/check', requireAdmin, async (req, res) => {
       } catch {}
     }
 
-    if (!remoteData && githubRepo) {
+    if (!remoteData && manifestUrl) {
       try {
-        const apiUrl = `https://api.github.com/repos/${githubRepo}/contents/version.json`;
-        const resp = await fetch(apiUrl, {
+        const fetchUrl = manifestUrl.includes('?') ? `${manifestUrl}&_t=${Date.now()}` : `${manifestUrl}?_t=${Date.now()}`;
+        const resp = await fetch(fetchUrl, {
           headers: {
             'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) SecureExam-Updater',
-            'Accept': 'application/vnd.github.v3.raw'
+            'Cache-Control': 'no-cache, no-store, must-revalidate',
+            'Pragma': 'no-cache'
           }
         });
         if (resp.ok) {
@@ -1603,9 +1605,9 @@ app.get('/api/admin/update/progress', requireAdmin, (req, res) => {
 });
 
 app.post('/api/admin/update/apply', requireAdmin, async (req, res) => {
-  const { targetVersion, downloadUrl } = req.body;
+  const { targetVersion, downloadUrl, force } = req.body;
   const currentVersion = readLocalVersion();
-  if (targetVersion && !isNewerVersion(targetVersion, currentVersion)) {
+  if (!force && targetVersion && !isNewerVersion(targetVersion, currentVersion)) {
     return res.status(400).json({ error: 'Поточна версія програми вже є найновішою. Оновлення не потрібне.' });
   }
   const rootDir = path.join(__dirname, '..');
