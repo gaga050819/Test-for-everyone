@@ -275,7 +275,6 @@ function bindMetaInputs() {
 }
 
 function bindActionButtons() {
-  const addTop = document.getElementById('addQuestionTopBtn');
   const addSide = document.getElementById('addQuestionSideBtn');
   const quickSave = document.getElementById('quickSaveBtn');
 
@@ -300,7 +299,6 @@ function bindActionButtons() {
     showToast('Додано нове запитання #' + (activeQuestionIndex + 1));
   };
 
-  if (addTop) addTop.addEventListener('click', addHandler);
   if (addSide) addSide.addEventListener('click', addHandler);
 
   if (quickSave) {
@@ -2533,7 +2531,7 @@ function startTestEditorTutorial() {
       {
         target: '#editorTestSelector',
         title: '1. Вибір активного тесту',
-        text: 'Тут відображається список усіх ваших тестів. Оберіть потрібний зі списку — і редактор завантажить його питання. Щоб створити новий тест, натисніть «+ Новий тест» праворуч.'
+        text: 'Тут відображається список усіх ваших тестів. Оберіть потрібний зі списку — і редактор завантажить його питання. Кнопка «Новий тест» поруч створює порожній тест для заповнення.'
       },
       {
         target: '#editTestTitleInput',
