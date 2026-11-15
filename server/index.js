@@ -936,7 +936,7 @@ ${rawText.trim()}
   ]
 }`;
 
-      const modelsToTry = ['gemini-2.5-flash', 'gemini-1.5-flash', 'gemini-flash-latest'];
+      const modelsToTry = ['gemini-4-hydrogen', 'gemini-2.5-flash', 'gemini-1.5-flash', 'gemini-flash-latest'];
       let geminiRes = null;
 
       for (const model of modelsToTry) {
@@ -1102,7 +1102,7 @@ ${customInstructions ? `Додаткові вимоги: ${customInstructions.tr
   ]
 }`;
 
-    const modelsToTry = ['gemini-3.5-flash', 'gemini-3.8-flash', 'gemini-flash-latest'];
+    const modelsToTry = ['gemini-4-hydrogen', 'gemini-3.5-flash', 'gemini-3.8-flash', 'gemini-flash-latest'];
     let lastError = null;
     let geminiResponse = null;
 
@@ -1217,7 +1217,7 @@ app.post('/api/admin/gemini/prompt', requireAdmin, async (req, res) => {
     if (!keyToUse) {
       return res.status(400).json({ error: 'Не вказано Gemini API ключ' });
     }
-    const modelsToTry = ['gemini-2.5-flash', 'gemini-1.5-flash', 'gemini-flash-latest'];
+    const modelsToTry = ['gemini-4-hydrogen', 'gemini-2.5-flash', 'gemini-1.5-flash', 'gemini-flash-latest'];
     for (const model of modelsToTry) {
       try {
         const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${encodeURIComponent(keyToUse)}`;
