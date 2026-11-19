@@ -961,9 +961,13 @@ app.post('/api/admin/ai-parse-import', requireAdmin, async (req, res) => {
       return res.status(400).json({ error: 'Введіть текст тесту для розпізнавання' });
     }
 
-    const keyToUse = (apiKey && apiKey.trim()) ? apiKey.trim() : DEFAULT_GEMINI_KEY;
+    const candidateKeys = [];
+    if (DEFAULT_GEMINI_KEY) candidateKeys.push(DEFAULT_GEMINI_KEY);
+    if (apiKey && apiKey.trim() && !candidateKeys.includes(apiKey.trim())) {
+      candidateKeys.push(apiKey.trim());
+    }
 
-    if (keyToUse) {
+    if (candidateKeys.length > 0) {
       const promptText = `Ти — експертний методист і парсер тестів українською мовою.
 Твоє завдання — перетворити будь-який сирий текст тесту (з підручника, Word, сайту чи ЗНО) у структурований JSON.
 Підтримуй такі типи питань:
@@ -991,31 +995,34 @@ ${rawText.trim()}
   ]
 }`;
 
-      const modelsToTry = ['gemini-flash-lite-latest', 'gemini-flash-latest', 'gemini-2.5-flash-lite', 'gemini-2.5-flash'];
+      const modelsToTry = ['gemini-3.1-flash-lite', 'gemini-flash-lite-latest', 'gemini-3-flash-preview', 'gemini-flash-latest'];
       let geminiRes = null;
 
-      for (const model of modelsToTry) {
-        try {
-          const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${encodeURIComponent(keyToUse)}`;
-          const gRes = await fetch(apiUrl, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              systemInstruction: { parts: [{ text: 'Відповідай виключно українською мовою. All responses must be in Ukrainian language.' }] },
-              contents: [{ parts: [{ text: promptText }] }],
-              generationConfig: {
-                responseMimeType: 'application/json',
-                temperature: 0.2
-              }
-            }),
-            signal: AbortSignal.timeout(20000)
-          });
+      for (const keyToUse of candidateKeys) {
+        for (const model of modelsToTry) {
+          try {
+            const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${encodeURIComponent(keyToUse)}`;
+            const gRes = await fetch(apiUrl, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                systemInstruction: { parts: [{ text: 'Відповідай виключно українською мовою. All responses must be in Ukrainian language.' }] },
+                contents: [{ parts: [{ text: promptText }] }],
+                generationConfig: {
+                  responseMimeType: 'application/json',
+                  temperature: 0.2
+                }
+              }),
+              signal: AbortSignal.timeout(12000)
+            });
 
-          if (gRes.ok) {
-            geminiRes = await gRes.json();
-            break;
-          }
-        } catch {}
+            if (gRes.ok) {
+              geminiRes = await gRes.json();
+              break;
+            }
+          } catch {}
+        }
+        if (geminiRes) break;
       }
 
       if (geminiRes) {
@@ -1116,8 +1123,12 @@ app.post('/api/admin/generate-test', requireAdmin, async (req, res) => {
       return res.status(400).json({ error: 'Вкажіть тему тесту' });
     }
 
-    const keyToUse = (apiKey && apiKey.trim()) ? apiKey.trim() : DEFAULT_GEMINI_KEY;
-    if (!keyToUse) {
+    const candidateKeys = [];
+    if (DEFAULT_GEMINI_KEY) candidateKeys.push(DEFAULT_GEMINI_KEY);
+    if (apiKey && apiKey.trim() && !candidateKeys.includes(apiKey.trim())) {
+      candidateKeys.push(apiKey.trim());
+    }
+    if (candidateKeys.length === 0) {
       return res.status(400).json({ error: 'Не вказано Gemini API ключ' });
     }
 
@@ -1159,37 +1170,40 @@ ${customInstructions ? `Додаткові вимоги: ${customInstructions.tr
   ]
 }`;
 
-    const modelsToTry = ['gemini-flash-lite-latest', 'gemini-flash-latest', 'gemini-2.5-flash-lite', 'gemini-2.5-flash'];
+    const modelsToTry = ['gemini-3.1-flash-lite', 'gemini-flash-lite-latest', 'gemini-3-flash-preview', 'gemini-flash-latest'];
     let lastError = null;
     let geminiResponse = null;
 
-    for (const model of modelsToTry) {
-      try {
-        const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${encodeURIComponent(keyToUse)}`;
-        const gRes = await fetch(apiUrl, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            systemInstruction: { parts: [{ text: 'Відповідай виключно українською мовою. All responses must be in Ukrainian language.' }] },
-            contents: [{ parts: [{ text: promptText }] }],
-            generationConfig: {
-              responseMimeType: 'application/json',
-              temperature: 0.7
-            }
-          }),
-          signal: AbortSignal.timeout(20000)
-        });
+    for (const keyToUse of candidateKeys) {
+      for (const model of modelsToTry) {
+        try {
+          const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${encodeURIComponent(keyToUse)}`;
+          const gRes = await fetch(apiUrl, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              systemInstruction: { parts: [{ text: 'Відповідай виключно українською мовою. All responses must be in Ukrainian language.' }] },
+              contents: [{ parts: [{ text: promptText }] }],
+              generationConfig: {
+                responseMimeType: 'application/json',
+                temperature: 0.7
+              }
+            }),
+            signal: AbortSignal.timeout(12000)
+          });
 
-        if (gRes.ok) {
-          geminiResponse = await gRes.json();
-          break;
-        } else {
-          const errData = await gRes.json().catch(() => ({}));
-          lastError = errData.error ? `${errData.error.message} (${errData.error.code})` : `Помилка ${gRes.status}`;
+          if (gRes.ok) {
+            geminiResponse = await gRes.json();
+            break;
+          } else {
+            const errData = await gRes.json().catch(() => ({}));
+            lastError = errData.error ? `${errData.error.message} (${errData.error.code})` : `Помилка ${gRes.status}`;
+          }
+        } catch (err) {
+          lastError = err.message;
         }
-      } catch (err) {
-        lastError = err.message;
       }
+      if (geminiResponse) break;
     }
 
     if (!geminiResponse) {
@@ -1281,27 +1295,27 @@ app.post('/api/admin/gemini/prompt', requireAdmin, async (req, res) => {
     if (candidateKeys.length === 0) {
       return res.status(400).json({ error: 'Не вказано Gemini API ключ' });
     }
-    const modelsToTry = ['gemini-flash-lite-latest', 'gemini-flash-latest', 'gemini-2.5-flash-lite', 'gemini-2.5-flash'];
+    const modelsToTry = ['gemini-3.1-flash-lite', 'gemini-flash-lite-latest', 'gemini-3-flash-preview', 'gemini-flash-latest'];
     for (const keyToUse of candidateKeys) {
       for (const model of modelsToTry) {
-      try {
-        const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${encodeURIComponent(keyToUse)}`;
-        const reqBody = {
-          systemInstruction: { parts: [{ text: 'Відповідай виключно українською мовою. All responses must be in Ukrainian language.' }] },
-          contents: [{ parts: [{ text: prompt }] }],
-          generationConfig: {
-            maxOutputTokens: 8192
+        try {
+          const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${encodeURIComponent(keyToUse)}`;
+          const reqBody = {
+            systemInstruction: { parts: [{ text: 'Відповідай виключно українською мовою. All responses must be in Ukrainian language.' }] },
+            contents: [{ parts: [{ text: prompt }] }],
+            generationConfig: {
+              maxOutputTokens: 8192
+            }
+          };
+          if (expectJson) {
+            reqBody.generationConfig.responseMimeType = 'application/json';
           }
-        };
-        if (expectJson) {
-          reqBody.generationConfig.responseMimeType = 'application/json';
-        }
-        const gRes = await fetch(apiUrl, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(reqBody),
-          signal: AbortSignal.timeout(20000)
-        });
+          const gRes = await fetch(apiUrl, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(reqBody),
+            signal: AbortSignal.timeout(12000)
+          });
         if (!gRes.ok) continue;
         const data = await gRes.json();
         const parts = data.candidates?.[0]?.content?.parts || [];
@@ -1858,7 +1872,7 @@ ${question.correct ? `Еталонна відповідь (якщо є): ${quest
 Оціни відповідь від 0 до 1 (1 = повністю правильна, 0.5 = частково, 0 = неправильна).
 Поверни ТІЛЬКИ JSON: {"score": 0.8, "feedback": "Коротке пояснення"}`;
 
-    const modelsToTry = ['gemini-flash-lite-latest', 'gemini-flash-latest', 'gemini-2.5-flash-lite', 'gemini-2.5-flash'];
+    const modelsToTry = ['gemini-3.1-flash-lite', 'gemini-flash-lite-latest', 'gemini-3-flash-preview', 'gemini-flash-latest'];
 
     for (const model of modelsToTry) {
       try {
@@ -1871,7 +1885,7 @@ ${question.correct ? `Еталонна відповідь (якщо є): ${quest
             contents: [{ parts: [{ text: prompt }] }],
             generationConfig: { responseMimeType: 'application/json', temperature: 0.1 }
           }),
-          signal: AbortSignal.timeout(20000)
+          signal: AbortSignal.timeout(12000)
         });
         if (!gRes.ok) continue;
         const gJson = await gRes.json();

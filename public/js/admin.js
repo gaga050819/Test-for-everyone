@@ -2017,7 +2017,7 @@ async function loadAdminTestsList() {
       const activeRes = await fetch('/api/active-test');
       if (activeRes.ok) {
         const activeData = await activeRes.json();
-        if (activeData && activeData.id && allAdminTests.some(t => t.id === activeData.id)) {
+        if ((!selectedAdminTestId || !allAdminTests.some(t => t.id === selectedAdminTestId)) && activeData && activeData.id && allAdminTests.some(t => t.id === activeData.id)) {
           selectedAdminTestId = activeData.id;
         }
       }
@@ -5185,6 +5185,15 @@ function initTeacherWarningControls() {
 window.loadAdminTest = loadAdminTest;
 window.refreshAdminTestsList = loadAdminTestsList;
 window.loadAdminTestsList = loadAdminTestsList;
+window.selectAndOpenAdminTest = async function(testId) {
+  selectedAdminTestId = testId;
+  window.selectedAdminTestId = testId;
+  if (adminTestSelector) adminTestSelector.value = testId;
+  const editorSel = document.getElementById('editorTestSelector');
+  if (editorSel) editorSel.value = testId;
+  await loadAdminTest();
+  switchTabTo('testEditor');
+};
 
 function initStickyCompactNavbar() {
   const navbar = document.getElementById('topNavbar') || document.querySelector('.top-navbar');
