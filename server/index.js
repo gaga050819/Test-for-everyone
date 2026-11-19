@@ -1273,12 +1273,17 @@ app.post('/api/admin/gemini/prompt', requireAdmin, async (req, res) => {
     if (!prompt || typeof prompt !== 'string' || !prompt.trim()) {
       return res.status(400).json({ error: 'Порожній запит' });
     }
-    const keyToUse = (req.body.apiKey && req.body.apiKey.trim()) ? req.body.apiKey.trim() : DEFAULT_GEMINI_KEY;
-    if (!keyToUse) {
+    const candidateKeys = [];
+    if (DEFAULT_GEMINI_KEY) candidateKeys.push(DEFAULT_GEMINI_KEY);
+    if (req.body.apiKey && req.body.apiKey.trim() && !candidateKeys.includes(req.body.apiKey.trim())) {
+      candidateKeys.push(req.body.apiKey.trim());
+    }
+    if (candidateKeys.length === 0) {
       return res.status(400).json({ error: 'Не вказано Gemini API ключ' });
     }
     const modelsToTry = ['gemini-flash-lite-latest', 'gemini-flash-latest', 'gemini-2.5-flash-lite', 'gemini-2.5-flash'];
-    for (const model of modelsToTry) {
+    for (const keyToUse of candidateKeys) {
+      for (const model of modelsToTry) {
       try {
         const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${encodeURIComponent(keyToUse)}`;
         const reqBody = {
@@ -1314,7 +1319,8 @@ app.post('/api/admin/gemini/prompt', requireAdmin, async (req, res) => {
         }
       } catch {}
     }
-    res.status(502).json({ error: 'Не вдалося отримати відповідь від Gemini' });
+  }
+  res.status(502).json({ error: 'Не вдалося отримати відповідь від Gemini' });
   } catch (err) {
     res.status(500).json({ error: err.message || 'Помилка' });
   }
