@@ -1,0 +1,11 @@
+.env
+.env.*
+*.log
+temp_update/
+update_temp.zip
+node_modules/
+server/node_modules/
+server/backups/
+server/admin_secret.json
+.runtime/
+bin/runtime/
