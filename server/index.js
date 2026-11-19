@@ -987,7 +987,7 @@ ${rawText.trim()}
   ]
 }`;
 
-      const modelsToTry = ['gemini-3.1-flash-lite-preview', 'gemini-3.1-flash-lite', 'gemini-flash-lite-latest', 'gemini-3.8-flash', 'gemini-flash-latest'];
+      const modelsToTry = ['gemini-flash-lite-latest', 'gemini-flash-latest', 'gemini-3.1-flash-lite', 'gemini-3.8-flash'];
       let geminiRes = null;
 
       for (const model of modelsToTry) {
@@ -1153,7 +1153,7 @@ ${customInstructions ? `Додаткові вимоги: ${customInstructions.tr
   ]
 }`;
 
-    const modelsToTry = ['gemini-3.1-flash-lite-preview', 'gemini-3.1-flash-lite', 'gemini-flash-lite-latest', 'gemini-3.8-flash', 'gemini-flash-latest'];
+    const modelsToTry = ['gemini-flash-lite-latest', 'gemini-flash-latest', 'gemini-3.1-flash-lite', 'gemini-3.8-flash'];
     let lastError = null;
     let geminiResponse = null;
 
@@ -1169,7 +1169,8 @@ ${customInstructions ? `Додаткові вимоги: ${customInstructions.tr
               responseMimeType: 'application/json',
               temperature: 0.7
             }
-          })
+          }),
+          signal: AbortSignal.timeout(8000)
         });
 
         if (gRes.ok) {
@@ -1268,7 +1269,7 @@ app.post('/api/admin/gemini/prompt', requireAdmin, async (req, res) => {
     if (!keyToUse) {
       return res.status(400).json({ error: 'Не вказано Gemini API ключ' });
     }
-    const modelsToTry = ['gemini-3.1-flash-lite-preview', 'gemini-3.1-flash-lite', 'gemini-flash-lite-latest', 'gemini-3.8-flash', 'gemini-flash-latest'];
+    const modelsToTry = ['gemini-flash-lite-latest', 'gemini-flash-latest', 'gemini-3.1-flash-lite', 'gemini-3.8-flash'];
     for (const model of modelsToTry) {
       try {
         const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${encodeURIComponent(keyToUse)}`;
@@ -1281,7 +1282,8 @@ app.post('/api/admin/gemini/prompt', requireAdmin, async (req, res) => {
         const gRes = await fetch(apiUrl, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(reqBody)
+          body: JSON.stringify(reqBody),
+          signal: AbortSignal.timeout(8000)
         });
         if (!gRes.ok) continue;
         const data = await gRes.json();
@@ -1762,14 +1764,14 @@ app.post('/api/admin/update/apply', requireAdmin, async (req, res) => {
       } catch {}
     }
 
-    const newVer = targetVersion || '1.1.0';
     const vPath = path.join(rootDir, 'version.json');
-    let vObj = { version: newVer, name: 'SecureExam' };
+    let vObj = { version: '1.2.3', name: 'SecureExam' };
     try {
       if (fs.existsSync(vPath)) vObj = JSON.parse(fs.readFileSync(vPath, 'utf-8'));
-      vObj.version = newVer;
-      vObj.lastUpdated = Date.now();
     } catch {}
+    const newVer = targetVersion || vObj.version || '1.2.3';
+    vObj.version = newVer;
+    vObj.lastUpdated = Date.now();
     fs.writeFileSync(vPath, JSON.stringify(vObj, null, 2), 'utf-8');
 
     updateProgress.percent = 100;
@@ -1837,7 +1839,7 @@ ${question.correct ? `Еталонна відповідь (якщо є): ${quest
 Оціни відповідь від 0 до 1 (1 = повністю правильна, 0.5 = частково, 0 = неправильна).
 Поверни ТІЛЬКИ JSON: {"score": 0.8, "feedback": "Коротке пояснення"}`;
 
-    const modelsToTry = ['gemini-3.1-flash-lite-preview', 'gemini-3.1-flash-lite', 'gemini-flash-lite-latest'];
+    const modelsToTry = ['gemini-flash-lite-latest', 'gemini-flash-latest', 'gemini-3.1-flash-lite', 'gemini-3.8-flash'];
 
     for (const model of modelsToTry) {
       try {

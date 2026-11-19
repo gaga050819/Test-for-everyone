@@ -1,5 +1,5 @@
-const GEMINI_API_KEY = '';
-const GEMINI_MODELS = ['gemini-3.1-flash-lite-preview', 'gemini-3.1-flash-lite', 'gemini-flash-lite-latest', 'gemini-3.8-flash'];
+const GEMINI_API_KEY = localStorage.getItem('gemini_api_key') || '';
+const GEMINI_MODELS = ['gemini-flash-lite-latest', 'gemini-flash-latest', 'gemini-3.1-flash-lite', 'gemini-3.8-flash'];
 
 const defaultSampleTest = {
   id: 'test_sample_studio_01',
@@ -335,9 +335,13 @@ function bindActionButtons() {
       };
       try {
         quickSave.disabled = true;
+        const token = localStorage.getItem('admin_token') || '05081988';
         const res = await fetch(`/api/admin/tests/${encodeURIComponent(currentTest.id)}`, {
           method: 'PUT',
-          headers: { 'Content-Type': 'application/json' },
+          headers: {
+            'Content-Type': 'application/json',
+            'x-admin-token': token
+          },
           body: JSON.stringify(payload)
         });
         if (res.ok) {
@@ -1187,10 +1191,18 @@ function saveCurrentEditorQuestion() {
 
 async function callGeminiApi(promptText, expectJson = true) {
   try {
+    const token = localStorage.getItem('admin_token') || '05081988';
     const sRes = await fetch('/api/admin/gemini/prompt', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ prompt: promptText, expectJson })
+      headers: {
+        'Content-Type': 'application/json',
+        'x-admin-token': token
+      },
+      body: JSON.stringify({
+        prompt: promptText,
+        expectJson,
+        apiKey: localStorage.getItem('gemini_api_key') || ''
+      })
     });
     if (sRes.ok) {
       const sData = await sRes.json();
@@ -1858,7 +1870,7 @@ function updateLivePreview() {
   const deskOptions = document.getElementById('previewQOptionsDesktop');
 
   if (deskNum) deskNum.textContent = qNumText;
-  if (deskTimer) deskTimer.textContent = '<img src="/img/icons/timer.svg" class="pixel-icon inline" alt=""> ' + timerText;
+  if (deskTimer) deskTimer.innerHTML = '<img src="/img/icons/timer.svg" class="pixel-icon inline" alt=""> ' + timerText;
   if (deskTitle) {
     deskTitle.textContent = q ? (q.text || 'Текст запитання...') : 'Створіть запитання';
     if (window.renderMathInElement) {

@@ -3164,9 +3164,389 @@
         "cheatingCount": 0,
         "networkCount": 0
       }
+    },
+    "ses_wkafmxy6": {
+      "id": "ses_wkafmxy6",
+      "testId": "test_d4pc5wn",
+      "studentName": "12",
+      "studentId": "10-Б",
+      "clientIp": "::1",
+      "clientInfo": {
+        "isMobile": false,
+        "userAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/158.0.0.0 Safari/537.36",
+        "screenWidth": 1536,
+        "screenHeight": 864
+      },
+      "proctorBypassed": false,
+      "startedAt": 1795112702053,
+      "status": "in_progress",
+      "trustScore": 13,
+      "incidentsCount": 16,
+      "answers": {},
+      "questions": [
+        {
+          "id": "q_xz8sp2s",
+          "text": "Який порт використовує HTTPS за замовчуванням?",
+          "type": "single",
+          "imageUrl": "",
+          "options": [
+            "80",
+            "443",
+            "21",
+            "22"
+          ],
+          "correct": 1,
+          "timeLimitSeconds": 45
+        },
+        {
+          "id": "q_vie5u2b",
+          "text": "Оберіть протоколи прикладного рівня:",
+          "type": "multiple",
+          "imageUrl": "",
+          "options": [
+            "HTTP",
+            "DNS",
+            "IP",
+            "TCP"
+          ],
+          "correct": [
+            0,
+            1
+          ],
+          "timeLimitSeconds": 50
+        },
+        {
+          "id": "q_v624pdy",
+          "text": "Встановіть відповідність між абревіатурою та значенням:",
+          "type": "matching",
+          "imageUrl": "",
+          "matchingPairs": [
+            {
+              "left": "RAM",
+              "right": "Оперативна пам'ять"
+            },
+            {
+              "left": "CPU",
+              "right": "Центральний процесор"
+            }
+          ],
+          "matchingLeft": [
+            "RAM",
+            "CPU"
+          ],
+          "matchingRight": [
+            "Оперативна пам'ять",
+            "Центральний процесор"
+          ],
+          "correct": {
+            "0": 0,
+            "1": 1
+          },
+          "timeLimitSeconds": 60
+        },
+        {
+          "id": "q_v9lf3bg",
+          "text": "Встановіть правильний порядок завантаження ОС:",
+          "type": "ordering",
+          "imageUrl": "",
+          "orderingItems": [
+            "BIOS / UEFI",
+            "Bootloader",
+            "Ядро ОС",
+            "Графічна оболонка"
+          ],
+          "options": [
+            "BIOS / UEFI",
+            "Ядро ОС",
+            "Графічна оболонка",
+            "Bootloader"
+          ],
+          "correct": [
+            "BIOS / UEFI",
+            "Bootloader",
+            "Ядро ОС",
+            "Графічна оболонка"
+          ],
+          "timeLimitSeconds": 60
+        }
+      ],
+      "networkStats": {
+        "totalPings": 45,
+        "averageLatency": 4,
+        "packetLossCount": 0,
+        "disconnectsCount": 0
+      },
+      "partialAnswers": {}
     }
   },
-  "incidents": [],
+  "incidents": [
+    {
+      "id": "inc_9amq9t2",
+      "sessionId": "ses_wkafmxy6",
+      "timestamp": 1795112705444,
+      "category": "cheating_attempt",
+      "type": "fullscreen_exit",
+      "message": "Вихід з повноекранного режиму",
+      "penalty": 7,
+      "severity": "danger",
+      "networkState": {
+        "online": true,
+        "latency": 2
+      },
+      "studentName": "12",
+      "studentId": "10-Б",
+      "deviceType": "desktop"
+    },
+    {
+      "id": "inc_dvu2qi7",
+      "sessionId": "ses_wkafmxy6",
+      "timestamp": 1795112707260,
+      "category": "cheating_attempt",
+      "type": "tab_or_window_switch",
+      "message": "Спроба списування: Відкриття іншого вікна чи вкладки при активному інтернеті",
+      "penalty": 10,
+      "severity": "danger",
+      "triggerSource": "window_blur",
+      "networkState": {
+        "online": true,
+        "latency": 2,
+        "lastPingAgoMs": 1167
+      },
+      "studentName": "12",
+      "studentId": "10-Б",
+      "deviceType": "desktop"
+    },
+    {
+      "id": "inc_frn6ejl",
+      "sessionId": "ses_wkafmxy6",
+      "timestamp": 1795112709049,
+      "category": "focus_restored",
+      "type": "focus_regained",
+      "message": "Повернення до тесту після неактивності тривалістю 2 сек",
+      "penalty": 0,
+      "severity": "info",
+      "durationSeconds": 2,
+      "triggerSource": "window_focus",
+      "studentName": "12",
+      "studentId": "10-Б",
+      "deviceType": "desktop"
+    },
+    {
+      "id": "inc_u9up0tz",
+      "sessionId": "ses_wkafmxy6",
+      "timestamp": 1795112710559,
+      "category": "cheating_attempt",
+      "type": "tab_or_window_switch",
+      "message": "Спроба списування: Відкриття іншого вікна чи вкладки при активному інтернеті",
+      "penalty": 10,
+      "severity": "danger",
+      "triggerSource": "window_blur",
+      "networkState": {
+        "online": true,
+        "latency": 1,
+        "lastPingAgoMs": 467
+      },
+      "studentName": "12",
+      "studentId": "10-Б",
+      "deviceType": "desktop"
+    },
+    {
+      "id": "inc_fzbqc5z",
+      "sessionId": "ses_wkafmxy6",
+      "timestamp": 1795112721230,
+      "category": "focus_restored",
+      "type": "focus_regained",
+      "message": "Повернення до тесту після неактивності тривалістю 11 сек",
+      "penalty": 0,
+      "severity": "info",
+      "durationSeconds": 11,
+      "triggerSource": "tab_visibility_visible",
+      "studentName": "12",
+      "studentId": "10-Б",
+      "deviceType": "desktop"
+    },
+    {
+      "id": "inc_2ron1x0",
+      "sessionId": "ses_wkafmxy6",
+      "timestamp": 1795112726284,
+      "category": "cheating_attempt",
+      "type": "system_key_blocked",
+      "message": "Натискання Win/Meta клавіші — можливий виклик системного ШІ або меню",
+      "penalty": 5,
+      "severity": "warning",
+      "studentName": "12",
+      "studentId": "10-Б",
+      "deviceType": "desktop"
+    },
+    {
+      "id": "inc_elasuma",
+      "sessionId": "ses_wkafmxy6",
+      "timestamp": 1795112726917,
+      "category": "cheating_attempt",
+      "type": "tab_or_window_switch",
+      "message": "Спроба списування: Відкриття іншого вікна чи вкладки при активному інтернеті",
+      "penalty": 10,
+      "severity": "danger",
+      "triggerSource": "window_blur",
+      "networkState": {
+        "online": true,
+        "latency": 2,
+        "lastPingAgoMs": 826
+      },
+      "studentName": "12",
+      "studentId": "10-Б",
+      "deviceType": "desktop"
+    },
+    {
+      "id": "inc_4o9u1b2",
+      "sessionId": "ses_wkafmxy6",
+      "timestamp": 1795112728414,
+      "category": "focus_restored",
+      "type": "focus_regained",
+      "message": "Повернення до тесту після неактивності тривалістю 1 сек",
+      "penalty": 0,
+      "severity": "info",
+      "durationSeconds": 1,
+      "triggerSource": "window_focus",
+      "studentName": "12",
+      "studentId": "10-Б",
+      "deviceType": "desktop"
+    },
+    {
+      "id": "inc_yyhg40i",
+      "sessionId": "ses_wkafmxy6",
+      "timestamp": 1795112731516,
+      "category": "cheating_attempt",
+      "type": "tab_or_window_switch",
+      "message": "Спроба списування: Відкриття іншого вікна чи вкладки при активному інтернеті",
+      "penalty": 10,
+      "severity": "danger",
+      "triggerSource": "window_blur",
+      "networkState": {
+        "online": true,
+        "latency": 1,
+        "lastPingAgoMs": 1424
+      },
+      "studentName": "12",
+      "studentId": "10-Б",
+      "deviceType": "desktop"
+    },
+    {
+      "id": "inc_ix2pf5x",
+      "sessionId": "ses_wkafmxy6",
+      "timestamp": 1795112732181,
+      "category": "focus_restored",
+      "type": "focus_regained",
+      "message": "Повернення до тесту після неактивності тривалістю 1 сек",
+      "penalty": 0,
+      "severity": "info",
+      "durationSeconds": 1,
+      "triggerSource": "window_focus",
+      "studentName": "12",
+      "studentId": "10-Б",
+      "deviceType": "desktop"
+    },
+    {
+      "id": "inc_pd90a5f",
+      "sessionId": "ses_wkafmxy6",
+      "timestamp": 1795112732341,
+      "category": "cheating_attempt",
+      "type": "tab_or_window_switch",
+      "message": "Спроба списування: Відкриття іншого вікна чи вкладки при активному інтернеті",
+      "penalty": 10,
+      "severity": "danger",
+      "triggerSource": "window_blur",
+      "networkState": {
+        "online": true,
+        "latency": 2,
+        "lastPingAgoMs": 257
+      },
+      "studentName": "12",
+      "studentId": "10-Б",
+      "deviceType": "desktop"
+    },
+    {
+      "id": "inc_03yk873",
+      "sessionId": "ses_wkafmxy6",
+      "timestamp": 1795112781675,
+      "category": "focus_restored",
+      "type": "focus_regained",
+      "message": "Повернення до тесту після неактивності тривалістю 49 сек",
+      "penalty": 0,
+      "severity": "info",
+      "durationSeconds": 49,
+      "triggerSource": "window_focus",
+      "studentName": "12",
+      "studentId": "10-Б",
+      "deviceType": "desktop"
+    },
+    {
+      "id": "inc_2ymp6vv",
+      "sessionId": "ses_wkafmxy6",
+      "timestamp": 1795112782770,
+      "category": "cheating_attempt",
+      "type": "tab_or_window_switch",
+      "message": "Спроба списування: Відкриття іншого вікна чи вкладки при активному інтернеті",
+      "penalty": 10,
+      "severity": "danger",
+      "triggerSource": "window_blur",
+      "networkState": {
+        "online": true,
+        "latency": 2,
+        "lastPingAgoMs": 683
+      },
+      "studentName": "12",
+      "studentId": "10-Б",
+      "deviceType": "desktop"
+    },
+    {
+      "id": "inc_3krwxd1",
+      "sessionId": "ses_wkafmxy6",
+      "timestamp": 1795113182164,
+      "category": "focus_restored",
+      "type": "focus_regained",
+      "message": "Повернення до тесту після неактивності тривалістю 399 сек",
+      "penalty": 0,
+      "severity": "info",
+      "durationSeconds": 399,
+      "triggerSource": "tab_visibility_visible",
+      "studentName": "12",
+      "studentId": "10-Б",
+      "deviceType": "desktop"
+    },
+    {
+      "id": "inc_u8x4duj",
+      "sessionId": "ses_wkafmxy6",
+      "timestamp": 1795113183170,
+      "category": "cheating_attempt",
+      "type": "page_unload_attempt",
+      "message": "Спроба закрити або перезавантажити сторінку тесту",
+      "penalty": 5,
+      "severity": "warning",
+      "studentName": "12",
+      "studentId": "10-Б",
+      "deviceType": "desktop"
+    },
+    {
+      "id": "inc_ufko8z3",
+      "sessionId": "ses_wkafmxy6",
+      "timestamp": 1795113184100,
+      "category": "cheating_attempt",
+      "type": "tab_or_window_switch",
+      "message": "Спроба списування: Відкриття іншого вікна чи вкладки при активному інтернеті",
+      "penalty": 10,
+      "severity": "danger",
+      "triggerSource": "tab_visibility_hidden",
+      "networkState": {
+        "online": true,
+        "latency": 2,
+        "lastPingAgoMs": 1931
+      },
+      "studentName": "12",
+      "studentId": "10-Б",
+      "deviceType": "desktop"
+    }
+  ],
   "pings": {
     "ses_4v2ak1kj": [
       {
@@ -3232,6 +3612,233 @@
       {
         "timestamp": 1793216504207,
         "latency": 1,
+        "status": "ok"
+      }
+    ],
+    "ses_wkafmxy6": [
+      {
+        "timestamp": 1795112704083,
+        "latency": 46,
+        "status": "ok"
+      },
+      {
+        "timestamp": 1795112706091,
+        "latency": 2,
+        "status": "ok"
+      },
+      {
+        "timestamp": 1795112708092,
+        "latency": 2,
+        "status": "ok"
+      },
+      {
+        "timestamp": 1795112710091,
+        "latency": 2,
+        "status": "ok"
+      },
+      {
+        "timestamp": 1795112712631,
+        "latency": 1,
+        "status": "ok"
+      },
+      {
+        "timestamp": 1795112714632,
+        "latency": 2,
+        "status": "ok"
+      },
+      {
+        "timestamp": 1795112716631,
+        "latency": 1,
+        "status": "ok"
+      },
+      {
+        "timestamp": 1795112718621,
+        "latency": 3,
+        "status": "ok"
+      },
+      {
+        "timestamp": 1795112720627,
+        "latency": 1,
+        "status": "ok"
+      },
+      {
+        "timestamp": 1795112722087,
+        "latency": 2,
+        "status": "ok"
+      },
+      {
+        "timestamp": 1795112724083,
+        "latency": 4,
+        "status": "ok"
+      },
+      {
+        "timestamp": 1795112726089,
+        "latency": 1,
+        "status": "ok"
+      },
+      {
+        "timestamp": 1795112728086,
+        "latency": 2,
+        "status": "ok"
+      },
+      {
+        "timestamp": 1795112730091,
+        "latency": 1,
+        "status": "ok"
+      },
+      {
+        "timestamp": 1795112732082,
+        "latency": 1,
+        "status": "ok"
+      },
+      {
+        "timestamp": 1795112734628,
+        "latency": 2,
+        "status": "ok"
+      },
+      {
+        "timestamp": 1795112736620,
+        "latency": 1,
+        "status": "ok"
+      },
+      {
+        "timestamp": 1795112738632,
+        "latency": 2,
+        "status": "ok"
+      },
+      {
+        "timestamp": 1795112740628,
+        "latency": 1,
+        "status": "ok"
+      },
+      {
+        "timestamp": 1795112742627,
+        "latency": 1,
+        "status": "ok"
+      },
+      {
+        "timestamp": 1795112744626,
+        "latency": 1,
+        "status": "ok"
+      },
+      {
+        "timestamp": 1795112746618,
+        "latency": 1,
+        "status": "ok"
+      },
+      {
+        "timestamp": 1795112748620,
+        "latency": 1,
+        "status": "ok"
+      },
+      {
+        "timestamp": 1795112750627,
+        "latency": 1,
+        "status": "ok"
+      },
+      {
+        "timestamp": 1795112752623,
+        "latency": 2,
+        "status": "ok"
+      },
+      {
+        "timestamp": 1795112754633,
+        "latency": 2,
+        "status": "ok"
+      },
+      {
+        "timestamp": 1795112756622,
+        "latency": 1,
+        "status": "ok"
+      },
+      {
+        "timestamp": 1795112758618,
+        "latency": 1,
+        "status": "ok"
+      },
+      {
+        "timestamp": 1795112760627,
+        "latency": 1,
+        "status": "ok"
+      },
+      {
+        "timestamp": 1795112762619,
+        "latency": 2,
+        "status": "ok"
+      },
+      {
+        "timestamp": 1795112764622,
+        "latency": 3,
+        "status": "ok"
+      },
+      {
+        "timestamp": 1795112766628,
+        "latency": 1,
+        "status": "ok"
+      },
+      {
+        "timestamp": 1795112768624,
+        "latency": 1,
+        "status": "ok"
+      },
+      {
+        "timestamp": 1795112770618,
+        "latency": 1,
+        "status": "ok"
+      },
+      {
+        "timestamp": 1795112772624,
+        "latency": 1,
+        "status": "ok"
+      },
+      {
+        "timestamp": 1795112774627,
+        "latency": 3,
+        "status": "ok"
+      },
+      {
+        "timestamp": 1795112776620,
+        "latency": 2,
+        "status": "ok"
+      },
+      {
+        "timestamp": 1795112778623,
+        "latency": 1,
+        "status": "ok"
+      },
+      {
+        "timestamp": 1795112780621,
+        "latency": 3,
+        "status": "ok"
+      },
+      {
+        "timestamp": 1795112782086,
+        "latency": 2,
+        "status": "ok"
+      },
+      {
+        "timestamp": 1795113176620,
+        "latency": 34,
+        "status": "ok"
+      },
+      {
+        "timestamp": 1795113178643,
+        "latency": 2,
+        "status": "ok"
+      },
+      {
+        "timestamp": 1795113180622,
+        "latency": 15,
+        "status": "ok"
+      },
+      {
+        "timestamp": 1795113182167,
+        "latency": 2,
+        "status": "ok"
+      },
+      {
+        "timestamp": 1795113184098,
+        "latency": 2,
         "status": "ok"
       }
     ]
