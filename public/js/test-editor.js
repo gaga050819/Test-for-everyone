@@ -1218,10 +1218,13 @@ async function callGeminiApi(promptText, expectJson = true) {
         const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${encodeURIComponent(GEMINI_API_KEY)}`;
         const reqBody = {
           systemInstruction: { parts: [{ text: 'Відповідай виключно українською мовою. All responses must be in Ukrainian language.' }] },
-          contents: [{ parts: [{ text: promptText }] }]
+          contents: [{ parts: [{ text: promptText }] }],
+          generationConfig: {
+            maxOutputTokens: 8192
+          }
         };
         if (expectJson) {
-          reqBody.generationConfig = { responseMimeType: 'application/json' };
+          reqBody.generationConfig.responseMimeType = 'application/json';
         }
         const res = await fetch(apiUrl, {
           method: 'POST',
@@ -1230,7 +1233,8 @@ async function callGeminiApi(promptText, expectJson = true) {
         });
         if (!res.ok) continue;
         const data = await res.json();
-        const rawText = data.candidates?.[0]?.content?.parts?.[0]?.text;
+        const parts = data.candidates?.[0]?.content?.parts || [];
+        const rawText = parts.map(p => p.text || '').join('');
         if (rawText) {
           if (expectJson) {
             try {
@@ -1457,6 +1461,78 @@ function getIntelligentFallbackOptions(q) {
   };
 }
 
+function copyTextToClipboard(text) {
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    return navigator.clipboard.writeText(text);
+  }
+  const ta = document.createElement('textarea');
+  ta.value = text;
+  document.body.appendChild(ta);
+  ta.select();
+  document.execCommand('copy');
+  ta.remove();
+  return Promise.resolve();
+}
+
+function formatQuestionForClipboard(q, index = 1) {
+  const qText = q.text || q.question || '';
+  let out = `${index}. ${qText}\n`;
+  const opts = Array.isArray(q.options) ? q.options : [];
+  if (opts.length > 0) {
+    const letters = ['А', 'Б', 'В', 'Г', 'Д', 'Е'];
+    opts.forEach((opt, idx) => {
+      const letter = letters[idx] || ((idx + 1) + ')');
+      out += `   ${letter}) ${opt}\n`;
+    });
+  }
+  const corr = q.correct !== undefined ? q.correct : q.correctAnswer;
+  if (corr !== undefined) {
+    const letters = ['А', 'Б', 'В', 'Г', 'Д', 'Е'];
+    if (Array.isArray(corr)) {
+      const ans = corr.map(c => typeof c === 'number' ? (letters[c] || c) : c).join(', ');
+      out += `   Правильна відповідь: ${ans}\n`;
+    } else if (typeof corr === 'number') {
+      out += `   Правильна відповідь: ${letters[corr] || corr}\n`;
+    } else {
+      out += `   Правильна відповідь: ${corr}\n`;
+    }
+  }
+  if (q.explanation) {
+    out += `   Пояснення: ${q.explanation}\n`;
+  }
+  return out;
+}
+
+function formatTestForClipboard(testTitle, questions) {
+  let out = `Тест: ${testTitle || 'Новий тест'}\nКількість завдань: ${questions.length}\n\n`;
+  questions.forEach((q, idx) => {
+    out += formatQuestionForClipboard(q, idx + 1) + '\n';
+  });
+  return out;
+}
+
+function extractJsonFromText(text) {
+  if (!text) return null;
+  const codeBlockMatch = text.match(/```(?:json)?\s*([\s\S]*?)\s*```/i);
+  if (codeBlockMatch) {
+    try {
+      return JSON.parse(codeBlockMatch[1].trim());
+    } catch {}
+  }
+  const firstBrace = text.indexOf('{');
+  const lastBrace = text.lastIndexOf('}');
+  if (firstBrace !== -1 && lastBrace > firstBrace) {
+    const candidate = text.substring(firstBrace, lastBrace + 1);
+    try {
+      return JSON.parse(candidate);
+    } catch {}
+    try {
+      return JSON.parse(candidate.replace(/,\s*([}\]])/g, '$1'));
+    } catch {}
+  }
+  return null;
+}
+
 function bindAiChatSidebar() {
   const tabChatBtn = document.getElementById('rightTabChatBtn');
   const tabPreviewBtn = document.getElementById('rightTabPreviewBtn');
@@ -1546,168 +1622,219 @@ function bindAiChatSidebar() {
       reply = 'Вибачте, не вдалося зв\'язатися з Gemini API. Перевірте з\'єднання з інтернетом або ключ у файлі .env.';
     }
 
-    let parsedAction = null;
-    const jsonMatch = reply.match(/```json\s*([\s\S]*?)\s*```/) || reply.match(/\{[\s\S]*"(?:questions|options)"[\s\S]*\}/);
-    if (jsonMatch) {
-      try {
-        parsedAction = JSON.parse(jsonMatch[1] || jsonMatch[0]);
-      } catch {}
-    }
+    let parsedAction = extractJsonFromText(reply);
 
-    const cleanReply = reply.replace(/```json[\s\S]*?```/g, '').trim();
+    let cleanReply = reply
+      .replace(/```(?:json)?[\s\S]*?```/gi, '')
+      .replace(/```(?:json)?[\s\S]*$/gi, '')
+      .trim();
 
     let cardData = null;
     const questionsList = Array.isArray(parsedAction?.questions) ? parsedAction.questions : null;
 
     if (questionsList && questionsList.length > 0) {
       const qCount = questionsList.length;
-      const testTitle = parsedAction.testTitle || parsedAction.topic || (currentTest.subject + ': Новий тест');
-      cardData = {
-        title: `Згенеровано ${qCount} завдань для тесту:`,
-        items: questionsList.map((qItem, idx) => {
-          const optCount = Array.isArray(qItem.options) ? qItem.options.length : 0;
-          return `${idx + 1}. ${qItem.text || 'Завдання #' + (idx + 1)} (${optCount} вар.)`;
-        }),
-        explanation: parsedAction.explanation || '',
-        onCreateNewTest: async () => {
-          try {
-            const token = localStorage.getItem('admin_token') || '05081988';
-            const res = await fetch('/api/admin/tests', {
-              method: 'POST',
-              headers: {
-                'Content-Type': 'application/json',
-                'x-admin-token': token
-              },
-              body: JSON.stringify({
-                title: testTitle,
-                durationMinutes: parsedAction.durationMinutes || 15,
-                topic: parsedAction.topic || '',
-                subject: parsedAction.subject || currentTest.subject || 'Загальний',
-                questions: questionsList.map((item, i) => ({
-                  id: 'q_ai_' + Date.now() + '_' + i,
-                  text: item.text || 'Питання #' + (i + 1),
-                  type: item.type || 'single',
-                  options: Array.isArray(item.options) ? item.options : ['Варіант 1', 'Варіант 2'],
-                  correct: item.correct !== undefined ? item.correct : 0,
-                  points: item.points || 1,
-                  timeLimit: item.timeLimit || 60,
-                  imageUrl: '',
-                  explanation: item.explanation || ''
-                }))
-              })
-            });
-            if (res.ok) {
-              const created = await res.json();
-              showToast(`Створено новий тест "${created.title}"!`);
-              if (typeof window.loadAdminTestsList === 'function') await window.loadAdminTestsList();
-              const edSel = document.getElementById('editorTestSelector');
-              if (edSel) edSel.value = created.id;
-              if (typeof window.loadAdminTest === 'function') {
-                window.selectedAdminTestId = created.id;
-                await window.loadAdminTest();
+      const testTitle = parsedAction.testTitle || parsedAction.topic || ((currentTest && currentTest.subject ? currentTest.subject : 'Тест') + ': Новий тест');
+
+      try {
+        const token = localStorage.getItem('admin_token') || '05081988';
+        const res = await fetch('/api/admin/tests', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'x-admin-token': token
+          },
+          body: JSON.stringify({
+            title: testTitle,
+            durationMinutes: parsedAction.durationMinutes || 15,
+            topic: parsedAction.topic || '',
+            subject: parsedAction.subject || (currentTest ? currentTest.subject : '') || 'Загальний',
+            questions: questionsList.map((item, i) => {
+              const opts = Array.isArray(item.options) ? item.options : ['Варіант 1', 'Варіант 2'];
+              let corr = 0;
+              if (item.correct !== undefined) {
+                corr = item.correct;
+              } else if (item.correctAnswer !== undefined) {
+                const idx = opts.indexOf(item.correctAnswer);
+                if (idx !== -1) corr = idx;
               }
-            } else {
-              const err = await res.json().catch(() => ({}));
-              showToast('Помилка: ' + (err.error || 'Не вдалося створити тест'));
-            }
-          } catch (e) {
-            showToast('Помилка: ' + e.message);
+              return {
+                id: 'q_ai_' + Date.now() + '_' + i,
+                text: item.text || item.question || 'Питання #' + (i + 1),
+                type: item.type || 'single',
+                options: opts,
+                correct: corr,
+                points: item.points || 1,
+                timeLimit: item.timeLimit || item.timeLimitSeconds || 60,
+                imageUrl: '',
+                explanation: item.explanation || ''
+              };
+            })
+          })
+        });
+        if (res.ok) {
+          const created = await res.json();
+          if (typeof window.refreshAdminTestsList === 'function') {
+            await window.refreshAdminTestsList();
           }
-        },
-        onReplaceTest: () => {
+          window.selectedAdminTestId = created.id;
+          const edSel = document.getElementById('editorTestSelector');
+          if (edSel) edSel.value = created.id;
+          const adSel = document.getElementById('adminTestSelector');
+          if (adSel) adSel.value = created.id;
+          if (typeof window.loadAdminTest === 'function') {
+            await window.loadAdminTest();
+          }
+          if (typeof window.loadTestIntoStudio === 'function') {
+            window.loadTestIntoStudio(created);
+          }
+          if (typeof window.switchTabTo === 'function') {
+            window.switchTabTo('testEditor');
+          }
+          showToast(`✅ Тест "${created.title}" створено та відкрито!`, true);
+        } else {
           recordUndoSnapshot();
-          currentTest.questions = questionsList.map((item, i) => ({
-            id: 'q_ai_' + Date.now() + '_' + i,
-            text: item.text || 'Питання #' + (i + 1),
-            type: item.type || 'single',
-            options: Array.isArray(item.options) ? item.options : ['Варіант 1', 'Варіант 2'],
-            correct: item.correct !== undefined ? item.correct : 0,
-            points: item.points || 1,
-            timeLimit: item.timeLimit || 60,
-            imageUrl: '',
-            explanation: item.explanation || ''
-          }));
+          currentTest.questions = questionsList.map((item, i) => {
+            const opts = Array.isArray(item.options) ? item.options : ['Варіант 1', 'Варіант 2'];
+            let corr = 0;
+            if (item.correct !== undefined) {
+              corr = item.correct;
+            } else if (item.correctAnswer !== undefined) {
+              const idx = opts.indexOf(item.correctAnswer);
+              if (idx !== -1) corr = idx;
+            }
+            return {
+              id: 'q_ai_' + Date.now() + '_' + i,
+              text: item.text || item.question || 'Питання #' + (i + 1),
+              type: item.type || 'single',
+              options: opts,
+              correct: corr,
+              points: item.points || 1,
+              timeLimit: item.timeLimit || 60,
+              imageUrl: '',
+              explanation: item.explanation || ''
+            };
+          });
           if (parsedAction.testTitle) {
             currentTest.name = currentTest.title = parsedAction.testTitle;
           }
-          if (parsedAction.subject) currentTest.subject = parsedAction.subject;
-          if (parsedAction.topic) currentTest.topic = parsedAction.topic;
           activeQuestionIndex = 0;
           syncMetaHeader();
           renderQuestionsNav();
           loadQuestionIntoEditor(0);
           updateTestAnalytics();
           saveDraftToStorage();
-          showToast(`Питання тесту замінено на ${qCount} нових завдань!`);
+          if (typeof window.switchTabTo === 'function') {
+            window.switchTabTo('testEditor');
+          }
+          showToast(`✅ Тест замінено на ${qCount} нових завдань!`);
+        }
+      } catch (e) {
+        console.error(e);
+      }
+
+      const fullTestClipboard = formatTestForClipboard(testTitle, questionsList);
+
+      cardData = {
+        title: `✅ Тест "${testTitle}" (${qCount} завдань) створено та відкрито:`,
+        items: questionsList.map((qItem, idx) => {
+          const optCount = Array.isArray(qItem.options) ? qItem.options.length : 0;
+          return `${idx + 1}. ${qItem.text || qItem.question || 'Завдання #' + (idx + 1)} (${optCount} вар.)`;
+        }),
+        explanation: parsedAction.explanation || '',
+        onCopyText: () => {
+          copyTextToClipboard(fullTestClipboard).then(() => showToast('📋 Весь тест скопійовано в буфер обміну!'));
         },
-        onAppendQuestions: () => {
-          recordUndoSnapshot();
-          const toAdd = questionsList.map((item, i) => ({
-            id: 'q_ai_' + Date.now() + '_' + i,
-            text: item.text || 'Питання #' + (i + 1),
-            type: item.type || 'single',
-            options: Array.isArray(item.options) ? item.options : ['Варіант 1', 'Варіант 2'],
-            correct: item.correct !== undefined ? item.correct : 0,
-            points: item.points || 1,
-            timeLimit: item.timeLimit || 60,
-            imageUrl: '',
-            explanation: item.explanation || ''
-          }));
-          currentTest.questions.push(...toAdd);
-          activeQuestionIndex = currentTest.questions.length - toAdd.length;
-          renderQuestionsNav();
-          loadQuestionIntoEditor(activeQuestionIndex);
-          updateTestAnalytics();
-          saveDraftToStorage();
-          showToast(`Додано ${toAdd.length} завдань до тесту!`);
+        onCopyJson: () => {
+          copyTextToClipboard(JSON.stringify(parsedAction, null, 2)).then(() => showToast('📋 JSON тесту скопійовано!'));
         }
       };
-    } else if (parsedAction && parsedAction.options && parsedAction.options.length > 0) {
+    } else if (parsedAction && ((parsedAction.options && parsedAction.options.length > 0) || parsedAction.text || parsedAction.question)) {
+      recordUndoSnapshot();
+      let appliedTitle = '';
+
+      if (parsedAction.action === 'add_new_question' || !currentTest || !currentTest.questions || currentTest.questions.length === 0) {
+        const opts = Array.isArray(parsedAction.options) ? parsedAction.options : ['Варіант 1', 'Варіант 2'];
+        let corr = 0;
+        if (parsedAction.correct !== undefined) {
+          corr = parsedAction.correct;
+        } else if (parsedAction.correctAnswer !== undefined) {
+          const idx = opts.indexOf(parsedAction.correctAnswer);
+          if (idx !== -1) corr = idx;
+        }
+        const newQ = {
+          id: 'q_' + Date.now(),
+          text: parsedAction.text || parsedAction.question || 'Нове запитання від Gemini',
+          type: parsedAction.type || 'single',
+          options: opts,
+          correct: corr,
+          points: 1,
+          timeLimit: 60,
+          imageUrl: '',
+          explanation: parsedAction.explanation || ''
+        };
+        if (!currentTest.questions) currentTest.questions = [];
+        currentTest.questions.push(newQ);
+        activeQuestionIndex = currentTest.questions.length - 1;
+        renderQuestionsNav();
+        loadQuestionIntoEditor(activeQuestionIndex);
+        updateTestAnalytics();
+        saveDraftToStorage();
+        appliedTitle = '✅ Нове запитання автоматично додано та відкрито:';
+        showToast('✅ Нове запитання додано до тесту!');
+      } else {
+        const targetQ = currentTest.questions[activeQuestionIndex] || currentTest.questions[0];
+        if (parsedAction.text || parsedAction.question) targetQ.text = parsedAction.text || parsedAction.question;
+        if (parsedAction.type) targetQ.type = parsedAction.type;
+        if (Array.isArray(parsedAction.options) && parsedAction.options.length > 0) {
+          targetQ.options = parsedAction.options;
+        }
+        if (parsedAction.correct !== undefined) {
+          targetQ.correct = parsedAction.correct;
+        } else if (parsedAction.correctAnswer !== undefined && Array.isArray(targetQ.options)) {
+          const idx = targetQ.options.indexOf(parsedAction.correctAnswer);
+          if (idx !== -1) targetQ.correct = idx;
+        }
+        if (parsedAction.explanation) targetQ.explanation = parsedAction.explanation;
+        renderQuestionsNav();
+        loadQuestionIntoEditor(activeQuestionIndex);
+        updateTestAnalytics();
+        saveDraftToStorage();
+        appliedTitle = '✅ Запитання автоматично оновлено в редакторі:';
+        showToast('✅ Запитання оновлено в редакторі!');
+      }
+
+      if (typeof window.switchTabTo === 'function') {
+        window.switchTabTo('testEditor');
+      }
+
+      const qClipboard = formatQuestionForClipboard(parsedAction, activeQuestionIndex + 1);
+
       cardData = {
-        title: parsedAction.text || 'Згенероване запитання:',
-        items: parsedAction.options.map((opt, idx) => {
+        title: appliedTitle,
+        items: (parsedAction.options || []).map((opt, idx) => {
           const isC = Array.isArray(parsedAction.correct) ? parsedAction.correct.includes(idx) : parsedAction.correct === idx;
-          return `${isC ? '[+]' : '•'} ${opt}`;
+          return `${isC ? '[✓]' : '•'} ${opt}`;
         }),
-        explanation: parsedAction.explanation,
-        onApply: () => {
-          recordUndoSnapshot();
-          if (parsedAction.text) q.text = parsedAction.text;
-          if (parsedAction.type) q.type = parsedAction.type;
-          q.options = parsedAction.options;
-          q.correct = parsedAction.correct !== undefined ? parsedAction.correct : 0;
-          if (parsedAction.explanation) q.explanation = parsedAction.explanation;
-          loadQuestionIntoEditor(activeQuestionIndex);
-          renderQuestionsNav();
-          updateTestAnalytics();
-          saveDraftToStorage();
-          showToast('Зміни успішно вставлено в поточне запитання!');
+        explanation: parsedAction.explanation || '',
+        onCopyQuestion: () => {
+          copyTextToClipboard(qClipboard).then(() => showToast('📋 Запитання скопійовано в буфер обміну!'));
         },
-        onAddNew: () => {
-          recordUndoSnapshot();
-          const newQ = {
-            id: 'q_' + Date.now(),
-            text: parsedAction.text || 'Нове запитання від Gemini',
-            type: parsedAction.type || 'single',
-            options: parsedAction.options,
-            correct: parsedAction.correct !== undefined ? parsedAction.correct : 0,
-            points: 1,
-            timeLimit: 60,
-            imageUrl: '',
-            explanation: parsedAction.explanation || ''
-          };
-          currentTest.questions.push(newQ);
-          activeQuestionIndex = currentTest.questions.length - 1;
-          renderQuestionsNav();
-          loadQuestionIntoEditor(activeQuestionIndex);
-          updateTestAnalytics();
-          saveDraftToStorage();
-          showToast('Створено нове запитання в тесті!');
+        onCopyJson: () => {
+          copyTextToClipboard(JSON.stringify(parsedAction, null, 2)).then(() => showToast('📋 JSON скопійовано!'));
         }
       };
     }
 
-    appendChatMessage('assistant', cleanReply || 'Ось результат від Gemini:', cardData);
+    if (!cleanReply) {
+      if (cardData) {
+        cleanReply = cardData.title;
+      } else {
+        cleanReply = 'Відповідь від Gemini:';
+      }
+    }
+
+    appendChatMessage('assistant', cleanReply, cardData);
   };
 
   if (sendBtn) {
@@ -1772,6 +1899,9 @@ function appendChatMessage(role, text, cardData = null) {
         </ul>
         ${cardData.explanation ? `<div style="font-size:10px; color:var(--text-muted); margin-top:4px;"><img src="/img/icons/bulb.svg" class="pixel-icon inline" alt=""> ${escapeHtml(cardData.explanation)}</div>` : ''}
         <div class="chat-action-btns" style="display:flex; flex-wrap:wrap; gap:6px; margin-top:8px;">
+          ${cardData.onCopyText ? `<button type="button" class="btn-chat-copy-text" style="background:#2563eb; color:#fff; border:none; padding:6px 12px; border-radius:6px; font-size:11px; font-weight:700; cursor:pointer; display:inline-flex; align-items:center; gap:5px;"><img src="/img/icons/download.svg" class="pixel-icon inline" alt="" style="filter:brightness(0) invert(1);"> Копіювати тест</button>` : ''}
+          ${cardData.onCopyQuestion ? `<button type="button" class="btn-chat-copy-q" style="background:#2563eb; color:#fff; border:none; padding:6px 12px; border-radius:6px; font-size:11px; font-weight:700; cursor:pointer; display:inline-flex; align-items:center; gap:5px;"><img src="/img/icons/download.svg" class="pixel-icon inline" alt="" style="filter:brightness(0) invert(1);"> Копіювати запитання</button>` : ''}
+          ${cardData.onCopyJson ? `<button type="button" class="btn-chat-copy-json" style="background:rgba(255,255,255,0.08); color:var(--text,#fff); border:1px solid rgba(255,255,255,0.2); padding:6px 10px; border-radius:6px; font-size:11px; font-weight:600; cursor:pointer; display:inline-flex; align-items:center; gap:4px;">JSON</button>` : ''}
           ${cardData.onCreateNewTest ? `<button type="button" class="btn-chat-create-test" style="background:linear-gradient(135deg,#6366f1,#8b5cf6); color:#fff; border:none; padding:6px 12px; border-radius:6px; font-size:11px; font-weight:700; cursor:pointer; display:inline-flex; align-items:center; gap:5px;"><img src="/img/icons/plus.svg" class="pixel-icon inline" alt="" style="filter:brightness(0) invert(1);"> Створити новий тест</button>` : ''}
           ${cardData.onReplaceTest ? `<button type="button" class="btn-chat-replace-test" style="background:rgba(99,102,241,0.12); color:var(--accent,#6366f1); border:1px solid rgba(99,102,241,0.35); padding:6px 10px; border-radius:6px; font-size:11px; font-weight:600; cursor:pointer; display:inline-flex; align-items:center; gap:5px;"><img src="/img/icons/refresh.svg" class="pixel-icon inline" alt=""> Замінити цей тест</button>` : ''}
           ${cardData.onAppendQuestions ? `<button type="button" class="btn-chat-append-test" style="background:rgba(16,185,129,0.12); color:#10b981; border:1px solid rgba(16,185,129,0.35); padding:6px 10px; border-radius:6px; font-size:11px; font-weight:600; cursor:pointer; display:inline-flex; align-items:center; gap:5px;"><img src="/img/icons/download.svg" class="pixel-icon inline" alt=""> Додати до тесту</button>` : ''}
@@ -1786,12 +1916,18 @@ function appendChatMessage(role, text, cardData = null) {
   msg.innerHTML = inner;
 
   if (cardData) {
+    const copyTextBtn = msg.querySelector('.btn-chat-copy-text');
+    const copyQBtn = msg.querySelector('.btn-chat-copy-q');
+    const copyJsonBtn = msg.querySelector('.btn-chat-copy-json');
     const createTestBtn = msg.querySelector('.btn-chat-create-test');
     const replaceTestBtn = msg.querySelector('.btn-chat-replace-test');
     const appendTestBtn = msg.querySelector('.btn-chat-append-test');
     const applyBtn = msg.querySelector('.btn-chat-apply');
     const addBtn = msg.querySelector('.btn-chat-new');
 
+    if (copyTextBtn && cardData.onCopyText) copyTextBtn.addEventListener('click', cardData.onCopyText);
+    if (copyQBtn && cardData.onCopyQuestion) copyQBtn.addEventListener('click', cardData.onCopyQuestion);
+    if (copyJsonBtn && cardData.onCopyJson) copyJsonBtn.addEventListener('click', cardData.onCopyJson);
     if (createTestBtn && cardData.onCreateNewTest) createTestBtn.addEventListener('click', cardData.onCreateNewTest);
     if (replaceTestBtn && cardData.onReplaceTest) replaceTestBtn.addEventListener('click', cardData.onReplaceTest);
     if (appendTestBtn && cardData.onAppendQuestions) appendTestBtn.addEventListener('click', cardData.onAppendQuestions);

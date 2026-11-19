@@ -1019,7 +1019,8 @@ ${rawText.trim()}
       }
 
       if (geminiRes) {
-        const rawContent = geminiRes.candidates?.[0]?.content?.parts?.[0]?.text;
+        const parts = geminiRes.candidates?.[0]?.content?.parts || [];
+        const rawContent = parts.map(p => p.text || '').join('');
         if (rawContent) {
           try {
             const parsed = JSON.parse(rawContent);
@@ -1195,7 +1196,8 @@ ${customInstructions ? `Додаткові вимоги: ${customInstructions.tr
       return res.status(502).json({ error: `Помилка запиту до Gemini API: ${lastError || 'Неможливо отримати відповідь'}` });
     }
 
-    const rawContent = geminiResponse.candidates?.[0]?.content?.parts?.[0]?.text;
+    const parts = geminiResponse.candidates?.[0]?.content?.parts || [];
+    const rawContent = parts.map(p => p.text || '').join('');
     if (!rawContent) {
       return res.status(502).json({ error: 'Gemini не повернув вміст для генерації' });
     }
@@ -1281,10 +1283,13 @@ app.post('/api/admin/gemini/prompt', requireAdmin, async (req, res) => {
         const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${encodeURIComponent(keyToUse)}`;
         const reqBody = {
           systemInstruction: { parts: [{ text: 'Відповідай виключно українською мовою. All responses must be in Ukrainian language.' }] },
-          contents: [{ parts: [{ text: prompt }] }]
+          contents: [{ parts: [{ text: prompt }] }],
+          generationConfig: {
+            maxOutputTokens: 8192
+          }
         };
         if (expectJson) {
-          reqBody.generationConfig = { responseMimeType: 'application/json' };
+          reqBody.generationConfig.responseMimeType = 'application/json';
         }
         const gRes = await fetch(apiUrl, {
           method: 'POST',
@@ -1294,7 +1299,8 @@ app.post('/api/admin/gemini/prompt', requireAdmin, async (req, res) => {
         });
         if (!gRes.ok) continue;
         const data = await gRes.json();
-        const rawText = data.candidates?.[0]?.content?.parts?.[0]?.text;
+        const parts = data.candidates?.[0]?.content?.parts || [];
+        const rawText = parts.map(p => p.text || '').join('');
         if (rawText) {
           if (expectJson) {
             try {
@@ -1863,7 +1869,8 @@ ${question.correct ? `Еталонна відповідь (якщо є): ${quest
         });
         if (!gRes.ok) continue;
         const gJson = await gRes.json();
-        const rawText = gJson?.candidates?.[0]?.content?.parts?.[0]?.text || '';
+        const parts = gJson?.candidates?.[0]?.content?.parts || [];
+        const rawText = parts.map(p => p.text || '').join('');
         const parsed = JSON.parse(rawText.replace(/^```json\s*/i, '').replace(/```\s*$/i, '').trim());
         if (parsed && typeof parsed.score === 'number') {
           answerRecord.earnedPoints = Math.min(1, Math.max(0, parsed.score));

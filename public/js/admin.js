@@ -5184,6 +5184,7 @@ function initTeacherWarningControls() {
 
 window.loadAdminTest = loadAdminTest;
 window.refreshAdminTestsList = loadAdminTestsList;
+window.loadAdminTestsList = loadAdminTestsList;
 
 function initStickyCompactNavbar() {
   const navbar = document.getElementById('topNavbar') || document.querySelector('.top-navbar');
