@@ -4,5 +4,5 @@
   "githubRepo": "gaga050819/Test-for-everyone",
   "updateManifestUrl": "https://raw.githubusercontent.com/gaga050819/Test-for-everyone/main/version.json",
   "changelog": "Оновлення 1.2.3: Каталог тестів із швидким пошуком і сортуванням, кероване перемішування питань і відповідей (Shuffle), загальна пауза тестування для всієї аудиторії, ШІ-оцінювання відкритих текстових відповідей через Gemini, прибрано непотрібні прив'язки до класів.",
-  "lastUpdated": 1795114127525
+  "lastUpdated": 1795114766280
 }

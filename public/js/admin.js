@@ -4882,15 +4882,17 @@ function initPauseExamControl() {
         body: JSON.stringify({ message })
       });
 
-      if (res.ok) {
-        if (!wasPaused) {
+      const data = await res.json().catch(() => ({}));
+
+      if (res.ok && data.success) {
+        updatePauseExamButtonUI(data.paused);
+        if (data.paused) {
           showAdminToast('⏸ Тестування ПРИЗУПИНЕНО для всіх учнів!', true);
         } else {
           showAdminToast('▶ Тестування ВІДНОВЛЕНО для всіх учнів!', true);
         }
       } else {
-        const errData = await res.json().catch(() => ({}));
-        showAdminToast('Помилка сервера: ' + (errData.error || res.statusText), false);
+        showAdminToast('Помилка сервера: ' + (data.error || res.statusText), false);
       }
     } catch (err) {
       showAdminToast('Помилка мережі: ' + (err.message || 'Не вдалося виконати дію'), false);

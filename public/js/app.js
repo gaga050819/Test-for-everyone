@@ -500,7 +500,7 @@ async function resumeSession(cached) {
       cameraStream: activeCameraStream,
       proctorBypassed: !!state.proctorBypassed || isDebugMode,
       onIncident: (incident) => {
-        if (isDebugMode || (proctor && proctor.isBypassed)) return;
+        if (isDebugMode || (proctor && (proctor.isBypassed || proctor.isExamPaused))) return;
         recordedIncidents.push(incident);
         if (incident.penalty) {
           updateTrustScore(trustScore - incident.penalty);
@@ -960,7 +960,7 @@ startTestBtn.addEventListener('click', async () => {
       cameraStream: activeCameraStream,
       proctorBypassed: !!currentSession.proctorBypassed || isDebugMode,
       onIncident: (incident) => {
-        if (isDebugMode || (proctor && proctor.isBypassed)) return;
+        if (isDebugMode || (proctor && (proctor.isBypassed || proctor.isExamPaused))) return;
         recordedIncidents.push(incident);
         if (incident.penalty) {
           updateTrustScore(trustScore - incident.penalty);

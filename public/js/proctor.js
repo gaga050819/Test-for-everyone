@@ -117,6 +117,9 @@ export class ProctorEngine {
               this.fullscreenGraceTimer = null;
               this.isInsideFullscreenGrace = false;
             }
+            if (typeof this.options.onWarning === 'function') {
+              this.options.onWarning(null);
+            }
             if (this.splitScreenGraceTimer) {
               clearInterval(this.splitScreenGraceTimer);
               this.splitScreenGraceTimer = null;
@@ -356,7 +359,7 @@ export class ProctorEngine {
   }
 
   handleFocusRestored(triggerSource) {
-    if (!this.isRunning || this.isBypassed) return;
+    if (!this.isRunning || this.isBypassed || this.isExamPaused) return;
     if (this.inactiveStartTime === null) return;
 
     const durationSeconds = Math.round((Date.now() - this.inactiveStartTime) / 1000);
@@ -473,7 +476,7 @@ export class ProctorEngine {
   }
 
   detectDevTools() {
-    if (!this.isRunning || this.isCompleted || this.isMobile || this.isBypassed) return;
+    if (!this.isRunning || this.isCompleted || this.isMobile || this.isBypassed || this.isExamPaused) return;
     const widthDiff = window.outerWidth - window.innerWidth;
     const heightDiff = window.outerHeight - window.innerHeight;
     const detected = widthDiff > 160 || heightDiff > 160;
@@ -1389,7 +1392,7 @@ export class ProctorEngine {
   }
 
   recordIncident(incident) {
-    if (this.isBypassed) {
+    if (this.isBypassed || this.isExamPaused) {
       return;
     }
 

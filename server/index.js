@@ -98,6 +98,10 @@ wss.on('connection', (ws, req) => {
             type: 'online_students_snapshot',
             students: onlineList
           }));
+          ws.send(JSON.stringify({
+            type: 'exam_pause_changed',
+            paused: globalExamPaused
+          }));
         }
 
         if (boundSessionId) {
