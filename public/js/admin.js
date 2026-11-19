@@ -4882,9 +4882,7 @@ function initPauseExamControl() {
       });
 
       if (res.ok) {
-        const nextState = !examCurrentlyPaused;
-        updatePauseExamButtonUI(nextState);
-        if (nextState) {
+        if (!examCurrentlyPaused) {
           showAdminToast('⏸ Тестування ПРИЗУПИНЕНО для всіх учнів!', true);
         } else {
           showAdminToast('▶ Тестування ВІДНОВЛЕНО для всіх учнів!', true);
