@@ -949,6 +949,23 @@ function handleWsMessage(data) {
   } else if (data.type === 'session_deleted' || data.type === 'all_sessions_cleared') {
     loadSessions();
     renderLiveRadarGrid();
+  } else if (data.type === 'exam_pause_changed') {
+    examCurrentlyPaused = data.paused;
+    const btn = document.getElementById('pauseExamBtn');
+    if (btn) {
+      if (data.paused) {
+        btn.innerHTML = '<img src="/img/icons/hourglass.svg" class="pixel-icon inline" alt=""> Продовжити';
+        btn.style.borderColor = 'rgba(234,179,8,0.5)';
+        btn.style.color = 'var(--accent-yellow, #eab308)';
+      } else {
+        btn.innerHTML = '<img src="/img/icons/hourglass.svg" class="pixel-icon inline" alt=""> Пауза';
+        btn.style.borderColor = '';
+        btn.style.color = '';
+      }
+    }
+  } else if (data.type === 'session_ai_graded') {
+    showAdminToast(`ШІ перевірив відповідь ${data.studentName || 'студента'}: ${data.scorePercentage}%`);
+    loadSessions();
   }
 }
 
@@ -1556,12 +1573,13 @@ function exportSelectedSession() {
 }
 
 function switchTabTo(tabName) {
+  if (tabName === 'classes') tabName = 'testCatalog';
   const tabs = {
     sessions: { btn: document.getElementById('tabBtnSessions'), view: document.getElementById('viewSessionsTab') },
     liveRadar: { btn: document.getElementById('tabBtnLiveRadar'), view: document.getElementById('viewLiveRadarTab') },
     analytics: { btn: document.getElementById('tabBtnAnalytics'), view: document.getElementById('viewAnalyticsTab') },
     leaderboard: { btn: document.getElementById('tabBtnLeaderboard'), view: document.getElementById('viewLeaderboardTab') },
-    classes: { btn: document.getElementById('tabBtnClasses'), view: document.getElementById('viewClassesTab') },
+    testCatalog: { btn: document.getElementById('tabBtnTestCatalog'), view: document.getElementById('viewTestCatalogTab') },
     testEditor: { btn: document.getElementById('tabBtnTestEditor'), view: document.getElementById('viewTestEditorTab') }
   };
 
@@ -1579,8 +1597,8 @@ function switchTabTo(tabName) {
     loadTestAnalytics(selectedAdminTestId);
   } else if (tabName === 'leaderboard') {
     loadAdminLeaderboard(selectedAdminTestId);
-  } else if (tabName === 'classes') {
-    loadAdminClasses();
+  } else if (tabName === 'testCatalog') {
+    renderTestCatalog();
   } else if (tabName === 'testEditor') {
     loadAdminTest();
   }
@@ -1592,6 +1610,7 @@ function initTabNavigation() {
   const tabBtnLiveRadar = document.getElementById('tabBtnLiveRadar');
   const tabBtnAnalytics = document.getElementById('tabBtnAnalytics');
   const tabBtnLeaderboard = document.getElementById('tabBtnLeaderboard');
+  const tabBtnTestCatalog = document.getElementById('tabBtnTestCatalog');
   const tabBtnClasses = document.getElementById('tabBtnClasses');
   const tabBtnTestEditor = document.getElementById('tabBtnTestEditor');
 
@@ -1599,10 +1618,280 @@ function initTabNavigation() {
   if (tabBtnLiveRadar) tabBtnLiveRadar.onclick = () => switchTabTo('liveRadar');
   if (tabBtnAnalytics) tabBtnAnalytics.onclick = () => switchTabTo('analytics');
   if (tabBtnLeaderboard) tabBtnLeaderboard.onclick = () => switchTabTo('leaderboard');
-  if (tabBtnClasses) tabBtnClasses.onclick = () => switchTabTo('classes');
+  if (tabBtnTestCatalog) tabBtnTestCatalog.onclick = () => switchTabTo('testCatalog');
+  if (tabBtnClasses) tabBtnClasses.onclick = () => switchTabTo('testCatalog');
   if (tabBtnTestEditor) tabBtnTestEditor.onclick = () => switchTabTo('testEditor');
+
+  const adminOpenCatalogBtn = document.getElementById('adminOpenCatalogBtn');
+  if (adminOpenCatalogBtn) adminOpenCatalogBtn.onclick = () => switchTabTo('testCatalog');
+  const editorOpenCatalogBtn = document.getElementById('editorOpenCatalogBtn');
+  if (editorOpenCatalogBtn) editorOpenCatalogBtn.onclick = () => switchTabTo('testCatalog');
+
+  const catalogRefreshBtn = document.getElementById('catalogRefreshBtn');
+  if (catalogRefreshBtn) catalogRefreshBtn.onclick = async () => {
+    await loadAdminTestsList();
+    renderTestCatalog();
+  };
+  const catalogCreateTestBtn = document.getElementById('catalogCreateTestBtn');
+  const openCreateTestModalBtn = document.getElementById('openCreateTestModalBtn');
+  if (catalogCreateTestBtn && openCreateTestModalBtn) {
+    catalogCreateTestBtn.onclick = () => openCreateTestModalBtn.click();
+  }
+  const catalogSearchInput = document.getElementById('catalogSearchInput');
+  if (catalogSearchInput) {
+    catalogSearchInput.addEventListener('input', () => renderTestCatalog());
+  }
+  const catalogSortSelect = document.getElementById('catalogSortSelect');
+  if (catalogSortSelect) {
+    catalogSortSelect.addEventListener('change', () => renderTestCatalog());
+  }
 }
 initTabNavigation();
+
+let catalogActiveSubject = '';
+
+function renderTestCatalog() {
+  const container = document.getElementById('catalogGridContainer');
+  const countBadge = document.getElementById('catalogCountBadge');
+  const pillsContainer = document.getElementById('catalogSubjectPills');
+  const searchInput = document.getElementById('catalogSearchInput');
+  const sortSelect = document.getElementById('catalogSortSelect');
+  if (!container) return;
+
+  const q = searchInput ? searchInput.value.trim().toLowerCase() : '';
+  const sortMode = sortSelect ? sortSelect.value : 'title_asc';
+
+  const distinctSubjects = [...new Set((allAdminTests || []).map(t => (t.subject || '').trim()).filter(Boolean))].sort((a, b) => a.localeCompare(b, 'uk'));
+
+  if (pillsContainer) {
+    pillsContainer.innerHTML = '';
+    const allPill = document.createElement('button');
+    allPill.type = 'button';
+    allPill.className = `btn-secondary ${!catalogActiveSubject ? 'active' : ''}`;
+    allPill.style.padding = '4px 10px';
+    allPill.style.fontSize = '11px';
+    allPill.style.borderRadius = '20px';
+    if (!catalogActiveSubject) {
+      allPill.style.background = 'var(--accent, #6366f1)';
+      allPill.style.color = '#fff';
+      allPill.style.borderColor = 'var(--accent, #6366f1)';
+    }
+    allPill.textContent = `Усі (${(allAdminTests || []).length})`;
+    allPill.onclick = () => {
+      catalogActiveSubject = '';
+      renderTestCatalog();
+    };
+    pillsContainer.appendChild(allPill);
+
+    distinctSubjects.forEach(sb => {
+      const cnt = (allAdminTests || []).filter(t => (t.subject || '').trim().toLowerCase() === sb.toLowerCase()).length;
+      const pill = document.createElement('button');
+      pill.type = 'button';
+      const isAct = catalogActiveSubject.toLowerCase() === sb.toLowerCase();
+      pill.className = `btn-secondary ${isAct ? 'active' : ''}`;
+      pill.style.padding = '4px 10px';
+      pill.style.fontSize = '11px';
+      pill.style.borderRadius = '20px';
+      if (isAct) {
+        pill.style.background = 'var(--accent, #6366f1)';
+        pill.style.color = '#fff';
+        pill.style.borderColor = 'var(--accent, #6366f1)';
+      }
+      pill.textContent = `${sb} (${cnt})`;
+      pill.onclick = () => {
+        catalogActiveSubject = (catalogActiveSubject.toLowerCase() === sb.toLowerCase()) ? '' : sb;
+        renderTestCatalog();
+      };
+      pillsContainer.appendChild(pill);
+    });
+  }
+
+  let filtered = (allAdminTests || []).slice();
+
+  if (catalogActiveSubject) {
+    filtered = filtered.filter(t => (t.subject || '').trim().toLowerCase() === catalogActiveSubject.toLowerCase());
+  }
+
+  if (q) {
+    filtered = filtered.filter(t =>
+      (t.title || '').toLowerCase().includes(q) ||
+      (t.topic || '').toLowerCase().includes(q) ||
+      (t.subject || '').toLowerCase().includes(q) ||
+      (t.tags || []).some(tag => tag.toLowerCase().includes(q))
+    );
+  }
+
+  if (sortMode === 'title_asc') {
+    filtered.sort((a, b) => (a.title || '').localeCompare(b.title || '', 'uk'));
+  } else if (sortMode === 'title_desc') {
+    filtered.sort((a, b) => (b.title || '').localeCompare(a.title || '', 'uk'));
+  } else if (sortMode === 'subject') {
+    filtered.sort((a, b) => (a.subject || '').localeCompare(b.subject || '', 'uk') || (a.title || '').localeCompare(b.title || '', 'uk'));
+  } else if (sortMode === 'topic') {
+    filtered.sort((a, b) => (a.topic || '').localeCompare(b.topic || '', 'uk') || (a.title || '').localeCompare(b.title || '', 'uk'));
+  } else if (sortMode === 'questions_desc') {
+    filtered.sort((a, b) => ((b.questions || []).length) - ((a.questions || []).length));
+  } else if (sortMode === 'questions_asc') {
+    filtered.sort((a, b) => ((a.questions || []).length) - ((b.questions || []).length));
+  } else if (sortMode === 'duration_desc') {
+    filtered.sort((a, b) => (b.durationMinutes || 0) - (a.durationMinutes || 0));
+  } else if (sortMode === 'duration_asc') {
+    filtered.sort((a, b) => (a.durationMinutes || 0) - (b.durationMinutes || 0));
+  }
+
+  if (countBadge) {
+    countBadge.textContent = `Знайдено: ${filtered.length} з ${(allAdminTests || []).length}`;
+  }
+
+  container.innerHTML = '';
+
+  if (filtered.length === 0) {
+    container.innerHTML = `
+      <div style="grid-column: 1 / -1; text-align: center; padding: 40px 20px; color: var(--text-muted);">
+        <img src="/img/icons/search.svg" class="pixel-icon" style="width: 36px; height: 36px; opacity: 0.5; margin-bottom: 10px;" alt="">
+        <div style="font-size: 15px; font-weight: 600;">Тестів за вказаними фільтрами не знайдено</div>
+        <div style="font-size: 12px; margin-top: 4px;">Спробуйте змінити пошуковий запит або скинути фільтр предмету</div>
+      </div>
+    `;
+    return;
+  }
+
+  filtered.forEach(t => {
+    const isActive = t.id === selectedAdminTestId;
+    const card = document.createElement('div');
+    card.className = 'card-panel';
+    card.style.padding = '16px';
+    card.style.display = 'flex';
+    card.style.flexDirection = 'column';
+    card.style.gap = '10px';
+    card.style.position = 'relative';
+    card.style.border = isActive ? '2px solid var(--accent, #6366f1)' : '1px solid var(--border-color, rgba(255,255,255,0.08))';
+    card.style.boxShadow = isActive ? '0 0 16px rgba(99,102,241,0.2)' : 'none';
+
+    const qCount = (t.questions || []).length;
+    const duration = t.durationMinutes || 15;
+    const totalPoints = (t.questions || []).reduce((acc, q) => acc + (q.points || 1), 0);
+
+    card.innerHTML = `
+      <div style="display: flex; align-items: flex-start; justify-content: space-between; gap: 8px;">
+        <div style="display: flex; align-items: center; gap: 6px; flex-wrap: wrap;">
+          <span style="font-size: 11px; font-weight: 700; padding: 2px 8px; border-radius: 6px; background: rgba(99,102,241,0.12); color: var(--accent, #6366f1); border: 1px solid rgba(99,102,241,0.3);">${escapeHtml(t.subject || 'Тест')}</span>
+          ${t.topic ? `<span style="font-size: 11px; color: var(--text-muted); background: rgba(255,255,255,0.05); padding: 2px 7px; border-radius: 6px;">${escapeHtml(t.topic)}</span>` : ''}
+        </div>
+        ${isActive ? '<span style="font-size: 10px; font-weight: 700; color: #10b981; background: rgba(16,185,129,0.12); border: 1px solid rgba(16,185,129,0.3); padding: 2px 6px; border-radius: 4px; display: inline-flex; align-items: center; gap: 4px;"><span class="status-dot green" style="width:6px;height:6px;"></span> Активний</span>' : ''}
+      </div>
+
+      <div style="font-size: 14px; font-weight: 700; line-height: 1.35; color: var(--text, #fff); margin-top: 2px;">
+        ${escapeHtml(t.title || 'Тест без назви')}
+      </div>
+
+      <div style="display: flex; align-items: center; gap: 12px; font-size: 11px; color: var(--text-muted); margin-top: auto; padding-top: 8px; border-top: 1px solid rgba(255,255,255,0.06); flex-wrap: wrap;">
+        <span style="display: inline-flex; align-items: center; gap: 4px;"><img src="/img/icons/check.svg" class="pixel-icon inline" style="margin-right:0;" alt=""> ${qCount} пит.</span>
+        <span style="display: inline-flex; align-items: center; gap: 4px;"><img src="/img/icons/timer.svg" class="pixel-icon inline" style="margin-right:0;" alt=""> ${duration} хв</span>
+        <span style="display: inline-flex; align-items: center; gap: 4px;"><img src="/img/icons/star.svg" class="pixel-icon inline" style="margin-right:0;" alt=""> ${totalPoints} б.</span>
+      </div>
+
+      <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 6px; margin-top: 4px;">
+        <button class="btn-primary card-edit-btn" style="padding: 7px 10px; font-size: 11px; justify-content: center;" type="button">
+          <img src="/img/icons/edit.svg" class="pixel-icon inline" alt=""> Редагувати
+        </button>
+        <button class="btn-secondary card-activate-btn" style="padding: 7px 10px; font-size: 11px; justify-content: center; ${isActive ? 'background: rgba(16,185,129,0.12); color: #10b981; border-color: rgba(16,185,129,0.3);' : ''}" type="button">
+          <img src="/img/icons/check.svg" class="pixel-icon inline" alt=""> ${isActive ? 'Обрано' : 'Запустити'}
+        </button>
+      </div>
+
+      <div style="display: flex; gap: 6px; margin-top: 2px;">
+        <button class="btn-secondary card-share-btn" style="flex: 1; padding: 5px 8px; font-size: 11px; justify-content: center;" type="button" title="Скопіювати пряме посилання для учнів">
+          <img src="/img/icons/link.svg" class="pixel-icon inline" alt=""> Посилання
+        </button>
+        <button class="btn-secondary card-delete-btn" style="padding: 5px 8px; font-size: 11px; border-color: rgba(239,68,68,0.3); color: var(--accent-red);" type="button" title="Видалити тест">
+          <img src="/img/icons/trash.svg" class="pixel-icon inline" alt="">
+        </button>
+      </div>
+    `;
+
+    const editBtn = card.querySelector('.card-edit-btn');
+    if (editBtn) {
+      editBtn.addEventListener('click', async () => {
+        selectedAdminTestId = t.id;
+        const adminSel = document.getElementById('adminTestSelector');
+        const editorSel = document.getElementById('editorTestSelector');
+        if (adminSel) adminSel.value = t.id;
+        if (editorSel) editorSel.value = t.id;
+        updateActiveTestBadge();
+        await loadAdminTest();
+        switchTabTo('testEditor');
+      });
+    }
+
+    const activateBtn = card.querySelector('.card-activate-btn');
+    if (activateBtn) {
+      activateBtn.addEventListener('click', async () => {
+        selectedAdminTestId = t.id;
+        const adminSel = document.getElementById('adminTestSelector');
+        const editorSel = document.getElementById('editorTestSelector');
+        if (adminSel) adminSel.value = t.id;
+        if (editorSel) editorSel.value = t.id;
+        updateActiveTestBadge();
+        try {
+          const isLite = document.documentElement.getAttribute('data-ui-mode') === 'lite';
+          await adminFetch('/api/admin/active-test', {
+            method: 'POST',
+            body: JSON.stringify({ testId: t.id, liteMode: isLite })
+          });
+          showAdminToast(`Тест «${t.title}» призначено активним!`, true);
+          checkTunnelStatus();
+          await loadAdminTest();
+          await loadTestAnalytics(t.id);
+          await loadAdminLeaderboard(t.id);
+          renderTestCatalog();
+        } catch {}
+      });
+    }
+
+    const shareBtn = card.querySelector('.card-share-btn');
+    if (shareBtn) {
+      shareBtn.addEventListener('click', async () => {
+        const tunnelInput = document.getElementById('tunnelUrlInput');
+        let baseUrl = window.location.origin;
+        if (tunnelInput && tunnelInput.value && tunnelInput.value.startsWith('http')) {
+          baseUrl = tunnelInput.value.split('/?')[0];
+        }
+        const fullLink = `${baseUrl}/?test=${encodeURIComponent(t.id)}`;
+        try {
+          await navigator.clipboard.writeText(fullLink);
+          showAdminToast(`Посилання на «${t.title}» скопійовано!`, true);
+        } catch {
+          prompt('Пряме посилання на тест:', fullLink);
+        }
+      });
+    }
+
+    const delBtn = card.querySelector('.card-delete-btn');
+    if (delBtn) {
+      delBtn.addEventListener('click', async () => {
+        const ok = await showModernConfirm(`Видалити тест «${t.title}»? Цю дію не можна скасувати.`, 'Видалення тесту', 'Видалити');
+        if (!ok) return;
+        try {
+          const res = await adminFetch(`/api/admin/tests/${encodeURIComponent(t.id)}`, { method: 'DELETE' });
+          if (res.ok) {
+            allAdminTests = allAdminTests.filter(item => item.id !== t.id);
+            window.allAdminTests = allAdminTests;
+            showAdminToast('Тест успішно видалено', true);
+            if (selectedAdminTestId === t.id && allAdminTests[0]) {
+              selectedAdminTestId = allAdminTests[0].id;
+            }
+            renderAdminTestSelectorOptions();
+            renderTestCatalog();
+          }
+        } catch {}
+      });
+    }
+
+    container.appendChild(card);
+  });
+}
+window.renderTestCatalog = renderTestCatalog;
 
 const adminTestSearchInput = document.getElementById('adminTestSearchInput');
 const adminTestSearchClearBtn = document.getElementById('adminTestSearchClearBtn');
@@ -1772,6 +2061,9 @@ async function loadAdminTestsList() {
     populateAdminSubjectFilter();
     populateAdminTopicFilter();
     renderAdminTestSelectorOptions();
+    if (typeof renderTestCatalog === 'function') {
+      renderTestCatalog();
+    }
     if (typeof populateClassSubjectFilter === 'function') {
       populateClassSubjectFilter();
     }
@@ -4577,6 +4869,34 @@ function closeChangePasswordModal() {
 }
 
 if (openChangePasswordModalBtn) openChangePasswordModalBtn.addEventListener('click', openChangePasswordModal);
+
+let examCurrentlyPaused = false;
+const pauseExamBtn = document.getElementById('pauseExamBtn');
+if (pauseExamBtn) {
+  pauseExamBtn.addEventListener('click', async () => {
+    const endpoint = examCurrentlyPaused ? '/api/admin/resume-exam' : '/api/admin/pause-exam';
+    const message = examCurrentlyPaused ? '' : 'Екзамен тимчасово призупинено. Зачекайте команди викладача.';
+    try {
+      const res = await adminFetch(endpoint, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ message })
+      });
+      if (res.ok) {
+        examCurrentlyPaused = !examCurrentlyPaused;
+        if (examCurrentlyPaused) {
+          pauseExamBtn.innerHTML = '<img src="/img/icons/hourglass.svg" class="pixel-icon inline" alt=""> Продовжити';
+          pauseExamBtn.style.borderColor = 'rgba(234,179,8,0.5)';
+          pauseExamBtn.style.color = 'var(--accent-yellow, #eab308)';
+        } else {
+          pauseExamBtn.innerHTML = '<img src="/img/icons/hourglass.svg" class="pixel-icon inline" alt=""> Пауза';
+          pauseExamBtn.style.borderColor = '';
+          pauseExamBtn.style.color = '';
+        }
+      }
+    } catch {}
+  });
+}
 if (closeChangePasswordModalBtn) closeChangePasswordModalBtn.addEventListener('click', closeChangePasswordModal);
 if (cancelChangePasswordBtn) cancelChangePasswordBtn.addEventListener('click', closeChangePasswordModal);
 if (changePasswordModal) {

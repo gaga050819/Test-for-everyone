@@ -79,14 +79,8 @@
         </div>
 
         <div class="form-group">
-          <label class="form-label" for="classSelectInput">Клас</label>
-          <div id="classSelectWrap" style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px;">
-            <select id="classSelectInput" class="form-input" style="font-size: 13px; font-weight: 600; cursor: pointer;">
-              <option value="">Оберіть клас зі списку...</option>
-            </select>
-            <input type="text" id="studentIdInput" class="form-input" placeholder="Або введіть: 10-А" autocomplete="off" required>
-          </div>
-          <div id="classAssignedHint" style="font-size: 11px; color: var(--accent); margin-top: 4px;" class="hidden"></div>
+          <label class="form-label" for="studentIdInput">Клас / Група</label>
+          <input type="text" id="studentIdInput" class="form-input" placeholder="Наприклад: 10-А" autocomplete="off" required>
         </div>
 
         <div id="smartTestCard" class="smart-test-card">
@@ -372,6 +366,14 @@
     </div>
     <div class="lightbox-hint">
       <span>Коліщатко — зум • Перетягування — огляд • Esc — вихід</span>
+    </div>
+  </div>
+
+  <div id="examPauseOverlay" style="display:none; position:fixed; inset:0; z-index:99999; background:rgba(0,0,0,0.85); align-items:center; justify-content:center; flex-direction:column; gap:20px;">
+    <div style="background:var(--card-bg,#1a1a2e); border:1px solid rgba(99,102,241,0.4); border-radius:16px; padding:40px 48px; text-align:center; max-width:420px; width:90%;">
+      <div style="font-size:48px; margin-bottom:16px;"><img src="/img/icons/hourglass.svg" class="pixel-icon" style="width:48px;height:48px;" alt=""></div>
+      <h2 style="font-size:22px; font-weight:700; margin:0 0 10px;">Пауза</h2>
+      <p id="examPauseMessage" style="color:var(--text-muted,#aaa); font-size:14px; margin:0;">Екзамен тимчасово зупинений викладачем. Зачекайте...</p>
     </div>
   </div>
 

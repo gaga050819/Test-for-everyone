@@ -228,6 +228,9 @@
         <button class="btn-secondary" id="openChangePasswordModalBtn" title="Змінити пароль адміністратора" style="padding: 5px 10px; font-size: 11px; display: inline-flex !important; align-items: center; gap: 5px;" type="button">
           <img src="/img/icons/lock.svg" class="pixel-icon inline" alt=""> Пароль
         </button>
+        <button id="pauseExamBtn" class="btn-secondary" title="Поставити тест на паузу для всіх учнів" style="padding: 5px 10px; font-size: 11px; display: inline-flex !important; align-items: center; gap: 5px;" type="button">
+          <img src="/img/icons/hourglass.svg" class="pixel-icon inline" alt=""> Пауза
+        </button>
         <button class="btn-secondary" id="manualCheckUpdateBtn" title="Перевірити оновлення" style="padding: 5px 10px; font-size: 11px; display: inline-flex !important; align-items: center; gap: 5px;" type="button">
           <img src="/img/icons/refresh.svg" class="pixel-icon inline" alt=""> v<span id="currentVersionBadge">1.2.2</span>
         </button>
@@ -262,7 +265,7 @@
           <button id="tabBtnLiveRadar" class="admin-tab-btn" type="button" onclick="window.switchTabTo('liveRadar')"><img src="/img/icons/signal.svg" class="pixel-icon inline" alt=""> Живий дашборд (<span id="liveRadarOnlineCount">0</span>)</button>
           <button id="tabBtnAnalytics" class="admin-tab-btn" type="button" onclick="window.switchTabTo('analytics')"><img src="/img/icons/chart.svg" class="pixel-icon inline" alt=""> Аналітика відповідей</button>
           <button id="tabBtnLeaderboard" class="admin-tab-btn" type="button" onclick="window.switchTabTo('leaderboard')"><img src="/img/icons/star.svg" class="pixel-icon inline" alt=""> Рейтинг учнів</button>
-          <button id="tabBtnClasses" class="admin-tab-btn" type="button" onclick="window.switchTabTo('classes')"><img src="/img/icons/folder.svg" class="pixel-icon inline" alt=""> Класи</button>
+          <button id="tabBtnTestCatalog" class="admin-tab-btn" type="button" onclick="window.switchTabTo('testCatalog')"><img src="/img/icons/books.svg" class="pixel-icon inline" alt=""> Каталог тестів</button>
           <button id="tabBtnTestEditor" class="admin-tab-btn" type="button" onclick="window.switchTabTo('testEditor')"><img src="/img/icons/edit.svg" class="pixel-icon inline" alt=""> Редактор тестів</button>
         </div>
 
@@ -280,9 +283,6 @@
             </select>
             <select id="adminTopicFilter" class="form-input" style="width: auto; min-width: 120px; font-size: 12px; padding: 7px 10px; cursor: pointer;">
               <option value="">Усі теми</option>
-            </select>
-            <select id="adminClassTestFilter" class="form-input" style="width: auto; min-width: 100px; font-size: 12px; padding: 7px 10px; cursor: pointer;">
-              <option value="">Усі класи</option>
             </select>
             <select id="adminTestSortSelect" class="form-input" style="width: auto; min-width: 175px; font-size: 12px; padding: 7px 10px; cursor: pointer;">
               <option value="subject">Сортувати: За предметом</option>
@@ -309,6 +309,9 @@
           <select id="adminTestSelector" class="form-input" style="flex: 1; min-width: 240px; font-size: 13px; font-weight: 600; padding: 7px 12px; cursor: pointer;">
             <option value="">Завантаження списку тестів...</option>
           </select>
+          <button id="adminOpenCatalogBtn" class="btn-secondary" style="padding: 7px 12px; font-size: 11px; display: inline-flex; align-items: center; gap: 5px; white-space: nowrap;" type="button" title="Відкрити зручний каталог тестів">
+            <img src="/img/icons/books.svg" class="pixel-icon inline" alt=""> Каталог
+          </button>
           <span id="activeTestStatsBadge" style="font-size: 11px; color: var(--text-muted); white-space: nowrap;"></span>
           <button id="liteSetActiveBtn" class="btn-primary lite-only-inline-btn" style="width: auto; padding: 7px 14px; font-size: 11px; display: none;" type="button">
             <img src="/img/icons/check.svg" class="pixel-icon inline" alt=""> Призначити
@@ -694,48 +697,44 @@
         </div>
       </div>
 
-      <div id="viewClassesTab" class="hidden">
+      <div id="viewTestCatalogTab" class="hidden">
         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; flex-wrap: wrap; gap: 10px;">
           <div>
-            <h1 style="font-size: 20px; font-weight: 700;">Управління класами</h1>
-            <p style="color: var(--text-muted); font-size: 12px; margin-top: 2px;">Організація учнів за класами та закріплення географічних тестів</p>
+            <h1 style="font-size: 20px; font-weight: 700; margin: 0; display: flex; align-items: center; gap: 8px;">
+              <img src="/img/icons/books.svg" class="pixel-icon inline" alt=""> Каталог тестів
+            </h1>
+            <p style="color: var(--text-muted); font-size: 12px; margin-top: 4px;">Швидкий пошук, сортування за назвою, предметом і часом та вибір тесту</p>
           </div>
           <div style="display: flex; gap: 8px;">
-            <button id="refreshClassesBtn" class="btn-secondary" type="button"><img src="/img/icons/refresh.svg" class="pixel-icon inline" alt=""> Оновити</button>
-            <button id="openCreateClassModalBtn" class="btn-primary" style="width: auto; padding: 7px 16px; font-size: 12px;" type="button"><img src="/img/icons/plus.svg" class="pixel-icon inline" alt=""> + Створити клас</button>
+            <button id="catalogRefreshBtn" class="btn-secondary" type="button"><img src="/img/icons/refresh.svg" class="pixel-icon inline" alt=""> Оновити</button>
+            <button id="catalogCreateTestBtn" class="btn-primary" style="width: auto; padding: 7px 16px; font-size: 12px;" type="button"><img src="/img/icons/plus.svg" class="pixel-icon inline" alt=""> + Новий тест</button>
           </div>
         </div>
 
-        <div class="card-panel" style="margin-bottom: 16px; padding: 12px 16px; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px;">
-          <div style="display: flex; align-items: center; gap: 10px; flex-wrap: wrap; flex: 1;">
-            <input type="text" id="classSearchInput" class="form-input search-input" style="width: auto; min-width: 220px; font-size: 12px; padding: 7px 12px 7px 32px;" placeholder="Пошук класу або предмету...">
-            <select id="classSubjectFilter" class="form-input" style="width: auto; font-size: 12px; padding: 7px 12px; cursor: pointer;">
-              <option value="">Усі предмети</option>
-            </select>
-            <select id="classSortSelect" class="form-input" style="width: auto; font-size: 12px; padding: 7px 12px; cursor: pointer;">
-              <option value="name_asc">Сортувати: Назва класу (А → Я)</option>
-              <option value="name_desc">Сортувати: Назва класу (Я → А)</option>
-              <option value="students_desc">Сортувати: Найбільше учнів</option>
-              <option value="tests_desc">Сортувати: Найбільше тестів</option>
-            </select>
+        <div class="card-panel" style="margin-bottom: 16px; padding: 14px 16px; display: flex; flex-direction: column; gap: 12px;">
+          <div style="display: flex; align-items: center; gap: 10px; flex-wrap: wrap; justify-content: space-between;">
+            <div style="position: relative; flex: 1 1 280px; max-width: 480px;">
+              <input type="text" id="catalogSearchInput" class="form-input search-input" style="width: 100%; font-size: 13px; padding: 8px 12px 8px 34px;" placeholder="Пошук за назвою тесту, предметом або темою...">
+              <img src="/img/icons/search.svg" class="pixel-icon inline" style="position: absolute; left: 10px; top: 50%; transform: translateY(-50%); pointer-events: none; opacity: 0.6;" alt="">
+            </div>
+            <div style="display: flex; align-items: center; gap: 10px; flex-wrap: wrap;">
+              <select id="catalogSortSelect" class="form-input" style="width: auto; font-size: 12px; padding: 7px 12px; cursor: pointer;">
+                <option value="title_asc">Сортувати: Назва (А → Я)</option>
+                <option value="title_desc">Сортувати: Назва (Я → А)</option>
+                <option value="subject">Сортувати: За предметом</option>
+                <option value="topic">Сортувати: За темою</option>
+                <option value="questions_desc">Сортувати: Питань ↓</option>
+                <option value="questions_asc">Сортувати: Питань ↑</option>
+                <option value="duration_desc">Сортувати: Час ↓</option>
+                <option value="duration_asc">Сортувати: Час ↑</option>
+              </select>
+              <span id="catalogCountBadge" style="font-size: 12px; color: var(--text-muted); font-weight: 600;"></span>
+            </div>
           </div>
-          <span id="classesCountBadge" style="font-size: 12px; color: var(--text-muted); font-weight: 600;"></span>
+          <div id="catalogSubjectPills" style="display: flex; align-items: center; gap: 6px; flex-wrap: wrap;"></div>
         </div>
 
-        <div id="classesListContainer" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 16px;">
-          <div class="skeleton-card">
-            <div class="skeleton-shimmer" style="width: 45%; height: 20px;"></div>
-            <div class="skeleton-shimmer" style="width: 80%; height: 14px;"></div>
-          </div>
-          <div class="skeleton-card">
-            <div class="skeleton-shimmer" style="width: 50%; height: 20px;"></div>
-            <div class="skeleton-shimmer" style="width: 70%; height: 14px;"></div>
-          </div>
-          <div class="skeleton-card">
-            <div class="skeleton-shimmer" style="width: 40%; height: 20px;"></div>
-            <div class="skeleton-shimmer" style="width: 85%; height: 14px;"></div>
-          </div>
-        </div>
+        <div id="catalogGridContainer" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 16px;"></div>
       </div>
 
       <div id="viewTestEditorTab" class="hidden">
@@ -750,6 +749,10 @@
       </div>
 
       <div style="display: flex; align-items: center; gap: 8px; flex-shrink: 0;">
+        <button id="editorOpenCatalogBtn" class="btn-secondary" style="padding: 6px 12px; font-size: 12px; font-weight: 600; display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; flex-shrink: 0;" type="button" title="Відкрити зручний каталог з пошуком та сортуванням">
+          <img src="/img/icons/books.svg" class="pixel-icon inline" style="margin-right: 0;" alt="">
+          <span>Каталог</span>
+        </button>
         <button id="editorCreateTestBtn" class="btn-secondary" style="padding: 6px 14px; font-size: 12px; font-weight: 600; display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; flex-shrink: 0;" type="button">
           <img src="/img/icons/plus.svg" class="pixel-icon inline" style="margin-right: 0;" alt="">
           <span>Новий тест</span>
@@ -775,16 +778,27 @@
           <span class="meta-tag-label">Тема:</span>
           <input type="text" id="editTestTopicInput" class="meta-tag-input" value="Загальна характеристика Азії" placeholder="Тема">
         </div>
-        <div class="meta-tag-chip" title="Клас / Аудиторія">
-          <span class="meta-tag-icon"><img src="/img/icons/folder.svg" class="pixel-icon inline" style="margin-right:0;" alt=""></span>
-          <span class="meta-tag-label">Клас:</span>
-          <input type="text" id="editTestClassInput" class="meta-tag-input" value="10-А" placeholder="Клас" style="width: 50px; text-align: center;">
-        </div>
         <div class="meta-tag-chip" title="Загальна тривалість тесту в хвилинах">
           <span class="meta-tag-icon"><img src="/img/icons/timer.svg" class="pixel-icon inline" style="margin-right:0;" alt=""></span>
           <span class="meta-tag-label">Час:</span>
           <input type="number" id="editTestDurationInput" class="meta-tag-input" value="15" min="1" max="180" style="width: 38px; text-align: center;">
           <span style="font-size: 11px; color: var(--text-muted); font-weight: 600;">хв</span>
+        </div>
+        <div class="meta-tag-chip" title="Перемішати порядок питань для кожного учня окремо">
+          <span class="meta-tag-icon"><img src="/img/icons/refresh.svg" class="pixel-icon inline" style="margin-right:0;" alt=""></span>
+          <span class="meta-tag-label">Мішати питання:</span>
+          <label class="toggle-mini">
+            <input type="checkbox" id="editTestShuffleQInput">
+            <span class="toggle-mini-slider"></span>
+          </label>
+        </div>
+        <div class="meta-tag-chip" title="Перемішати варіанти відповідей для кожного учня окремо">
+          <span class="meta-tag-icon"><img src="/img/icons/refresh.svg" class="pixel-icon inline" style="margin-right:0;" alt=""></span>
+          <span class="meta-tag-label">Мішати відповіді:</span>
+          <label class="toggle-mini">
+            <input type="checkbox" id="editTestShuffleOptInput">
+            <span class="toggle-mini-slider"></span>
+          </label>
         </div>
         <div class="badge-shield" style="margin-left: auto;">
           <img src="/img/icons/shield.svg" class="pixel-icon inline" style="width: 13px; height: 13px;" alt="">
@@ -1002,6 +1016,16 @@
             <label for="editorShortKeywords" class="form-label">Правильні варіанти відповіді (через кому)</label>
             <input type="text" id="editorShortKeywords" class="form-input" style="font-size: 13px;" placeholder="Київ, київ, Kyiv">
             <div style="font-size: 11px; color: var(--text-muted); margin-top: 5px;">Відповідь зараховується при збігу з будь-яким словом зі списку (регістр ігнорується).</div>
+            <div style="display: flex; align-items: center; gap: 10px; margin-top: 10px; padding: 8px 12px; background: rgba(99,102,241,0.07); border-radius: 8px; border: 1px solid rgba(99,102,241,0.2);">
+              <label class="toggle-mini" title="Увімкнути ШІ-оцінювання через Gemini замість точного збігу">
+                <input type="checkbox" id="editorAiGradingToggle">
+                <span class="toggle-mini-slider"></span>
+              </label>
+              <div>
+                <div style="font-size: 12px; font-weight: 600;">ШІ-оцінювання (Gemini)</div>
+                <div style="font-size: 11px; color: var(--text-muted);">Gemini перевірить відповідь за змістом, а не точним словом. Поле «варіанти» стане підказкою для ШІ.</div>
+              </div>
+            </div>
           </div>
         </div>
       </section>

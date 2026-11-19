@@ -1099,6 +1099,32 @@ window.extendTestTimer = function(minutes) {
   setTimeout(() => toast.remove(), 5000);
 };
 
+window.pauseTestTimer = function() {
+  if (testTimer) clearInterval(testTimer);
+};
+
+window.resumeTestTimer = function() {
+  startTimer();
+};
+
+window.showExamPause = function(message) {
+  const overlay = document.getElementById('examPauseOverlay');
+  const msg = document.getElementById('examPauseMessage');
+  if (overlay) {
+    if (msg) msg.textContent = message || 'Екзамен тимчасово зупинений викладачем. Зачекайте...';
+    overlay.style.display = 'flex';
+    if (typeof window.pauseTestTimer === 'function') window.pauseTestTimer();
+  }
+};
+
+window.hideExamPause = function() {
+  const overlay = document.getElementById('examPauseOverlay');
+  if (overlay) {
+    overlay.style.display = 'none';
+    if (typeof window.resumeTestTimer === 'function') window.resumeTestTimer();
+  }
+};
+
 function isQuestionAnswered(q) {
   if (!q) return false;
   const ans = userAnswers[q.id];

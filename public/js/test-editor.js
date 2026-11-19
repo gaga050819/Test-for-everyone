@@ -208,7 +208,6 @@ function syncMetaHeader() {
   const topicInput = document.getElementById('editTestTopicInput');
   const subjectInput = document.getElementById('editTestSubjectInput');
   const durationInput = document.getElementById('editTestDurationInput');
-  const classInput = document.getElementById('editTestClassInput');
   const editorSelector = document.getElementById('editorTestSelector');
   const adminSelector = document.getElementById('adminTestSelector');
 
@@ -216,7 +215,11 @@ function syncMetaHeader() {
   if (topicInput) topicInput.value = currentTest.topic || '';
   if (subjectInput) subjectInput.value = currentTest.subject || '';
   if (durationInput) durationInput.value = currentTest.durationMinutes || 15;
-  if (classInput) classInput.value = currentTest.class || '10-А';
+
+  const shuffleQInput = document.getElementById('editTestShuffleQInput');
+  const shuffleOptInput = document.getElementById('editTestShuffleOptInput');
+  if (shuffleQInput) shuffleQInput.checked = !!currentTest.shuffleQuestions;
+  if (shuffleOptInput) shuffleOptInput.checked = !!currentTest.shuffleOptions;
 
   if (editorSelector && currentTest.id) {
     editorSelector.value = currentTest.id;
@@ -231,7 +234,6 @@ function bindMetaInputs() {
   const topicInput = document.getElementById('editTestTopicInput');
   const subjectInput = document.getElementById('editTestSubjectInput');
   const durationInput = document.getElementById('editTestDurationInput');
-  const classInput = document.getElementById('editTestClassInput');
 
   if (titleInput) {
     titleInput.addEventListener('input', e => {
@@ -266,9 +268,17 @@ function bindMetaInputs() {
       saveDraftToStorage();
     });
   }
-  if (classInput) {
-    classInput.addEventListener('input', e => {
-      currentTest.class = e.target.value;
+  const shuffleQInput = document.getElementById('editTestShuffleQInput');
+  if (shuffleQInput) {
+    shuffleQInput.addEventListener('change', e => {
+      currentTest.shuffleQuestions = e.target.checked;
+      saveDraftToStorage();
+    });
+  }
+  const shuffleOptInput = document.getElementById('editTestShuffleOptInput');
+  if (shuffleOptInput) {
+    shuffleOptInput.addEventListener('change', e => {
+      currentTest.shuffleOptions = e.target.checked;
       saveDraftToStorage();
     });
   }
@@ -315,6 +325,8 @@ function bindActionButtons() {
         topic: currentTest.topic || '',
         durationMinutes: parseInt(currentTest.durationMinutes, 10) || 15,
         class: currentTest.class || '10-А',
+        shuffleQuestions: !!currentTest.shuffleQuestions,
+        shuffleOptions: !!currentTest.shuffleOptions,
         questions: (currentTest.questions || []).map(q => {
           const copy = { ...q };
           copy.timeLimitSeconds = copy.timeLimit || copy.timeLimitSeconds || 60;
@@ -635,6 +647,14 @@ function renderTypeSpecificControls(q) {
     const shortInput = document.getElementById('editorShortKeywords');
     if (shortInput) {
       shortInput.value = Array.isArray(q.correct) ? q.correct.join(', ') : (q.correct || '');
+    }
+    const aiToggle = document.getElementById('editorAiGradingToggle');
+    if (aiToggle) {
+      aiToggle.checked = !!q.useAiGrading;
+      aiToggle.onchange = (e) => {
+        q.useAiGrading = e.target.checked;
+        saveDraftToStorage();
+      };
     }
   }
 }

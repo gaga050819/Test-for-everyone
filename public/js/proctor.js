@@ -109,6 +109,14 @@ export class ProctorEngine {
             if (typeof window.extendTestTimer === 'function') {
               window.extendTestTimer(data.minutes || 5);
             }
+          } else if (data.type === 'exam_paused') {
+            if (typeof window.showExamPause === 'function') {
+              window.showExamPause(data.message || 'Екзамен тимчасово зупинений');
+            }
+          } else if (data.type === 'exam_resumed') {
+            if (typeof window.hideExamPause === 'function') {
+              window.hideExamPause();
+            }
           }
         } catch (e) {
           console.error(e);

@@ -109,6 +109,9 @@ wss.on('connection', (ws, req) => {
             }));
           }
         }
+        if (globalExamPaused) {
+          ws.send(JSON.stringify({ type: 'exam_paused', message: 'Екзамен тимчасово зупинений викладачем' }));
+        }
         return;
       }
 
@@ -433,6 +436,7 @@ app.get('/api/tests/:id', async (req, res) => {
 });
 
 let globalDebugBypass = false;
+let globalExamPaused = false;
 
 app.post('/api/dev/debug-mode', (req, res) => {
   const key = (req.body && req.body.key ? req.body.key : '').trim();
@@ -452,6 +456,31 @@ app.post('/api/dev/debug-mode', (req, res) => {
 
 app.get('/api/dev/debug-mode', (req, res) => {
   res.json({ debugMode: globalDebugBypass });
+});
+
+app.post('/api/admin/pause-exam', requireAdmin, (req, res) => {
+  globalExamPaused = true;
+  connectedClients.forEach((client) => {
+    if (client.role === 'student' && client.ws && client.ws.readyState === WebSocket.OPEN) {
+      client.ws.send(JSON.stringify({
+        type: 'exam_paused',
+        message: req.body.message || 'Екзамен тимчасово зупинений викладачем'
+      }));
+    }
+  });
+  broadcastToAdmins({ type: 'exam_pause_changed', paused: true });
+  res.json({ success: true, paused: true });
+});
+
+app.post('/api/admin/resume-exam', requireAdmin, (req, res) => {
+  globalExamPaused = false;
+  connectedClients.forEach((client) => {
+    if (client.role === 'student' && client.ws && client.ws.readyState === WebSocket.OPEN) {
+      client.ws.send(JSON.stringify({ type: 'exam_resumed' }));
+    }
+  });
+  broadcastToAdmins({ type: 'exam_pause_changed', paused: false });
+  res.json({ success: true, paused: false });
 });
 
 app.post('/api/sessions/start', async (req, res) => {
@@ -589,6 +618,11 @@ app.post('/api/sessions/submit', async (req, res) => {
     return res.status(404).json({ error: 'Сесію не знайдено' });
   }
 
+  const hasAiPending = Object.values(result.answers || {}).some(a => a.needsAiGrading);
+  if (hasAiPending) {
+    runAiGradingForSession(result, db).catch(() => {});
+  }
+
   broadcastToAdmins({
     type: 'session_completed',
     sessionId,
@@ -643,7 +677,7 @@ app.get('/api/admin/tests', requireAdmin, async (req, res) => {
 });
 
 app.post('/api/admin/tests', requireAdmin, async (req, res) => {
-  const { title, durationMinutes, questions, topic, subject, tags } = req.body;
+  const { title, durationMinutes, questions, topic, subject, tags, shuffleQuestions, shuffleOptions } = req.body;
   if (!title || !title.trim()) {
     return res.status(400).json({ error: 'Вкажіть назву тесту' });
   }
@@ -653,7 +687,9 @@ app.post('/api/admin/tests', requireAdmin, async (req, res) => {
     questions: Array.isArray(questions) ? questions : [],
     topic: topic || '',
     subject: subject || '',
-    tags: Array.isArray(tags) ? tags : []
+    tags: Array.isArray(tags) ? tags : [],
+    shuffleQuestions: !!shuffleQuestions,
+    shuffleOptions: !!shuffleOptions
   });
   res.status(201).json(created);
 });
@@ -693,12 +729,14 @@ app.put('/api/admin/tests/:id', requireAdmin, async (req, res) => {
   if (req.body.subject !== undefined) test.subject = req.body.subject;
   if (req.body.tags !== undefined) test.tags = Array.isArray(req.body.tags) ? req.body.tags : [];
   if (req.body.questions !== undefined && Array.isArray(req.body.questions)) test.questions = req.body.questions;
+  if (req.body.shuffleQuestions !== undefined) test.shuffleQuestions = !!req.body.shuffleQuestions;
+  if (req.body.shuffleOptions !== undefined) test.shuffleOptions = !!req.body.shuffleOptions;
   await db.saveTest(test);
   res.json(test);
 });
 
 app.post('/api/admin/tests/:id/questions', requireAdmin, async (req, res) => {
-  const { text, options, correct, timeLimitSeconds, type, matchingPairs, orderingItems, blanks, hotspotTarget, imageUrl, images, correctKeywords } = req.body;
+  const { text, options, correct, timeLimitSeconds, type, matchingPairs, orderingItems, blanks, hotspotTarget, imageUrl, images, correctKeywords, useAiGrading } = req.body;
   if (!text || !text.trim()) {
     return res.status(400).json({ error: 'Питання повинно містити текст' });
   }
@@ -734,7 +772,8 @@ app.post('/api/admin/tests/:id/questions', requireAdmin, async (req, res) => {
     correct: processedCorrect,
     correctKeywords: Array.isArray(correctKeywords) ? correctKeywords : (typeof processedCorrect === 'string' ? processedCorrect.split(',').map(s => s.trim()).filter(Boolean) : []),
     timeLimitSeconds: parseInt(timeLimitSeconds, 10) || 60,
-    type: qType
+    type: qType,
+    useAiGrading: qType === 'short_answer' ? (useAiGrading || false) : false
   });
 
   if (!newQ) {
@@ -807,7 +846,7 @@ app.post('/api/admin/tests/:id/questions/bulk', requireAdmin, async (req, res) =
 });
 
 app.put('/api/admin/tests/:id/questions/:qId', requireAdmin, async (req, res) => {
-  const { text, options, correct, timeLimitSeconds, type, matchingPairs, orderingItems, blanks, hotspotTarget, imageUrl, images, correctKeywords } = req.body;
+  const { text, options, correct, timeLimitSeconds, type, matchingPairs, orderingItems, blanks, hotspotTarget, imageUrl, images, correctKeywords, useAiGrading } = req.body;
   const qType = type || 'single';
   let processedCorrect = 0;
 
@@ -1764,6 +1803,82 @@ app.post('/api/admin/update/apply', requireAdmin, async (req, res) => {
     res.status(500).json({ error: 'Помилка оновлення: ' + err.message });
   }
 });
+
+async function runAiGradingForSession(session, database) {
+  const questions = session.questions || [];
+  const answers = session.answers || {};
+  const apiKey = DEFAULT_GEMINI_KEY;
+  if (!apiKey) return;
+
+  let changed = false;
+
+  for (const [qId, answerRecord] of Object.entries(answers)) {
+    if (!answerRecord.needsAiGrading) continue;
+    const question = questions.find(q => q.id === qId);
+    if (!question) continue;
+    const userText = String(answerRecord.userAnswer || '').trim();
+    if (!userText) {
+      answerRecord.needsAiGrading = false;
+      answerRecord.aiFeedback = 'Відповідь не надана';
+      changed = true;
+      continue;
+    }
+
+    const prompt = `Ти — шкільний вчитель. Оціни відповідь учня.
+
+Питання: ${question.text}
+Відповідь учня: ${userText}
+${question.correct ? `Еталонна відповідь (якщо є): ${question.correct}` : ''}
+
+Оціни відповідь від 0 до 1 (1 = повністю правильна, 0.5 = частково, 0 = неправильна).
+Поверни ТІЛЬКИ JSON: {"score": 0.8, "feedback": "Коротке пояснення"}`;
+
+    const modelsToTry = ['gemini-3.1-flash-lite-preview', 'gemini-3.1-flash-lite', 'gemini-flash-lite-latest'];
+
+    for (const model of modelsToTry) {
+      try {
+        const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${encodeURIComponent(apiKey)}`;
+        const gRes = await fetch(apiUrl, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            contents: [{ parts: [{ text: prompt }] }],
+            generationConfig: { responseMimeType: 'application/json', temperature: 0.1 }
+          }),
+          signal: AbortSignal.timeout(12000)
+        });
+        if (!gRes.ok) continue;
+        const gJson = await gRes.json();
+        const rawText = gJson?.candidates?.[0]?.content?.parts?.[0]?.text || '';
+        const parsed = JSON.parse(rawText.replace(/^```json\s*/i, '').replace(/```\s*$/i, '').trim());
+        if (parsed && typeof parsed.score === 'number') {
+          answerRecord.earnedPoints = Math.min(1, Math.max(0, parsed.score));
+          answerRecord.isCorrect = answerRecord.earnedPoints >= 0.7;
+          answerRecord.aiFeedback = parsed.feedback || '';
+          answerRecord.needsAiGrading = false;
+          changed = true;
+          break;
+        }
+      } catch {}
+    }
+  }
+
+  if (changed) {
+    let correctCount = 0;
+    Object.values(session.answers).forEach(a => { correctCount += (a.earnedPoints || 0); });
+    const totalQ = session.totalQuestions || 1;
+    session.rawScore = correctCount;
+    session.scorePercentage = totalQ > 0 ? Math.round((correctCount / totalQ) * 100) : 0;
+    await database.persist();
+    broadcastToAdmins({
+      type: 'session_ai_graded',
+      sessionId: session.id,
+      studentName: session.studentName,
+      scorePercentage: session.scorePercentage,
+      score12: session.score12
+    });
+  }
+}
 
 async function getTunnelUrl() {
   try {

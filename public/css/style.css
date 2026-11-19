@@ -4294,3 +4294,10 @@ body,
   0%, 100% { box-shadow: 0 2px 14px rgba(99,102,241,0.45), 0 0 0 0 rgba(139,92,246,0.4); }
   50%       { box-shadow: 0 2px 14px rgba(99,102,241,0.45), 0 0 0 7px rgba(139,92,246,0); }
 }
+
+.toggle-mini { position: relative; display: inline-flex; align-items: center; cursor: pointer; width: 32px; height: 18px; flex-shrink: 0; }
+.toggle-mini input { opacity: 0; width: 0; height: 0; position: absolute; }
+.toggle-mini-slider { position: absolute; inset: 0; background: rgba(255,255,255,0.08); border-radius: 18px; border: 1px solid var(--border-color, rgba(255,255,255,0.12)); transition: .2s; }
+.toggle-mini-slider::before { content: ""; position: absolute; height: 12px; width: 12px; left: 2px; bottom: 2px; background: var(--text-muted, #aaa); border-radius: 50%; transition: .2s; }
+.toggle-mini input:checked + .toggle-mini-slider { background: rgba(99,102,241,0.25); border-color: rgba(99,102,241,0.6); }
+.toggle-mini input:checked + .toggle-mini-slider::before { transform: translateX(14px); background: var(--accent, #6366f1); }

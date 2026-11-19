@@ -273,6 +273,7 @@ export class JsonFileDatabaseAdapter extends DatabaseAdapter {
             options: [],
             correct: q.correct !== undefined ? q.correct : '',
             correctKeywords: Array.isArray(q.correctKeywords) ? q.correctKeywords : [],
+            useAiGrading: q.useAiGrading || false,
             timeLimitSeconds: q.timeLimitSeconds
           };
         }
@@ -292,9 +293,11 @@ export class JsonFileDatabaseAdapter extends DatabaseAdapter {
         if (type === 'multiple') {
           const rawOpts = Array.isArray(q.options) ? q.options : [];
           const indexedOptions = rawOpts.map((opt, originalIdx) => ({ opt, originalIdx }));
-          for (let i = indexedOptions.length - 1; i > 0; i--) {
-            const j = Math.floor(Math.random() * (i + 1));
-            [indexedOptions[i], indexedOptions[j]] = [indexedOptions[j], indexedOptions[i]];
+          if (originalTest.shuffleOptions) {
+            for (let i = indexedOptions.length - 1; i > 0; i--) {
+              const j = Math.floor(Math.random() * (i + 1));
+              [indexedOptions[i], indexedOptions[j]] = [indexedOptions[j], indexedOptions[i]];
+            }
           }
           const origCorrectArr = Array.isArray(q.correct) ? q.correct.map(Number) : [Number(q.correct) || 0];
           const newCorrectArr = origCorrectArr.map(oldIdx => {
@@ -387,11 +390,15 @@ export class JsonFileDatabaseAdapter extends DatabaseAdapter {
 
         const rawOpts = Array.isArray(q.options) ? q.options : [];
         const indexedOptions = rawOpts.map((opt, originalIdx) => ({ opt, originalIdx }));
-        for (let i = indexedOptions.length - 1; i > 0; i--) {
-          const j = Math.floor(Math.random() * (i + 1));
-          [indexedOptions[i], indexedOptions[j]] = [indexedOptions[j], indexedOptions[i]];
+        if (originalTest.shuffleOptions) {
+          for (let i = indexedOptions.length - 1; i > 0; i--) {
+            const j = Math.floor(Math.random() * (i + 1));
+            [indexedOptions[i], indexedOptions[j]] = [indexedOptions[j], indexedOptions[i]];
+          }
         }
-        const newCorrectIdx = indexedOptions.findIndex(o => o.originalIdx === q.correct);
+        const newCorrectIdx = originalTest.shuffleOptions
+          ? indexedOptions.findIndex(o => o.originalIdx === q.correct)
+          : q.correct;
         return {
           id: q.id,
           text: q.text,
@@ -403,9 +410,11 @@ export class JsonFileDatabaseAdapter extends DatabaseAdapter {
         };
       });
 
-      for (let i = randomizedQuestions.length - 1; i > 0; i--) {
-        const j = Math.floor(Math.random() * (i + 1));
-        [randomizedQuestions[i], randomizedQuestions[j]] = [randomizedQuestions[j], randomizedQuestions[i]];
+      if (originalTest.shuffleQuestions) {
+        for (let i = randomizedQuestions.length - 1; i > 0; i--) {
+          const j = Math.floor(Math.random() * (i + 1));
+          [randomizedQuestions[i], randomizedQuestions[j]] = [randomizedQuestions[j], randomizedQuestions[i]];
+        }
       }
     }
 
@@ -568,13 +577,18 @@ export class JsonFileDatabaseAdapter extends DatabaseAdapter {
           }
         }
       } else if (q.type === 'short_answer') {
-        const userText = String(userAnswer || '').trim().toLowerCase();
-        const validList = Array.isArray(q.correctKeywords) && q.correctKeywords.length > 0
-          ? q.correctKeywords.map(k => String(k).trim().toLowerCase())
-          : String(q.correct || '').split(',').map(s => s.trim().toLowerCase()).filter(Boolean);
-        if (userText && validList.includes(userText)) {
-          isCorrect = true;
-          earnedPoints = 1;
+        if (q.useAiGrading) {
+          earnedPoints = 0;
+          isCorrect = false;
+        } else {
+          const userText = String(userAnswer || '').trim().toLowerCase();
+          const validList = Array.isArray(q.correctKeywords) && q.correctKeywords.length > 0
+            ? q.correctKeywords.map(k => String(k).trim().toLowerCase())
+            : String(q.correct || '').split(',').map(s => s.trim().toLowerCase()).filter(Boolean);
+          if (userText && validList.includes(userText)) {
+            isCorrect = true;
+            earnedPoints = 1;
+          }
         }
       } else if (q.type === 'fill_blanks') {
         const blanks = Array.isArray(q.blanks) ? q.blanks : [];
@@ -618,7 +632,8 @@ export class JsonFileDatabaseAdapter extends DatabaseAdapter {
         correctAnswer: q.correct,
         isCorrect,
         earnedPoints: Math.round(earnedPoints * 100) / 100,
-        timeSpent
+        timeSpent,
+        needsAiGrading: q.useAiGrading || false
       };
     });
 
