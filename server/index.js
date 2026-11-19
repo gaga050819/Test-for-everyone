@@ -1510,15 +1510,15 @@ function readLocalAnnouncement() {
 
 app.get('/api/admin/update/check', requireAdmin, async (req, res) => {
   const localManifest = readLocalManifest();
-  const currentVersion = localManifest.version || '1.2.2';
+  const currentVersion = localManifest.version || '1.2.3';
   const simulate = req.query.simulate === '1' || process.env.SIMULATE_UPDATE === 'true';
 
   if (simulate) {
     return res.json({
       hasUpdate: true,
       currentVersion,
-      latestVersion: '1.2.2',
-      changelog: 'Оновлено інтерфейс тестування, інтерактивний тур, оптимізовано збереження оцінок.',
+      latestVersion: '1.2.3',
+      changelog: 'Оновлено: Каталог тестів, перемішування питань/відповідей (Shuffle), загальна пауза тестування, ШІ-оцінювання через Gemini.',
       downloadUrl: ''
     });
   }
