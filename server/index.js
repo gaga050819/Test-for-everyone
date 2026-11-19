@@ -38,6 +38,13 @@ function loadEnv() {
 }
 loadEnv();
 
+process.on('uncaughtException', (err) => {
+  console.error('UNCAUGHT EXCEPTION:', err);
+});
+process.on('unhandledRejection', (reason) => {
+  console.error('UNHANDLED REJECTION:', reason);
+});
+
 const PORT = process.env.PORT || 3500;
 const DEFAULT_GEMINI_KEY = process.env.GEMINI_API_KEY || '';
 
