@@ -4871,8 +4871,9 @@ function initPauseExamControl() {
     btn.style.opacity = '0.7';
     btn.disabled = true;
 
-    const endpoint = examCurrentlyPaused ? '/api/admin/resume-exam' : '/api/admin/pause-exam';
-    const message = examCurrentlyPaused ? '' : 'Екзамен тимчасово призупинено. Зачекайте команди викладача.';
+    const wasPaused = examCurrentlyPaused;
+    const endpoint = wasPaused ? '/api/admin/resume-exam' : '/api/admin/pause-exam';
+    const message = wasPaused ? '' : 'Екзамен тимчасово призупинено. Зачекайте команди викладача.';
 
     try {
       const res = await adminFetch(endpoint, {
@@ -4882,7 +4883,7 @@ function initPauseExamControl() {
       });
 
       if (res.ok) {
-        if (!examCurrentlyPaused) {
+        if (!wasPaused) {
           showAdminToast('⏸ Тестування ПРИЗУПИНЕНО для всіх учнів!', true);
         } else {
           showAdminToast('▶ Тестування ВІДНОВЛЕНО для всіх учнів!', true);
