@@ -1,5 +1,5 @@
 const GEMINI_API_KEY = '';
-const GEMINI_MODELS = ['gemini-flash-lite-latest', 'gemini-3.5-flash-lite', 'gemini-3.8-flash'];
+const GEMINI_MODELS = ['gemini-3.1-flash-lite-preview', 'gemini-3.1-flash-lite', 'gemini-flash-lite-latest', 'gemini-3.8-flash'];
 
 const defaultSampleTest = {
   id: 'test_sample_studio_01',
@@ -1462,34 +1462,59 @@ function bindAiChatSidebar() {
     const typingId = appendTypingIndicator();
 
     const q = currentTest.questions[activeQuestionIndex] || {};
-    const prompt = `Ти — розумний помічник викладача Gemini у студії створення тестів SecureExam.
+    const prompt = `Ти — інтелектуальний помічник викладача Gemini у системі створення тестів SecureExam.
 Поточний тест: "${currentTest.name || ''}", предмет: "${currentTest.subject || ''}", тема: "${currentTest.topic || ''}".
 Поточне активне запитання (#${activeQuestionIndex + 1}): "${q.text || ''}", тип: "${q.type || 'single'}", варіанти: ${JSON.stringify(q.options || [])}.
 
 Запит викладача: "${text}".
 
-Якщо запит вимагає створити або покращити питання чи варіанти, надай якісну відповідь і ОБОВ'ЯЗКОВО заверши відповідь JSON-блоком у форматі:
+ІНСТРУКЦІЯ:
+1. Якщо викладач просить СТВОРИТИ ЦІЛИЙ ТЕСТ або КІЛЬКА ПИТАНЬ (наприклад: "створи тест про...", "зроби 5 питань...", "згенеруй тест на тему..."):
+Напиши короткий опис тесту і ОБОВ'ЯЗКОВО додай JSON-блок:
 \`\`\`json
 {
-  "action": "replace_options" або "replace_question" або "add_new_question",
-  "text": "текст запитання",
-  "type": "single" або "multiple",
-  "options": ["варіант 1", "варіант 2", "варіант 3", "варіант 4"],
-  "correct": [0],
-  "explanation": "пояснення"
+  "action": "create_test",
+  "testTitle": "Назва тесту",
+  "subject": "Предмет",
+  "topic": "Тема",
+  "durationMinutes": 15,
+  "questions": [
+    {
+      "text": "Текст питання",
+      "type": "single",
+      "options": ["Варіант 1", "Варіант 2", "Варіант 3", "Варіант 4"],
+      "correct": 0,
+      "points": 1,
+      "timeLimit": 60,
+      "explanation": "Пояснення правильної відповіді"
+    }
+  ]
 }
 \`\`\`
-Якщо це звичайна консультація чи порада — відповідай природною професійною українською мовою.`;
+
+2. Якщо викладач просить створити ОДНЕ питання чи змінити варіанти/поточне питання:
+\`\`\`json
+{
+  "action": "add_new_question",
+  "text": "Текст запитання",
+  "type": "single",
+  "options": ["Варіант 1", "Варіант 2", "Варіант 3", "Варіант 4"],
+  "correct": 0,
+  "explanation": "Пояснення"
+}
+\`\`\`
+
+3. Якщо це порада чи відповідь — відповідай грамотною українською мовою.`;
 
     let reply = await callGeminiApi(prompt, false);
     removeTypingIndicator(typingId);
 
     if (!reply) {
-      reply = `Ось рекомендація для питання: варто використати конкретні географічні факти та перевірені назви регіонів Східної Азії (Китай, Японія, Південна Корея, Монголія).`;
+      reply = 'Вибачте, не вдалося зв\'язатися з Gemini API. Перевірте з\'єднання з інтернетом або ключ у файлі .env.';
     }
 
     let parsedAction = null;
-    const jsonMatch = reply.match(/```json\s*([\s\S]*?)\s*```/) || reply.match(/\{[\s\S]*"options"[\s\S]*\}/);
+    const jsonMatch = reply.match(/```json\s*([\s\S]*?)\s*```/) || reply.match(/\{[\s\S]*"(?:questions|options)"[\s\S]*\}/);
     if (jsonMatch) {
       try {
         parsedAction = JSON.parse(jsonMatch[1] || jsonMatch[0]);
@@ -1499,9 +1524,114 @@ function bindAiChatSidebar() {
     const cleanReply = reply.replace(/```json[\s\S]*?```/g, '').trim();
 
     let cardData = null;
-    if (parsedAction && parsedAction.options && parsedAction.options.length > 0) {
+    const questionsList = Array.isArray(parsedAction?.questions) ? parsedAction.questions : null;
+
+    if (questionsList && questionsList.length > 0) {
+      const qCount = questionsList.length;
+      const testTitle = parsedAction.testTitle || parsedAction.topic || (currentTest.subject + ': Новий тест');
       cardData = {
-        title: parsedAction.text || 'Згенеровані варіанти:',
+        title: `Згенеровано ${qCount} завдань для тесту:`,
+        items: questionsList.map((qItem, idx) => {
+          const optCount = Array.isArray(qItem.options) ? qItem.options.length : 0;
+          return `${idx + 1}. ${qItem.text || 'Завдання #' + (idx + 1)} (${optCount} вар.)`;
+        }),
+        explanation: parsedAction.explanation || '',
+        onCreateNewTest: async () => {
+          try {
+            const token = localStorage.getItem('admin_token') || '05081988';
+            const res = await fetch('/api/admin/tests', {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                'x-admin-token': token
+              },
+              body: JSON.stringify({
+                title: testTitle,
+                durationMinutes: parsedAction.durationMinutes || 15,
+                topic: parsedAction.topic || '',
+                subject: parsedAction.subject || currentTest.subject || 'Загальний',
+                questions: questionsList.map((item, i) => ({
+                  id: 'q_ai_' + Date.now() + '_' + i,
+                  text: item.text || 'Питання #' + (i + 1),
+                  type: item.type || 'single',
+                  options: Array.isArray(item.options) ? item.options : ['Варіант 1', 'Варіант 2'],
+                  correct: item.correct !== undefined ? item.correct : 0,
+                  points: item.points || 1,
+                  timeLimit: item.timeLimit || 60,
+                  imageUrl: '',
+                  explanation: item.explanation || ''
+                }))
+              })
+            });
+            if (res.ok) {
+              const created = await res.json();
+              showToast(`Створено новий тест "${created.title}"!`);
+              if (typeof window.loadAdminTestsList === 'function') await window.loadAdminTestsList();
+              const edSel = document.getElementById('editorTestSelector');
+              if (edSel) edSel.value = created.id;
+              if (typeof window.loadAdminTest === 'function') {
+                window.selectedAdminTestId = created.id;
+                await window.loadAdminTest();
+              }
+            } else {
+              const err = await res.json().catch(() => ({}));
+              showToast('Помилка: ' + (err.error || 'Не вдалося створити тест'));
+            }
+          } catch (e) {
+            showToast('Помилка: ' + e.message);
+          }
+        },
+        onReplaceTest: () => {
+          recordUndoSnapshot();
+          currentTest.questions = questionsList.map((item, i) => ({
+            id: 'q_ai_' + Date.now() + '_' + i,
+            text: item.text || 'Питання #' + (i + 1),
+            type: item.type || 'single',
+            options: Array.isArray(item.options) ? item.options : ['Варіант 1', 'Варіант 2'],
+            correct: item.correct !== undefined ? item.correct : 0,
+            points: item.points || 1,
+            timeLimit: item.timeLimit || 60,
+            imageUrl: '',
+            explanation: item.explanation || ''
+          }));
+          if (parsedAction.testTitle) {
+            currentTest.name = currentTest.title = parsedAction.testTitle;
+          }
+          if (parsedAction.subject) currentTest.subject = parsedAction.subject;
+          if (parsedAction.topic) currentTest.topic = parsedAction.topic;
+          activeQuestionIndex = 0;
+          syncMetaHeader();
+          renderQuestionsNav();
+          loadQuestionIntoEditor(0);
+          updateTestAnalytics();
+          saveDraftToStorage();
+          showToast(`Питання тесту замінено на ${qCount} нових завдань!`);
+        },
+        onAppendQuestions: () => {
+          recordUndoSnapshot();
+          const toAdd = questionsList.map((item, i) => ({
+            id: 'q_ai_' + Date.now() + '_' + i,
+            text: item.text || 'Питання #' + (i + 1),
+            type: item.type || 'single',
+            options: Array.isArray(item.options) ? item.options : ['Варіант 1', 'Варіант 2'],
+            correct: item.correct !== undefined ? item.correct : 0,
+            points: item.points || 1,
+            timeLimit: item.timeLimit || 60,
+            imageUrl: '',
+            explanation: item.explanation || ''
+          }));
+          currentTest.questions.push(...toAdd);
+          activeQuestionIndex = currentTest.questions.length - toAdd.length;
+          renderQuestionsNav();
+          loadQuestionIntoEditor(activeQuestionIndex);
+          updateTestAnalytics();
+          saveDraftToStorage();
+          showToast(`Додано ${toAdd.length} завдань до тесту!`);
+        }
+      };
+    } else if (parsedAction && parsedAction.options && parsedAction.options.length > 0) {
+      cardData = {
+        title: parsedAction.text || 'Згенероване запитання:',
         items: parsedAction.options.map((opt, idx) => {
           const isC = Array.isArray(parsedAction.correct) ? parsedAction.correct.includes(idx) : parsedAction.correct === idx;
           return `${isC ? '[+]' : '•'} ${opt}`;
@@ -1544,7 +1674,7 @@ function bindAiChatSidebar() {
       };
     }
 
-    appendChatMessage('assistant', cleanReply || 'Ось результат аналізу від Gemini:', cardData);
+    appendChatMessage('assistant', cleanReply || 'Ось результат від Gemini:', cardData);
   };
 
   if (sendBtn) {
@@ -1607,8 +1737,11 @@ function appendChatMessage(role, text, cardData = null) {
         <ul class="chat-action-list">
           ${cardData.items.map(it => `<li>${escapeHtml(it)}</li>`).join('')}
         </ul>
-        ${cardData.explanation ? `<div style="font-size:10px; color:var(--text-muted); margin-top:2px;"><img src="/img/icons/bulb.svg" class="pixel-icon inline" alt=""> ${escapeHtml(cardData.explanation)}</div>` : ''}
-        <div class="chat-action-btns">
+        ${cardData.explanation ? `<div style="font-size:10px; color:var(--text-muted); margin-top:4px;"><img src="/img/icons/bulb.svg" class="pixel-icon inline" alt=""> ${escapeHtml(cardData.explanation)}</div>` : ''}
+        <div class="chat-action-btns" style="display:flex; flex-wrap:wrap; gap:6px; margin-top:8px;">
+          ${cardData.onCreateNewTest ? `<button type="button" class="btn-chat-create-test" style="background:linear-gradient(135deg,#6366f1,#8b5cf6); color:#fff; border:none; padding:6px 12px; border-radius:6px; font-size:11px; font-weight:700; cursor:pointer; display:inline-flex; align-items:center; gap:5px;"><img src="/img/icons/plus.svg" class="pixel-icon inline" alt="" style="filter:brightness(0) invert(1);"> Створити новий тест</button>` : ''}
+          ${cardData.onReplaceTest ? `<button type="button" class="btn-chat-replace-test" style="background:rgba(99,102,241,0.12); color:var(--accent,#6366f1); border:1px solid rgba(99,102,241,0.35); padding:6px 10px; border-radius:6px; font-size:11px; font-weight:600; cursor:pointer; display:inline-flex; align-items:center; gap:5px;"><img src="/img/icons/refresh.svg" class="pixel-icon inline" alt=""> Замінити цей тест</button>` : ''}
+          ${cardData.onAppendQuestions ? `<button type="button" class="btn-chat-append-test" style="background:rgba(16,185,129,0.12); color:#10b981; border:1px solid rgba(16,185,129,0.35); padding:6px 10px; border-radius:6px; font-size:11px; font-weight:600; cursor:pointer; display:inline-flex; align-items:center; gap:5px;"><img src="/img/icons/download.svg" class="pixel-icon inline" alt=""> Додати до тесту</button>` : ''}
           ${cardData.onApply ? `<button type="button" class="btn-chat-apply"><img src="/img/icons/download.svg" class="pixel-icon inline" alt=""> Застосувати до цього питання</button>` : ''}
           ${cardData.onAddNew ? `<button type="button" class="btn-chat-new"><img src="/img/icons/plus.svg" class="pixel-icon inline" alt=""> Додати як нове</button>` : ''}
         </div>
@@ -1620,8 +1753,15 @@ function appendChatMessage(role, text, cardData = null) {
   msg.innerHTML = inner;
 
   if (cardData) {
+    const createTestBtn = msg.querySelector('.btn-chat-create-test');
+    const replaceTestBtn = msg.querySelector('.btn-chat-replace-test');
+    const appendTestBtn = msg.querySelector('.btn-chat-append-test');
     const applyBtn = msg.querySelector('.btn-chat-apply');
     const addBtn = msg.querySelector('.btn-chat-new');
+
+    if (createTestBtn && cardData.onCreateNewTest) createTestBtn.addEventListener('click', cardData.onCreateNewTest);
+    if (replaceTestBtn && cardData.onReplaceTest) replaceTestBtn.addEventListener('click', cardData.onReplaceTest);
+    if (appendTestBtn && cardData.onAppendQuestions) appendTestBtn.addEventListener('click', cardData.onAppendQuestions);
     if (applyBtn && cardData.onApply) applyBtn.addEventListener('click', cardData.onApply);
     if (addBtn && cardData.onAddNew) addBtn.addEventListener('click', cardData.onAddNew);
   }
@@ -2564,9 +2704,9 @@ function startTestEditorTutorial() {
         text: 'Система в реальному часі показує суму балів, орієнтовний час проходження, рівень складності та структуру питань. Якщо написано «Немає питань» — час додати перше завдання!'
       },
       {
-        target: '#openAiGenModalBtn',
-        title: '5. ШІ-генерація за кілька секунд',
-        text: 'Натисніть «Майстер тестів Gemini», щоб автоматично створити цілий тест за темою. Штучний інтелект сформує будь-яку кількість запитань та варіантів відповідей.'
+        target: '#rightTabChatBtn',
+        title: '5. ШІ-генератор тестів та завдань',
+        text: 'У правому вікні «Gemini ШІ-Чат» напишіть будь-яке прохання (наприклад, «Створи тест про космос на 5 питань» або «Додай запитання про...»). Штучний інтелект згенерує тест прямо в чаті та запропонує створити новий тест або додати завдання в 1 клік!'
       },
       {
         target: '#openImportModalBtn',

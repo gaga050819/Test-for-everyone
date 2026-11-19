@@ -837,9 +837,6 @@
         <button id="printTestModalBtn" class="btn-secondary" style="width: auto; padding: 8px 14px; font-size: 12px; display: inline-flex; align-items: center; gap: 6px;" type="button" title="Друк на А4 / Експорт у Word та PDF">
           <img src="/img/icons/report.svg" class="pixel-icon inline" alt=""> Друк / Word
         </button>
-        <button id="openAiGenModalBtn" class="btn-primary" style="width: auto; padding: 8px 14px; font-size: 12px; background: linear-gradient(135deg, #6366f1, #8b5cf6); border: none; box-shadow: 0 2px 10px rgba(99,102,241,0.25);" type="button">
-          <img src="/img/icons/star.svg" class="pixel-icon inline" alt="" style="filter: brightness(0) invert(1);"> Майстер тестів Gemini
-        </button>
         <button id="openImportModalBtn" class="btn-secondary" style="width: auto; padding: 8px 14px; font-size: 12px; display: inline-flex; align-items: center; gap: 6px;" type="button">
           <img src="/img/icons/folder.svg" class="pixel-icon inline" alt=""> Масовий імпорт (Word / PDF)
         </button>
@@ -1034,22 +1031,26 @@
               <div class="chat-msg-bubble">
                 Привіт! Я твій інтерактивний ШІ-методист Gemini.
                 <br><br>
-                Напиши мені будь-яке прохання, наприклад:
-                <em>«Склади 4 правдоподібні варіанти про Східну Азію»</em> або <em>«Зроби запитання складнішим»</em> — і я згенерую якісний результат із можливістю вставити його в тест в 1 клік!
+                Я можу <strong>створити цілий тест</strong> або згенерувати окремі завдання та варіанти прямо тут у чаті!
+                <br><br>
+                Напиши мені, наприклад:
+                <br>• <em>«Створи тест про космос на 5 питань»</em>
+                <br>• <em>«Придумай складне запитання про економіку»</em>
+                <br>• <em>«Склади 4 правдоподібні варіанти»</em>
               </div>
             </div>
           </div>
 
           <div class="chat-quick-chips">
+            <button type="button" class="chat-chip" data-prompt="Створи повний новий тест на 5 якісних запитань за цією темою"><img src="/img/icons/star.svg" class="pixel-icon inline" alt=""> Створити тест (5 пит.)</button>
+            <button type="button" class="chat-chip" data-prompt="Придумай наступне якісне запитання до цієї теми тесту"><img src="/img/icons/plus.svg" class="pixel-icon inline" alt=""> Нове питання</button>
             <button type="button" class="chat-chip" data-prompt="Згенеруй 4 правильні та правдоподібні варіанти відповідей до поточного запитання"><img src="/img/icons/star.svg" class="pixel-icon inline" alt=""> Варіанти</button>
             <button type="button" class="chat-chip" data-prompt="Покращ формулювання цього запитання, щоб воно відповідало академічному стандарту тестування"><img src="/img/icons/edit.svg" class="pixel-icon inline" alt=""> Покращити</button>
             <button type="button" class="chat-chip" data-prompt="Напиши докладне пояснення правильної відповіді з науковими фактами"><img src="/img/icons/bulb.svg" class="pixel-icon inline" alt=""> Пояснення</button>
-            <button type="button" class="chat-chip" data-prompt="Зроби це запитання більш складним та аналітичним"><img src="/img/icons/trophy.svg" class="pixel-icon inline" alt=""> Ускладнити</button>
-            <button type="button" class="chat-chip" data-prompt="Придумай наступне якісне запитання до цієї теми тесту"><img src="/img/icons/plus.svg" class="pixel-icon inline" alt=""> Нове питання</button>
           </div>
 
           <div class="chat-input-bar">
-            <textarea id="aiChatInput" class="chat-textarea" rows="2" placeholder="Запитайте у Gemini..."></textarea>
+            <textarea id="aiChatInput" class="chat-textarea" rows="2" placeholder="Напишіть: «Створи тест про... на 5 питань» або запитайте що завгодно..."></textarea>
             <button type="button" id="aiChatSendBtn" class="chat-send-btn" title="Надіслати"><img src="/img/icons/signal.svg" class="pixel-icon inline" alt=""></button>
           </div>
         </div>

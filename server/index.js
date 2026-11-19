@@ -944,7 +944,7 @@ ${rawText.trim()}
   ]
 }`;
 
-      const modelsToTry = ['gemini-3.8-flash', 'gemini-flash-latest', 'gemini-3.5-flash'];
+      const modelsToTry = ['gemini-3.1-flash-lite-preview', 'gemini-3.1-flash-lite', 'gemini-flash-lite-latest', 'gemini-3.8-flash', 'gemini-flash-latest'];
       let geminiRes = null;
 
       for (const model of modelsToTry) {
@@ -1110,7 +1110,7 @@ ${customInstructions ? `Додаткові вимоги: ${customInstructions.tr
   ]
 }`;
 
-    const modelsToTry = ['gemini-3.8-flash', 'gemini-flash-latest', 'gemini-3.5-flash'];
+    const modelsToTry = ['gemini-3.1-flash-lite-preview', 'gemini-3.1-flash-lite', 'gemini-flash-lite-latest', 'gemini-3.8-flash', 'gemini-flash-latest'];
     let lastError = null;
     let geminiResponse = null;
 
@@ -1221,11 +1221,11 @@ app.post('/api/admin/gemini/prompt', requireAdmin, async (req, res) => {
     if (!prompt || typeof prompt !== 'string' || !prompt.trim()) {
       return res.status(400).json({ error: 'Порожній запит' });
     }
-    const keyToUse = DEFAULT_GEMINI_KEY;
+    const keyToUse = (req.body.apiKey && req.body.apiKey.trim()) ? req.body.apiKey.trim() : DEFAULT_GEMINI_KEY;
     if (!keyToUse) {
       return res.status(400).json({ error: 'Не вказано Gemini API ключ' });
     }
-    const modelsToTry = ['gemini-3.8-flash', 'gemini-flash-latest', 'gemini-3.5-flash'];
+    const modelsToTry = ['gemini-3.1-flash-lite-preview', 'gemini-3.1-flash-lite', 'gemini-flash-lite-latest', 'gemini-3.8-flash', 'gemini-flash-latest'];
     for (const model of modelsToTry) {
       try {
         const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${encodeURIComponent(keyToUse)}`;

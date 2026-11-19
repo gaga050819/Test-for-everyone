@@ -46,7 +46,8 @@ if [ -f "$ENV_FILE" ]; then
   done < "$ENV_FILE"
 fi
 
-for p in "/opt/homebrew/bin" "/usr/local/bin" "$SCRIPT_DIR/bin/runtime/node/bin" "$SCRIPT_DIR/.runtime/node/bin"; do
+LOCAL_RUNTIME="$HOME/.secureexam/runtime/node"
+for p in "/opt/homebrew/bin" "/usr/local/bin" "$LOCAL_RUNTIME/bin" "$SCRIPT_DIR/bin/runtime/node/bin" "$SCRIPT_DIR/.runtime/node/bin"; do
   if [ -d "$p" ]; then
     case ":$PATH:" in
       *":$p:"*) ;;
@@ -57,19 +58,24 @@ done
 
 if ! command -v node >/dev/null 2>&1 || ! command -v npm >/dev/null 2>&1; then
   echo "=========================================================="
-  echo "[ВСТАНОВЛЕННЯ] Node.js не знайдено. Автоматичне завантаження для macOS ($NODE_ARCH)..."
+  echo "[ВСТАНОВЛЕННЯ] Node.js не знайдено. Автоматичне налаштування для macOS ($NODE_ARCH)..."
   echo "=========================================================="
   NODE_VER="v20.18.0"
   NODE_TAR="node-${NODE_VER}-darwin-${NODE_ARCH}.tar.gz"
   NODE_URL="https://nodejs.org/dist/${NODE_VER}/${NODE_TAR}"
   TMP_TAR="/tmp/${NODE_TAR}"
 
-  mkdir -p "$SCRIPT_DIR/bin/runtime/node"
+  mkdir -p "$LOCAL_RUNTIME"
+  echo "[ЗАВАНТАЖЕННЯ] Завантаження портативного Node.js..."
   curl -fSL --retry 2 --connect-timeout 15 -o "$TMP_TAR" "$NODE_URL"
   if [ $? -eq 0 ] && [ -f "$TMP_TAR" ]; then
-    tar -xzf "$TMP_TAR" -C "$SCRIPT_DIR/bin/runtime/node" --strip-components=1
+    echo "[РОЗПАКУВАННЯ] Розпакування компонентів Node.js..."
+    tar --no-same-owner -xzf "$TMP_TAR" -C "$LOCAL_RUNTIME" --strip-components=1
     rm -f "$TMP_TAR"
-    export PATH="$SCRIPT_DIR/bin/runtime/node/bin:$PATH"
+    xattr -dr com.apple.quarantine "$LOCAL_RUNTIME" 2>/dev/null || true
+    chmod +x "$LOCAL_RUNTIME/bin/node" "$LOCAL_RUNTIME/bin/npm" 2>/dev/null || true
+    export PATH="$LOCAL_RUNTIME/bin:$PATH"
+    echo "[УСПІХ] Node.js успішно налаштовано!"
   fi
 fi
 
