@@ -1791,21 +1791,15 @@ function renderTestCatalog() {
         <span style="display: inline-flex; align-items: center; gap: 4px;"><img src="/img/icons/star.svg" class="pixel-icon inline" style="margin-right:0;" alt=""> ${totalPoints} б.</span>
       </div>
 
-      <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 6px; margin-top: 4px;">
-        <button class="btn-primary card-edit-btn" style="padding: 7px 10px; font-size: 11px; justify-content: center;" type="button">
+      <div style="display: flex; gap: 6px; margin-top: 4px;">
+        <button class="btn-primary card-edit-btn" style="flex: 1; padding: 7px 10px; font-size: 11px; justify-content: center;" type="button">
           <img src="/img/icons/edit.svg" class="pixel-icon inline" alt=""> Редагувати
         </button>
-        <button class="btn-secondary card-activate-btn" style="padding: 7px 10px; font-size: 11px; justify-content: center; ${isActive ? 'background: rgba(16,185,129,0.12); color: #10b981; border-color: rgba(16,185,129,0.3);' : ''}" type="button">
+        <button class="btn-secondary card-activate-btn" style="flex: 1; padding: 7px 10px; font-size: 11px; justify-content: center; ${isActive ? 'background: rgba(16,185,129,0.12); color: #10b981; border-color: rgba(16,185,129,0.3);' : ''}" type="button">
           <img src="/img/icons/check.svg" class="pixel-icon inline" alt=""> ${isActive ? 'Обрано' : 'Запустити'}
         </button>
-      </div>
-
-      <div style="display: flex; gap: 6px; margin-top: 2px;">
-        <button class="btn-secondary card-share-btn" style="flex: 1; padding: 5px 8px; font-size: 11px; justify-content: center;" type="button" title="Скопіювати пряме посилання для учнів">
-          <img src="/img/icons/link.svg" class="pixel-icon inline" alt=""> Посилання
-        </button>
-        <button class="btn-secondary card-delete-btn" style="padding: 5px 8px; font-size: 11px; border-color: rgba(239,68,68,0.3); color: var(--accent-red);" type="button" title="Видалити тест">
-          <img src="/img/icons/trash.svg" class="pixel-icon inline" alt="">
+        <button class="btn-secondary card-delete-btn" style="padding: 7px 10px; font-size: 11px; border-color: rgba(239,68,68,0.3); color: var(--accent-red); justify-content: center;" type="button" title="Видалити тест">
+          <img src="/img/icons/trash.svg" class="pixel-icon inline" style="margin-right:0;" alt="">
         </button>
       </div>
     `;
@@ -1846,24 +1840,6 @@ function renderTestCatalog() {
           await loadAdminLeaderboard(t.id);
           renderTestCatalog();
         } catch {}
-      });
-    }
-
-    const shareBtn = card.querySelector('.card-share-btn');
-    if (shareBtn) {
-      shareBtn.addEventListener('click', async () => {
-        const tunnelInput = document.getElementById('tunnelUrlInput');
-        let baseUrl = window.location.origin;
-        if (tunnelInput && tunnelInput.value && tunnelInput.value.startsWith('http')) {
-          baseUrl = tunnelInput.value.split('/?')[0];
-        }
-        const fullLink = `${baseUrl}/?test=${encodeURIComponent(t.id)}`;
-        try {
-          await navigator.clipboard.writeText(fullLink);
-          showAdminToast(`Посилання на «${t.title}» скопійовано!`, true);
-        } catch {
-          prompt('Пряме посилання на тест:', fullLink);
-        }
       });
     }
 
