@@ -4301,3 +4301,42 @@ body,
 .toggle-mini-slider::before { content: ""; position: absolute; height: 12px; width: 12px; left: 2px; bottom: 2px; background: var(--text-muted, #aaa); border-radius: 50%; transition: .2s; }
 .toggle-mini input:checked + .toggle-mini-slider { background: rgba(99,102,241,0.25); border-color: rgba(99,102,241,0.6); }
 .toggle-mini input:checked + .toggle-mini-slider::before { transform: translateX(14px); background: var(--accent, #6366f1); }
+
+.pause-exam-btn {
+  display: inline-flex !important;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 12px;
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+  border-radius: var(--radius-pill);
+  transition: all 0.2s ease;
+  user-select: none;
+}
+.pause-exam-btn:active {
+  transform: scale(0.94);
+}
+.pause-exam-btn.is-paused {
+  background: rgba(234, 179, 8, 0.22) !important;
+  border-color: #eab308 !important;
+  color: #fef08a !important;
+  box-shadow: 0 0 14px rgba(234, 179, 8, 0.45);
+  animation: pausePulse 2s infinite;
+}
+@keyframes pausePulse {
+  0%, 100% { box-shadow: 0 0 8px rgba(234, 179, 8, 0.3); }
+  50% { box-shadow: 0 0 16px rgba(234, 179, 8, 0.6); }
+}
+.pause-pulse-indicator {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #eab308;
+  animation: dotBlink 1s infinite;
+}
+@keyframes dotBlink {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.3; transform: scale(0.7); }
+}

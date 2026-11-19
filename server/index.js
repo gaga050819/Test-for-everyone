@@ -483,6 +483,10 @@ app.post('/api/admin/resume-exam', requireAdmin, (req, res) => {
   res.json({ success: true, paused: false });
 });
 
+app.get('/api/admin/pause-state', requireAdmin, (req, res) => {
+  res.json({ paused: globalExamPaused });
+});
+
 app.post('/api/sessions/start', async (req, res) => {
   const { studentName, studentId, testId, clientInfo, resumeSessionId } = req.body;
 

@@ -223,6 +223,7 @@ async function adminFetch(url, options = {}) {
 
 function init() {
   initWebSocket();
+  syncPauseExamState();
   loadSessions();
   checkTunnelStatus();
   setInterval(checkTunnelStatus, 8000);
@@ -950,19 +951,7 @@ function handleWsMessage(data) {
     loadSessions();
     renderLiveRadarGrid();
   } else if (data.type === 'exam_pause_changed') {
-    examCurrentlyPaused = data.paused;
-    const btn = document.getElementById('pauseExamBtn');
-    if (btn) {
-      if (data.paused) {
-        btn.innerHTML = '<img src="/img/icons/hourglass.svg" class="pixel-icon inline" alt=""> Продовжити';
-        btn.style.borderColor = 'rgba(234,179,8,0.5)';
-        btn.style.color = 'var(--accent-yellow, #eab308)';
-      } else {
-        btn.innerHTML = '<img src="/img/icons/hourglass.svg" class="pixel-icon inline" alt=""> Пауза';
-        btn.style.borderColor = '';
-        btn.style.color = '';
-      }
-    }
+    updatePauseExamButtonUI(data.paused);
   } else if (data.type === 'session_ai_graded') {
     showAdminToast(`ШІ перевірив відповідь ${data.studentName || 'студента'}: ${data.scorePercentage}%`);
     loadSessions();
@@ -4847,32 +4836,72 @@ function closeChangePasswordModal() {
 if (openChangePasswordModalBtn) openChangePasswordModalBtn.addEventListener('click', openChangePasswordModal);
 
 let examCurrentlyPaused = false;
-const pauseExamBtn = document.getElementById('pauseExamBtn');
-if (pauseExamBtn) {
-  pauseExamBtn.addEventListener('click', async () => {
+
+function updatePauseExamButtonUI(isPaused) {
+  examCurrentlyPaused = !!isPaused;
+  const btn = document.getElementById('pauseExamBtn');
+  if (!btn) return;
+  if (isPaused) {
+    btn.classList.add('is-paused');
+    btn.innerHTML = '<span class="pause-pulse-indicator"></span><img src="/img/icons/hourglass.svg" class="pixel-icon inline" alt=""> <span>Продовжити</span>';
+    btn.title = 'Тест зараз на паузі! Клікніть, щоб відновити тестування';
+  } else {
+    btn.classList.remove('is-paused');
+    btn.innerHTML = '<img src="/img/icons/hourglass.svg" class="pixel-icon inline" alt=""> <span>Пауза</span>';
+    btn.title = 'Поставити тестування на паузу для всіх учнів';
+  }
+}
+
+function syncPauseExamState() {
+  adminFetch('/api/admin/pause-state').then(async (r) => {
+    if (r.ok) {
+      const data = await r.json();
+      updatePauseExamButtonUI(data.paused);
+    }
+  }).catch(() => {});
+}
+
+function initPauseExamControl() {
+  const btn = document.getElementById('pauseExamBtn');
+  if (!btn) return;
+
+  syncPauseExamState();
+
+  btn.addEventListener('click', async () => {
+    btn.style.opacity = '0.7';
+    btn.disabled = true;
+
     const endpoint = examCurrentlyPaused ? '/api/admin/resume-exam' : '/api/admin/pause-exam';
     const message = examCurrentlyPaused ? '' : 'Екзамен тимчасово призупинено. Зачекайте команди викладача.';
+
     try {
       const res = await adminFetch(endpoint, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ message })
       });
+
       if (res.ok) {
-        examCurrentlyPaused = !examCurrentlyPaused;
-        if (examCurrentlyPaused) {
-          pauseExamBtn.innerHTML = '<img src="/img/icons/hourglass.svg" class="pixel-icon inline" alt=""> Продовжити';
-          pauseExamBtn.style.borderColor = 'rgba(234,179,8,0.5)';
-          pauseExamBtn.style.color = 'var(--accent-yellow, #eab308)';
+        const nextState = !examCurrentlyPaused;
+        updatePauseExamButtonUI(nextState);
+        if (nextState) {
+          showAdminToast('⏸ Тестування ПРИЗУПИНЕНО для всіх учнів!', true);
         } else {
-          pauseExamBtn.innerHTML = '<img src="/img/icons/hourglass.svg" class="pixel-icon inline" alt=""> Пауза';
-          pauseExamBtn.style.borderColor = '';
-          pauseExamBtn.style.color = '';
+          showAdminToast('▶ Тестування ВІДНОВЛЕНО для всіх учнів!', true);
         }
+      } else {
+        const errData = await res.json().catch(() => ({}));
+        showAdminToast('Помилка сервера: ' + (errData.error || res.statusText), false);
       }
-    } catch {}
+    } catch (err) {
+      showAdminToast('Помилка мережі: ' + (err.message || 'Не вдалося виконати дію'), false);
+    } finally {
+      btn.style.opacity = '1';
+      btn.disabled = false;
+    }
   });
 }
+initPauseExamControl();
 if (closeChangePasswordModalBtn) closeChangePasswordModalBtn.addEventListener('click', closeChangePasswordModal);
 if (cancelChangePasswordBtn) cancelChangePasswordBtn.addEventListener('click', closeChangePasswordModal);
 if (changePasswordModal) {
