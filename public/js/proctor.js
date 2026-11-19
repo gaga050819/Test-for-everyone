@@ -49,6 +49,7 @@ export class ProctorEngine {
     this.visibilityHiddenAt = null;
     this.initialScreenHeight = window.screen.height || window.innerHeight;
     this.isInputFocused = false;
+    this.isExamPaused = false;
   }
 
   detectDeviceType() {
@@ -110,10 +111,26 @@ export class ProctorEngine {
               window.extendTestTimer(data.minutes || 5);
             }
           } else if (data.type === 'exam_paused') {
+            this.isExamPaused = true;
+            if (this.fullscreenGraceTimer) {
+              clearInterval(this.fullscreenGraceTimer);
+              this.fullscreenGraceTimer = null;
+              this.isInsideFullscreenGrace = false;
+            }
+            if (this.splitScreenGraceTimer) {
+              clearInterval(this.splitScreenGraceTimer);
+              this.splitScreenGraceTimer = null;
+              this.isInsideSplitScreenGrace = false;
+              this.hideSplitScreenBlackout();
+            }
+            if (this.inactiveStartTime !== null) {
+              this.inactiveStartTime = null;
+            }
             if (typeof window.showExamPause === 'function') {
               window.showExamPause(data.message || 'Екзамен тимчасово зупинений');
             }
           } else if (data.type === 'exam_resumed') {
+            this.isExamPaused = false;
             if (typeof window.hideExamPause === 'function') {
               window.hideExamPause();
             }
@@ -286,6 +303,7 @@ export class ProctorEngine {
 
   handleFocusLoss(triggerSource) {
     if (!this.isRunning || this.isCompleted || this.isBypassed) return;
+    if (this.isExamPaused) return;
     if (this.inactiveStartTime !== null) return;
 
     this.inactiveStartTime = Date.now();
@@ -408,6 +426,7 @@ export class ProctorEngine {
 
   handleFullscreenExit() {
     if (!this.isRunning || this.isCompleted || this.isBypassed) return;
+    if (this.isExamPaused) return;
     if (!this.isFullscreenSupported()) return;
     this.isInsideFullscreenGrace = true;
     this.fullscreenGraceRemaining = 9;
@@ -636,6 +655,7 @@ export class ProctorEngine {
 
   checkSplitScreen(isImmediate = false) {
     if (!this.isRunning || this.isCompleted || this.isBypassed) return;
+    if (this.isExamPaused) return;
     if (this.isInputFocused) return;
     if (this.isIOS) return;
 

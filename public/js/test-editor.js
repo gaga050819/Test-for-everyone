@@ -1,5 +1,5 @@
 const GEMINI_API_KEY = localStorage.getItem('gemini_api_key') || '';
-const GEMINI_MODELS = ['gemini-flash-lite-latest', 'gemini-flash-latest', 'gemini-3.1-flash-lite', 'gemini-3.8-flash'];
+const GEMINI_MODELS = ['gemini-flash-lite-latest', 'gemini-flash-latest', 'gemini-2.5-flash-lite', 'gemini-2.5-flash'];
 
 const defaultSampleTest = {
   id: 'test_sample_studio_01',
@@ -1217,6 +1217,7 @@ async function callGeminiApi(promptText, expectJson = true) {
       try {
         const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${encodeURIComponent(GEMINI_API_KEY)}`;
         const reqBody = {
+          systemInstruction: { parts: [{ text: 'Відповідай виключно українською мовою. All responses must be in Ukrainian language.' }] },
           contents: [{ parts: [{ text: promptText }] }]
         };
         if (expectJson) {

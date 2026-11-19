@@ -987,7 +987,7 @@ ${rawText.trim()}
   ]
 }`;
 
-      const modelsToTry = ['gemini-flash-lite-latest', 'gemini-flash-latest', 'gemini-3.1-flash-lite', 'gemini-3.8-flash'];
+      const modelsToTry = ['gemini-flash-lite-latest', 'gemini-flash-latest', 'gemini-2.5-flash-lite', 'gemini-2.5-flash'];
       let geminiRes = null;
 
       for (const model of modelsToTry) {
@@ -997,13 +997,14 @@ ${rawText.trim()}
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
+              systemInstruction: { parts: [{ text: 'Відповідай виключно українською мовою. All responses must be in Ukrainian language.' }] },
               contents: [{ parts: [{ text: promptText }] }],
               generationConfig: {
                 responseMimeType: 'application/json',
                 temperature: 0.2
               }
             }),
-            signal: AbortSignal.timeout(5000)
+            signal: AbortSignal.timeout(20000)
           });
 
           if (gRes.ok) {
@@ -1153,7 +1154,7 @@ ${customInstructions ? `Додаткові вимоги: ${customInstructions.tr
   ]
 }`;
 
-    const modelsToTry = ['gemini-flash-lite-latest', 'gemini-flash-latest', 'gemini-3.1-flash-lite', 'gemini-3.8-flash'];
+    const modelsToTry = ['gemini-flash-lite-latest', 'gemini-flash-latest', 'gemini-2.5-flash-lite', 'gemini-2.5-flash'];
     let lastError = null;
     let geminiResponse = null;
 
@@ -1164,13 +1165,14 @@ ${customInstructions ? `Додаткові вимоги: ${customInstructions.tr
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
+            systemInstruction: { parts: [{ text: 'Відповідай виключно українською мовою. All responses must be in Ukrainian language.' }] },
             contents: [{ parts: [{ text: promptText }] }],
             generationConfig: {
               responseMimeType: 'application/json',
               temperature: 0.7
             }
           }),
-          signal: AbortSignal.timeout(8000)
+          signal: AbortSignal.timeout(20000)
         });
 
         if (gRes.ok) {
@@ -1269,11 +1271,12 @@ app.post('/api/admin/gemini/prompt', requireAdmin, async (req, res) => {
     if (!keyToUse) {
       return res.status(400).json({ error: 'Не вказано Gemini API ключ' });
     }
-    const modelsToTry = ['gemini-flash-lite-latest', 'gemini-flash-latest', 'gemini-3.1-flash-lite', 'gemini-3.8-flash'];
+    const modelsToTry = ['gemini-flash-lite-latest', 'gemini-flash-latest', 'gemini-2.5-flash-lite', 'gemini-2.5-flash'];
     for (const model of modelsToTry) {
       try {
         const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${encodeURIComponent(keyToUse)}`;
         const reqBody = {
+          systemInstruction: { parts: [{ text: 'Відповідай виключно українською мовою. All responses must be in Ukrainian language.' }] },
           contents: [{ parts: [{ text: prompt }] }]
         };
         if (expectJson) {
@@ -1283,7 +1286,7 @@ app.post('/api/admin/gemini/prompt', requireAdmin, async (req, res) => {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(reqBody),
-          signal: AbortSignal.timeout(8000)
+          signal: AbortSignal.timeout(20000)
         });
         if (!gRes.ok) continue;
         const data = await gRes.json();
@@ -1839,7 +1842,7 @@ ${question.correct ? `Еталонна відповідь (якщо є): ${quest
 Оціни відповідь від 0 до 1 (1 = повністю правильна, 0.5 = частково, 0 = неправильна).
 Поверни ТІЛЬКИ JSON: {"score": 0.8, "feedback": "Коротке пояснення"}`;
 
-    const modelsToTry = ['gemini-flash-lite-latest', 'gemini-flash-latest', 'gemini-3.1-flash-lite', 'gemini-3.8-flash'];
+    const modelsToTry = ['gemini-flash-lite-latest', 'gemini-flash-latest', 'gemini-2.5-flash-lite', 'gemini-2.5-flash'];
 
     for (const model of modelsToTry) {
       try {
@@ -1848,10 +1851,11 @@ ${question.correct ? `Еталонна відповідь (якщо є): ${quest
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
+            systemInstruction: { parts: [{ text: 'Відповідай виключно українською мовою. All responses must be in Ukrainian language.' }] },
             contents: [{ parts: [{ text: prompt }] }],
             generationConfig: { responseMimeType: 'application/json', temperature: 0.1 }
           }),
-          signal: AbortSignal.timeout(12000)
+          signal: AbortSignal.timeout(20000)
         });
         if (!gRes.ok) continue;
         const gJson = await gRes.json();
