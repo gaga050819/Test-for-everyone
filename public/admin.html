@@ -1820,26 +1820,204 @@
     </div>
   </div>
 
-    <div id="viewSupportTab" class="hidden" style="padding: 16px 0;">
-      <div class="card-panel" style="max-width: 540px; margin: 0 auto; padding: 28px 24px;">
-        <div style="font-size: 18px; font-weight: 700; margin-bottom: 6px;"><img src="/img/icons/report.svg" class="pixel-icon inline" alt=""> Лінія підтримки</div>
-        <div style="font-size: 13px; color: var(--text-muted); margin-bottom: 24px;">Повідомте про баг або поділіться ідеєю — ми одразу отримаємо ваше повідомлення.</div>
-        <div style="display: flex; gap: 10px; margin-bottom: 18px;">
-          <label style="display:flex;align-items:center;gap:7px;cursor:pointer;font-size:14px;padding:8px 16px;border-radius:8px;border:1px solid var(--border-color);flex:1;justify-content:center;" id="ntBugLabel">
-            <input type="radio" name="ntType" value="bug" id="ntTypeBug" checked style="accent-color:var(--accent-red);"> <img src="/img/icons/report.svg" class="pixel-icon inline" alt=""> Баг
-          </label>
-          <label style="display:flex;align-items:center;gap:7px;cursor:pointer;font-size:14px;padding:8px 16px;border-radius:8px;border:1px solid var(--border-color);flex:1;justify-content:center;" id="ntIdeaLabel">
-            <input type="radio" name="ntType" value="idea" id="ntTypeIdea" style="accent-color:var(--accent-amber);"> <img src="/img/icons/bulb.svg" class="pixel-icon inline" alt=""> Ідея
-          </label>
+    <div id="viewSupportTab" class="hidden" style="padding: 24px 0;">
+      <style>
+        .support-card-container {
+          max-width: 620px;
+          margin: 0 auto;
+          padding: 32px 28px;
+          background: var(--bg-surface);
+          border: 1px solid var(--border);
+          border-radius: 20px;
+          box-shadow: var(--shadow-card);
+        }
+        .support-header-icon {
+          width: 50px;
+          height: 50px;
+          border-radius: 14px;
+          background: linear-gradient(135deg, rgba(91,94,244,0.18), rgba(67,56,202,0.28));
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          border: 1px solid rgba(91,94,244,0.3);
+          flex-shrink: 0;
+          color: var(--accent);
+        }
+        .support-type-grid {
+          display: grid;
+          grid-template-columns: 1fr 1fr;
+          gap: 12px;
+          margin-bottom: 22px;
+        }
+        .support-type-btn {
+          display: flex;
+          align-items: center;
+          gap: 12px;
+          padding: 12px 14px;
+          background: var(--bg-elevated);
+          border: 1.5px solid var(--border);
+          border-radius: 14px;
+          cursor: pointer;
+          transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+          outline: none;
+          font-family: inherit;
+        }
+        .support-type-btn:hover {
+          background: var(--bg-surface);
+          border-color: var(--border-active);
+          transform: translateY(-1px);
+        }
+        .support-type-btn.active.is-bug {
+          background: var(--bg-surface);
+          border-color: var(--accent-red);
+          box-shadow: 0 4px 16px rgba(220, 38, 38, 0.16);
+        }
+        .support-type-btn.active.is-idea {
+          background: var(--bg-surface);
+          border-color: var(--accent-amber);
+          box-shadow: 0 4px 16px rgba(217, 119, 6, 0.16);
+        }
+        .support-type-icon-wrap {
+          width: 38px;
+          height: 38px;
+          border-radius: 10px;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          flex-shrink: 0;
+          transition: transform 0.2s ease;
+        }
+        .support-type-btn:hover .support-type-icon-wrap {
+          transform: scale(1.08);
+        }
+        .support-type-icon-wrap.bug {
+          background: rgba(220, 38, 38, 0.12);
+          color: var(--accent-red);
+        }
+        .support-type-icon-wrap.idea {
+          background: rgba(217, 119, 6, 0.12);
+          color: var(--accent-amber);
+        }
+        .support-input-label {
+          display: block;
+          font-size: 13px;
+          font-weight: 600;
+          color: var(--text);
+          margin-bottom: 6px;
+        }
+        .support-field-group {
+          margin-bottom: 16px;
+        }
+        .support-input {
+          width: 100%;
+          box-sizing: border-box;
+          padding: 12px 14px;
+          border-radius: 12px;
+          border: 1px solid var(--border);
+          background: var(--bg-elevated);
+          color: var(--text);
+          font-size: 14px;
+          font-family: inherit;
+          transition: all 0.2s ease;
+        }
+        .support-input:focus {
+          outline: none;
+          border-color: var(--accent);
+          box-shadow: 0 0 0 3px rgba(91,94,244,0.15);
+          background: var(--bg-surface);
+        }
+        .support-submit-btn {
+          width: 100%;
+          padding: 13px 20px;
+          border-radius: 12px;
+          border: none;
+          background: linear-gradient(135deg, #5b5ef4, #4338ca);
+          color: #fff;
+          font-size: 15px;
+          font-weight: 600;
+          font-family: inherit;
+          cursor: pointer;
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
+          gap: 10px;
+          box-shadow: 0 4px 16px rgba(91, 94, 244, 0.35);
+          transition: all 0.2s ease;
+        }
+        .support-submit-btn:hover {
+          opacity: 0.94;
+          transform: translateY(-1px);
+          box-shadow: 0 6px 20px rgba(91, 94, 244, 0.45);
+        }
+        .support-submit-btn:active {
+          transform: translateY(0);
+        }
+        .support-submit-btn:disabled {
+          opacity: 0.6;
+          cursor: not-allowed;
+          transform: none;
+        }
+      </style>
+
+      <div class="support-card-container">
+        <div style="display: flex; align-items: center; gap: 16px; margin-bottom: 22px;">
+          <div class="support-header-icon">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path></svg>
+          </div>
+          <div>
+            <div style="font-size: 20px; font-weight: 700; color: var(--text); letter-spacing: -0.3px;">Скринька підтримки та ідей</div>
+            <div style="font-size: 13px; color: var(--text-muted); margin-top: 2px;">Повідомте про баг або запропонуйте функцію для покращення системи</div>
+          </div>
         </div>
-        <input type="text" id="ntTitle" class="form-input" placeholder="Заголовок *" style="width:100%;box-sizing:border-box;margin-bottom:12px;">
-        <textarea id="ntDesc" class="form-input" placeholder="Детальний опис *" rows="6" style="width:100%;box-sizing:border-box;resize:vertical;margin-bottom:12px;"></textarea>
-        <div id="ntStatus" style="font-size:13px;min-height:18px;margin-bottom:12px;"></div>
-        <button type="button" class="btn-primary" id="ntSubmitBtn" onclick="window.submitNewTicket()" style="width:100%;padding:11px;font-size:14px;"><img src="/img/icons/send.svg" class="pixel-icon inline" alt=""> Надіслати</button>
+
+        <input type="hidden" id="ntType" value="bug">
+
+        <div class="support-type-grid">
+          <button type="button" id="btnTypeBug" class="support-type-btn active is-bug" onclick="window.selectSupportType('bug')">
+            <div class="support-type-icon-wrap bug">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m8 2 1.88 1.88M14.12 3.88 16 2M9 7.13v-1a3.003 3.003 0 1 1 6 0v1M12 20c-3.3 0-6-2.7-6-6v-3a4 4 0 0 1 4-4h4a4 4 0 0 1 4 4v3c0 3.3-2.7 6-6 6ZM12 20v-9M6.53 9C4.6 8.8 3 7.1 3 5M6 13H2M3 21c0-2.1 1.7-3.9 3.8-4M20.97 5c0 2.1-1.6 3.8-3.5 4M22 13h-4M17.2 17c2.1.1 3.8 1.9 3.8 4"/></svg>
+            </div>
+            <div style="text-align: left;">
+              <div style="font-weight: 600; font-size: 14px; color: var(--text);">Повідомити про баг</div>
+              <div style="font-size: 11px; color: var(--text-muted);">Помилка або збій у системі</div>
+            </div>
+          </button>
+          <button type="button" id="btnTypeIdea" class="support-type-btn" onclick="window.selectSupportType('idea')">
+            <div class="support-type-icon-wrap idea">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18h6M10 22h4M12 2v1M12 8a4 4 0 0 0-4 4c0 1.5.8 2.8 2 3.4V17h4v-1.6c1.2-.6 2-1.9 2-3.4a4 4 0 0 0-4-4Z"/></svg>
+            </div>
+            <div style="text-align: left;">
+              <div style="font-weight: 600; font-size: 14px; color: var(--text);">Скринька ідей</div>
+              <div style="font-size: 11px; color: var(--text-muted);">Нова функція чи покращення</div>
+            </div>
+          </button>
+        </div>
+
+        <div class="support-field-group">
+          <label class="support-input-label" for="ntTitle">Заголовок звернення *</label>
+          <input type="text" id="ntTitle" class="support-input" placeholder="Наприклад: Не зберігаються зміни при редагуванні запитання">
+        </div>
+
+        <div class="support-field-group">
+          <label class="support-input-label" for="ntDesc">Детальний опис *</label>
+          <textarea id="ntDesc" class="support-input" rows="6" style="resize: vertical; min-height: 110px;" placeholder="Опишіть детально: що саме сталося, які кроки відтворили проблему або як повинна працювати ваша ідея..."></textarea>
+        </div>
+
+        <div id="ntStatus" style="font-size: 13px; font-weight: 500; min-height: 18px; margin-bottom: 14px; text-align: center;"></div>
+
+        <button type="button" id="ntSubmitBtn" class="support-submit-btn" onclick="window.submitNewTicket()">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"></line><polygon points="22 2 15 22 11 13 2 9 22 2"></polygon></svg>
+          <span>Надіслати повідомлення</span>
+        </button>
+
+        <div style="display: flex; align-items: center; justify-content: center; gap: 8px; font-size: 12px; color: var(--text-muted); margin-top: 18px;">
+          <img src="/img/icons/shield.svg" style="width: 14px; height: 14px; opacity: 0.65;" alt="">
+          <span>Повідомлення надсилається напряму розробнику через захищений шлюз</span>
+        </div>
       </div>
     </div>
 
-  <script type="module" src="/js/admin.js?v=1.2.3_5"></script>
+  <script type="module" src="/js/admin.js?v=1.2.3_6"></script>
   <div id="massImportModal" class="modal-backdrop hidden">
     <div class="modal-window">
       <div class="modal-window-head">

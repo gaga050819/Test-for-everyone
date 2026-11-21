@@ -1595,29 +1595,72 @@ function switchTabTo(tabName) {
 }
 window.switchTabTo = switchTabTo;
 
-async function submitNewTicket() {
-  const type = document.querySelector('input[name="ntType"]:checked')?.value || 'bug';
-  const title = document.getElementById('ntTitle').value.trim();
-  const desc = document.getElementById('ntDesc').value.trim();
-  const status = document.getElementById('ntStatus');
-  if (!title || !desc) { status.style.color = 'var(--accent-red)'; status.textContent = 'Заповніть заголовок та опис'; return; }
-  document.getElementById('ntSubmitBtn').disabled = true;
-  status.style.color = 'var(--text-muted)'; status.textContent = 'Надсилаємо...';
-  try {
-    const r = await fetch('/api/support/submit', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ type, title, description: desc, name: 'Вчитель' }) });
-    const d = await r.json();
-    if (!r.ok) throw new Error(d.error || 'Помилка');
-    status.style.color = '#4caf50'; status.textContent = '✓ Надіслано! Дякуємо за зворотній зв\'язок.';
-    document.getElementById('ntTitle').value = '';
-    document.getElementById('ntDesc').value = '';
-    document.getElementById('ntTypeBug').checked = true;
-    document.getElementById('ntSubmitBtn').disabled = false;
-  } catch (e) {
-    status.style.color = 'var(--accent-red)'; status.textContent = e.message;
-    document.getElementById('ntSubmitBtn').disabled = false;
+function selectSupportType(type) {
+  const hiddenInput = document.getElementById('ntType');
+  const btnBug = document.getElementById('btnTypeBug');
+  const btnIdea = document.getElementById('btnTypeIdea');
+  if (hiddenInput) hiddenInput.value = type;
+  if (btnBug) {
+    btnBug.classList.toggle('active', type === 'bug');
+    btnBug.classList.toggle('is-bug', type === 'bug');
+  }
+  if (btnIdea) {
+    btnIdea.classList.toggle('active', type === 'idea');
+    btnIdea.classList.toggle('is-idea', type === 'idea');
   }
 }
 
+async function submitNewTicket() {
+  const type = document.getElementById('ntType')?.value || 'bug';
+  const title = document.getElementById('ntTitle')?.value.trim();
+  const desc = document.getElementById('ntDesc')?.value.trim();
+  const status = document.getElementById('ntStatus');
+  const btn = document.getElementById('ntSubmitBtn');
+  if (!title || !desc) {
+    if (status) {
+      status.style.color = 'var(--accent-red)';
+      status.textContent = 'Будь ласка, заповніть заголовок та опис';
+    }
+    return;
+  }
+  if (btn) btn.disabled = true;
+  if (status) {
+    status.style.color = 'var(--text-muted)';
+    status.textContent = 'Надсилаємо...';
+  }
+  try {
+    const r = await fetch('/api/support/submit', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ type, title, description: desc, name: 'Вчитель' })
+    });
+    const d = await r.json();
+    if (!r.ok) throw new Error(d.error || 'Помилка');
+    if (status) {
+      status.style.color = 'var(--accent-green)';
+      status.textContent = '✓ Повідомлення успішно надіслано! Дякуємо за допомогу.';
+    }
+    const titleEl = document.getElementById('ntTitle');
+    const descEl = document.getElementById('ntDesc');
+    if (titleEl) titleEl.value = '';
+    if (descEl) descEl.value = '';
+    selectSupportType('bug');
+    if (btn) btn.disabled = false;
+    setTimeout(() => {
+      if (status && status.textContent.includes('✓')) {
+        status.textContent = '';
+      }
+    }, 4500);
+  } catch (e) {
+    if (status) {
+      status.style.color = 'var(--accent-red)';
+      status.textContent = e.message;
+    }
+    if (btn) btn.disabled = false;
+  }
+}
+
+window.selectSupportType = selectSupportType;
 window.submitNewTicket = submitNewTicket;
 
 function initTabNavigation() {
