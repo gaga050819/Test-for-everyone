@@ -25,6 +25,9 @@ export class DatabaseAdapter {
   async removeStudentFromClass(classId, studentId) {}
   async assignTestToClass(classId, testId) {}
   async removeTestFromClass(classId, testId) {}
+  async saveSupportTicket(ticket) {}
+  async getSupportTickets() {}
+  async deleteSupportTicket(ticketId) {}
 }
 
 export class JsonFileDatabaseAdapter extends DatabaseAdapter {
@@ -36,7 +39,8 @@ export class JsonFileDatabaseAdapter extends DatabaseAdapter {
       sessions: {},
       incidents: [],
       pings: {},
-      classes: {}
+      classes: {},
+      supportTickets: []
     };
   }
 
@@ -45,6 +49,7 @@ export class JsonFileDatabaseAdapter extends DatabaseAdapter {
       const content = await fs.readFile(this.filePath, 'utf-8');
       this.data = JSON.parse(content);
       if (!this.data.classes) this.data.classes = {};
+      if (!this.data.supportTickets) this.data.supportTickets = [];
     } catch {
       await this.seedDefaultData();
       await this.persist();
@@ -1021,6 +1026,28 @@ export class JsonFileDatabaseAdapter extends DatabaseAdapter {
     cls.testIds = cls.assignedTests;
     await this.persist();
     return cls;
+  }
+
+  async saveSupportTicket(ticket) {
+    if (!this.data.supportTickets) this.data.supportTickets = [];
+    this.data.supportTickets.unshift(ticket);
+    await this.persist();
+    return ticket;
+  }
+
+  async getSupportTickets() {
+    return this.data.supportTickets || [];
+  }
+
+  async deleteSupportTicket(ticketId) {
+    if (!this.data.supportTickets) return false;
+    const initialLen = this.data.supportTickets.length;
+    this.data.supportTickets = this.data.supportTickets.filter(t => t.id !== ticketId);
+    if (this.data.supportTickets.length !== initialLen) {
+      await this.persist();
+      return true;
+    }
+    return false;
   }
 }
 

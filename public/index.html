@@ -378,5 +378,60 @@
   </div>
 
   <script type="module" src="/js/app.js"></script>
+
+  <button id="feedbackFloatBtn" type="button" title="Повідомити про баг або ідею" style="position:fixed;bottom:20px;right:20px;z-index:9000;width:48px;height:48px;border-radius:50%;background:var(--accent-blue,#4f8ef7);border:2px solid var(--border-color,#333);cursor:pointer;display:flex;align-items:center;justify-content:center;box-shadow:0 4px 16px rgba(0,0,0,0.4);transition:transform .15s;" onclick="document.getElementById('feedbackModal').classList.remove('hidden')"><img src="/img/icons/report.svg" style="width:22px;height:22px;" alt=""></button>
+
+  <div id="feedbackModal" class="hidden" style="position:fixed;inset:0;z-index:9100;background:rgba(0,0,0,0.6);display:flex;align-items:center;justify-content:center;">
+    <div style="background:var(--bg-panel,#1a1a2e);border:1px solid var(--border-color,#333);border-radius:12px;padding:24px;width:100%;max-width:420px;box-shadow:0 8px 32px rgba(0,0,0,0.5);">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">
+        <span style="font-weight:700;font-size:16px;">Лінія підтримки</span>
+        <button type="button" onclick="document.getElementById('feedbackModal').classList.add('hidden')" style="background:transparent;border:none;cursor:pointer;color:var(--text-muted,#888);font-size:20px;">✕</button>
+      </div>
+      <div style="display:flex;gap:8px;margin-bottom:14px;">
+        <label style="display:flex;align-items:center;gap:5px;cursor:pointer;"><input type="radio" name="fbType" value="bug" checked id="fbTypeBug"> Баг</label>
+        <label style="display:flex;align-items:center;gap:5px;cursor:pointer;"><input type="radio" name="fbType" value="idea" id="fbTypeIdea"> Ідея</label>
+      </div>
+      <input type="text" id="fbTitle" placeholder="Заголовок *" style="width:100%;box-sizing:border-box;padding:9px 12px;border-radius:7px;border:1px solid var(--border-color,#333);background:var(--bg-input,#111);color:inherit;font-size:14px;margin-bottom:10px;">
+      <textarea id="fbDesc" placeholder="Опис *" rows="4" style="width:100%;box-sizing:border-box;padding:9px 12px;border-radius:7px;border:1px solid var(--border-color,#333);background:var(--bg-input,#111);color:inherit;font-size:14px;resize:vertical;margin-bottom:10px;"></textarea>
+      <input type="text" id="fbName" placeholder="Ваше ім'я (необов'язково)" style="width:100%;box-sizing:border-box;padding:9px 12px;border-radius:7px;border:1px solid var(--border-color,#333);background:var(--bg-input,#111);color:inherit;font-size:14px;margin-bottom:10px;">
+      <input type="text" id="fbContact" placeholder="Контакт (необов'язково)" style="width:100%;box-sizing:border-box;padding:9px 12px;border-radius:7px;border:1px solid var(--border-color,#333);background:var(--bg-input,#111);color:inherit;font-size:14px;margin-bottom:14px;">
+      <div id="fbStatus" style="font-size:13px;min-height:18px;margin-bottom:10px;"></div>
+      <div style="display:flex;justify-content:flex-end;gap:10px;">
+        <button type="button" onclick="document.getElementById('feedbackModal').classList.add('hidden')" style="padding:8px 18px;border-radius:7px;border:1px solid var(--border-color,#333);background:transparent;cursor:pointer;color:inherit;">Скасувати</button>
+        <button type="button" id="fbSubmitBtn" onclick="window._submitFeedback()" style="padding:8px 18px;border-radius:7px;border:none;background:var(--accent-blue,#4f8ef7);color:#fff;font-weight:600;cursor:pointer;">Надіслати</button>
+      </div>
+    </div>
+  </div>
+  <script>
+  window._submitFeedback = async function() {
+    const type = document.querySelector('input[name="fbType"]:checked')?.value || 'bug';
+    const title = document.getElementById('fbTitle').value.trim();
+    const description = document.getElementById('fbDesc').value.trim();
+    const name = document.getElementById('fbName').value.trim();
+    const contact = document.getElementById('fbContact').value.trim();
+    const status = document.getElementById('fbStatus');
+    if (!title || !description) { status.style.color = 'var(--accent-red,#f75)'; status.textContent = 'Заповніть заголовок та опис'; return; }
+    document.getElementById('fbSubmitBtn').disabled = true;
+    status.style.color = 'var(--text-muted,#aaa)'; status.textContent = 'Надсилаємо...';
+    try {
+      const r = await fetch('/api/support/submit', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({ type, title, description, name, contact }) });
+      const d = await r.json();
+      if (!r.ok) throw new Error(d.error || 'Помилка');
+      status.style.color = '#4caf50'; status.textContent = 'Дякуємо! Повідомлення надіслано.';
+      setTimeout(() => {
+        document.getElementById('feedbackModal').classList.add('hidden');
+        document.getElementById('fbTitle').value = '';
+        document.getElementById('fbDesc').value = '';
+        document.getElementById('fbName').value = '';
+        document.getElementById('fbContact').value = '';
+        status.textContent = '';
+        document.getElementById('fbSubmitBtn').disabled = false;
+      }, 1500);
+    } catch(e) {
+      status.style.color = 'var(--accent-red,#f75)'; status.textContent = e.message;
+      document.getElementById('fbSubmitBtn').disabled = false;
+    }
+  };
+  </script>
 </body>
 </html>

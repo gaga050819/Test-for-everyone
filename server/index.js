@@ -319,6 +319,45 @@ app.post('/api/admin/change-password', requireAdmin, (req, res) => {
   res.json({ success: true, message: 'Пароль успішно змінено', token: cleanNew });
 });
 
+app.post('/api/support/submit', async (req, res) => {
+  const { type, title, description, name, contact } = req.body || {};
+  if (!type || !title || !description) return res.status(400).json({ error: 'Заповніть усі поля' });
+  const ticket = {
+    id: 'ticket_' + Date.now() + '_' + Math.random().toString(36).slice(2, 6),
+    type,
+    title: title.trim(),
+    description: description.trim(),
+    name: (name || 'Анонім').trim(),
+    contact: (contact || '').trim(),
+    createdAt: new Date().toISOString(),
+    status: 'new'
+  };
+  await db.saveSupportTicket(ticket);
+  const webhookUrl = process.env.GOOGLE_SHEETS_WEBHOOK_URL;
+  if (webhookUrl) {
+    try {
+      await fetch(webhookUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(ticket),
+        signal: AbortSignal.timeout(5000)
+      });
+    } catch {}
+  }
+  res.json({ success: true, ticket });
+});
+
+app.get('/api/admin/support', requireAdmin, async (req, res) => {
+  const tickets = await db.getSupportTickets();
+  res.json(tickets);
+});
+
+app.delete('/api/admin/support/:id', requireAdmin, async (req, res) => {
+  const ok = await db.deleteSupportTicket(req.params.id);
+  if (!ok) return res.status(404).json({ error: 'Тікет не знайдено' });
+  res.json({ success: true });
+});
+
 app.get('/api/tests', async (req, res) => {
   const all = await db.getAllTests();
   const { topic, subject, search, classId } = req.query;
