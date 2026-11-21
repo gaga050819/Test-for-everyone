@@ -1827,12 +1827,40 @@
             <button id="supportTabBugBtn" class="btn-primary" type="button" onclick="window.showSupportSubTab('bug')" style="font-size: 13px; padding: 7px 16px;"><img src="/img/icons/report.svg" class="pixel-icon inline" alt=""> Баги</button>
             <button id="supportTabIdeaBtn" class="btn-secondary" type="button" onclick="window.showSupportSubTab('idea')" style="font-size: 13px; padding: 7px 16px;"><img src="/img/icons/bulb.svg" class="pixel-icon inline" alt=""> Ідеї</button>
           </div>
-          <button class="btn-secondary" type="button" onclick="window.loadSupportTickets()" style="font-size: 12px; padding: 6px 14px;"><img src="/img/icons/refresh.svg" class="pixel-icon inline" alt=""> Оновити</button>
+          <div style="display: flex; gap: 8px;">
+            <button class="btn-primary" type="button" onclick="window.openNewTicketModal()" style="font-size: 12px; padding: 6px 14px;"><img src="/img/icons/plus.svg" class="pixel-icon inline" alt=""> Новий тікет</button>
+            <button class="btn-secondary" type="button" onclick="window.loadSupportTickets()" style="font-size: 12px; padding: 6px 14px;"><img src="/img/icons/refresh.svg" class="pixel-icon inline" alt=""> Оновити</button>
+          </div>
         </div>
         <div id="supportBugsList"></div>
         <div id="supportIdeasList" class="hidden"></div>
       </div>
     </div>
+
+  <div id="newTicketModal" class="modal-backdrop hidden">
+    <div class="modal-window" style="max-width: 480px;">
+      <div class="modal-window-head">
+        <div>
+          <div class="modal-window-title"><img src="/img/icons/report.svg" class="pixel-icon inline" alt=""> Новий тікет</div>
+          <div class="modal-window-sub">Повідомте про баг або поділіться ідеєю</div>
+        </div>
+        <button type="button" class="close-win-btn" onclick="document.getElementById('newTicketModal').classList.add('hidden')"><img src="/img/icons/cross.svg" class="pixel-icon inline" alt=""></button>
+      </div>
+      <div style="padding: 20px; display: flex; flex-direction: column; gap: 12px;">
+        <div style="display: flex; gap: 8px;">
+          <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:14px;"><input type="radio" name="ntType" value="bug" checked id="ntTypeBug"> <img src="/img/icons/report.svg" class="pixel-icon inline" alt=""> Баг</label>
+          <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:14px;"><input type="radio" name="ntType" value="idea" id="ntTypeIdea"> <img src="/img/icons/bulb.svg" class="pixel-icon inline" alt=""> Ідея</label>
+        </div>
+        <input type="text" id="ntTitle" class="form-input" placeholder="Заголовок *" style="width:100%;box-sizing:border-box;">
+        <textarea id="ntDesc" class="form-input" placeholder="Опис *" rows="5" style="width:100%;box-sizing:border-box;resize:vertical;"></textarea>
+        <div id="ntStatus" style="font-size:13px;min-height:16px;"></div>
+        <div style="display:flex;justify-content:flex-end;gap:10px;">
+          <button type="button" class="btn-secondary" onclick="document.getElementById('newTicketModal').classList.add('hidden')">Скасувати</button>
+          <button type="button" class="btn-primary" id="ntSubmitBtn" onclick="window.submitNewTicket()"><img src="/img/icons/send.svg" class="pixel-icon inline" alt=""> Надіслати</button>
+        </div>
+      </div>
+    </div>
+  </div>
 
   <script type="module" src="/js/admin.js?v=1.2.3_4"></script>
   <div id="massImportModal" class="modal-backdrop hidden">

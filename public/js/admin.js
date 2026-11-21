@@ -1668,6 +1668,41 @@ window.loadSupportTickets = loadSupportTickets;
 window.showSupportSubTab = showSupportSubTab;
 window.deleteSupportTicket = deleteSupportTicket;
 
+function openNewTicketModal() {
+  const m = document.getElementById('newTicketModal');
+  if (!m) return;
+  document.getElementById('ntTitle').value = '';
+  document.getElementById('ntDesc').value = '';
+  document.getElementById('ntStatus').textContent = '';
+  document.getElementById('ntSubmitBtn').disabled = false;
+  const bugRadio = document.getElementById('ntTypeBug');
+  if (bugRadio) bugRadio.checked = true;
+  m.classList.remove('hidden');
+}
+
+async function submitNewTicket() {
+  const type = document.querySelector('input[name="ntType"]:checked')?.value || 'bug';
+  const title = document.getElementById('ntTitle').value.trim();
+  const desc = document.getElementById('ntDesc').value.trim();
+  const status = document.getElementById('ntStatus');
+  if (!title || !desc) { status.style.color = 'var(--accent-red)'; status.textContent = 'Заповніть заголовок та опис'; return; }
+  document.getElementById('ntSubmitBtn').disabled = true;
+  status.style.color = 'var(--text-muted)'; status.textContent = 'Надсилаємо...';
+  try {
+    const r = await fetch('/api/support/submit', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ type, title, description: desc, name: 'Вчитель' }) });
+    const d = await r.json();
+    if (!r.ok) throw new Error(d.error || 'Помилка');
+    status.style.color = '#4caf50'; status.textContent = 'Надіслано!';
+    setTimeout(() => { document.getElementById('newTicketModal').classList.add('hidden'); loadSupportTickets(); }, 1000);
+  } catch (e) {
+    status.style.color = 'var(--accent-red)'; status.textContent = e.message;
+    document.getElementById('ntSubmitBtn').disabled = false;
+  }
+}
+
+window.openNewTicketModal = openNewTicketModal;
+window.submitNewTicket = submitNewTicket;
+
 function initTabNavigation() {
   const tabBtnSessions = document.getElementById('tabBtnSessions');
   const tabBtnLiveRadar = document.getElementById('tabBtnLiveRadar');
