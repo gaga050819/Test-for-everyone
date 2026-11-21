@@ -336,7 +336,7 @@ app.post('/api/support/submit', async (req, res) => {
     try {
       const resp = await fetch(webhookUrl, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json; charset=utf-8' },
         body: JSON.stringify({ ...ticket, secret: process.env.GOOGLE_SHEETS_SECRET || '' }),
         redirect: 'follow',
         signal: AbortSignal.timeout(10000)
