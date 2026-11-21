@@ -1610,12 +1610,36 @@ function selectSupportType(type) {
   }
 }
 
+function triggerSupportConfetti() {
+  const container = document.getElementById('supportConfettiContainer');
+  if (!container) return;
+  container.innerHTML = '';
+  const colors = ['#22c55e', '#3b82f6', '#f59e0b', '#ec4899', '#8b5cf6', '#10b981'];
+  for (let i = 0; i < 18; i++) {
+    const p = document.createElement('div');
+    p.className = 'support-particle';
+    const angle = (i / 18) * 2 * Math.PI + (Math.random() - 0.5) * 0.3;
+    const distance = 50 + Math.random() * 65;
+    const tx = Math.cos(angle) * distance + 'px';
+    const ty = Math.sin(angle) * distance + 'px';
+    p.style.setProperty('--tx', tx);
+    p.style.setProperty('--ty', ty);
+    p.style.background = colors[i % colors.length];
+    const size = 6 + Math.random() * 4;
+    p.style.width = size + 'px';
+    p.style.height = size + 'px';
+    container.appendChild(p);
+  }
+  setTimeout(() => { container.innerHTML = ''; }, 1000);
+}
+
 async function submitNewTicket() {
   const type = document.getElementById('ntType')?.value || 'bug';
   const title = document.getElementById('ntTitle')?.value.trim();
   const desc = document.getElementById('ntDesc')?.value.trim();
   const status = document.getElementById('ntStatus');
   const btn = document.getElementById('ntSubmitBtn');
+  const banner = document.getElementById('supportSuccessBanner');
   if (!title || !desc) {
     if (status) {
       status.style.color = 'var(--accent-red)';
@@ -1623,10 +1647,12 @@ async function submitNewTicket() {
     }
     return;
   }
-  if (btn) btn.disabled = true;
-  if (status) {
-    status.style.color = 'var(--text-muted)';
-    status.textContent = 'Надсилаємо...';
+  if (status) status.textContent = '';
+  if (banner) banner.classList.add('hidden');
+  if (btn) {
+    btn.disabled = true;
+    btn.classList.add('is-loading');
+    btn.innerHTML = `<svg class="support-spin-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="12" cy="12" r="10" stroke-opacity="0.25"></circle><path d="M12 2a10 10 0 0 1 10 10" stroke-linecap="round"></path></svg><span>Відправляємо до Google Таблиці...</span>`;
   }
   try {
     const r = await fetch('/api/support/submit', {
@@ -1636,27 +1662,38 @@ async function submitNewTicket() {
     });
     const d = await r.json();
     if (!r.ok) throw new Error(d.error || 'Помилка');
-    if (status) {
-      status.style.color = 'var(--accent-green)';
-      status.textContent = '✓ Повідомлення успішно надіслано! Дякуємо за допомогу.';
+    if (btn) {
+      btn.classList.remove('is-loading');
+      btn.classList.add('is-success');
+      btn.innerHTML = `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg><span>Успішно надіслано!</span>`;
     }
+    if (banner) banner.classList.remove('hidden');
+    triggerSupportConfetti();
     const titleEl = document.getElementById('ntTitle');
     const descEl = document.getElementById('ntDesc');
     if (titleEl) titleEl.value = '';
     if (descEl) descEl.value = '';
     selectSupportType('bug');
-    if (btn) btn.disabled = false;
     setTimeout(() => {
-      if (status && status.textContent.includes('✓')) {
-        status.textContent = '';
+      if (btn) {
+        btn.classList.remove('is-success');
+        btn.disabled = false;
+        btn.innerHTML = `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"></line><polygon points="22 2 15 22 11 13 2 9 22 2"></polygon></svg><span>Надіслати повідомлення</span>`;
       }
-    }, 4500);
+    }, 3500);
+    setTimeout(() => {
+      if (banner) banner.classList.add('hidden');
+    }, 6000);
   } catch (e) {
+    if (btn) {
+      btn.classList.remove('is-loading');
+      btn.disabled = false;
+      btn.innerHTML = `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"></line><polygon points="22 2 15 22 11 13 2 9 22 2"></polygon></svg><span>Надіслати повідомлення</span>`;
+    }
     if (status) {
       status.style.color = 'var(--accent-red)';
       status.textContent = e.message;
     }
-    if (btn) btn.disabled = false;
   }
 }
 

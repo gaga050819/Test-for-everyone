@@ -1942,7 +1942,7 @@
           justify-content: center;
           gap: 10px;
           box-shadow: 0 4px 16px rgba(91, 94, 244, 0.35);
-          transition: all 0.2s ease;
+          transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
         }
         .support-submit-btn:hover {
           opacity: 0.94;
@@ -1953,9 +1953,84 @@
           transform: translateY(0);
         }
         .support-submit-btn:disabled {
-          opacity: 0.6;
+          opacity: 0.85;
           cursor: not-allowed;
           transform: none;
+        }
+        .support-submit-btn.is-loading {
+          background: linear-gradient(90deg, #4f46e5 0%, #6366f1 25%, #818cf8 50%, #6366f1 75%, #4f46e5 100%);
+          background-size: 250% 100%;
+          animation: supportShimmer 1.6s infinite linear;
+          box-shadow: 0 4px 18px rgba(79, 70, 229, 0.4);
+        }
+        .support-submit-btn.is-success {
+          background: linear-gradient(135deg, #16a34a, #15803d) !important;
+          box-shadow: 0 4px 22px rgba(22, 163, 74, 0.45) !important;
+          transform: scale(1.01);
+        }
+        .support-spin-icon {
+          animation: supportSpin 0.75s linear infinite;
+          flex-shrink: 0;
+        }
+        .support-success-banner {
+          display: flex;
+          align-items: center;
+          gap: 14px;
+          padding: 14px 18px;
+          background: rgba(34, 197, 94, 0.12);
+          border: 1.5px solid rgba(34, 197, 94, 0.35);
+          border-radius: 14px;
+          margin-bottom: 16px;
+          animation: supportPopIn 0.4s cubic-bezier(0.16, 1, 0.3, 1) both;
+        }
+        .support-success-badge {
+          width: 38px;
+          height: 38px;
+          border-radius: 50%;
+          background: linear-gradient(135deg, #22c55e, #16a34a);
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          flex-shrink: 0;
+          box-shadow: 0 4px 14px rgba(22, 163, 74, 0.35);
+        }
+        .support-confetti-wrap {
+          position: absolute;
+          top: 50%;
+          left: 50%;
+          width: 0;
+          height: 0;
+          pointer-events: none;
+          z-index: 20;
+        }
+        .support-particle {
+          position: absolute;
+          top: 0;
+          left: 0;
+          border-radius: 50%;
+          pointer-events: none;
+          animation: supportConfetti 0.85s cubic-bezier(0.25, 1, 0.5, 1) forwards;
+        }
+        @keyframes supportSpin {
+          0% { transform: rotate(0deg); }
+          100% { transform: rotate(360deg); }
+        }
+        @keyframes supportShimmer {
+          0% { background-position: 200% 0; }
+          100% { background-position: -200% 0; }
+        }
+        @keyframes supportPopIn {
+          0% { opacity: 0; transform: translateY(-8px) scale(0.96); }
+          60% { transform: translateY(2px) scale(1.02); }
+          100% { opacity: 1; transform: translateY(0) scale(1); }
+        }
+        @keyframes supportConfetti {
+          0% { transform: translate(0, 0) scale(1); opacity: 1; }
+          100% { transform: translate(var(--tx), var(--ty)) scale(0); opacity: 0; }
+        }
+        @keyframes supportCheckmark {
+          0% { stroke-dashoffset: 24; }
+          100% { stroke-dashoffset: 0; }
         }
       </style>
 
@@ -2003,12 +2078,27 @@
           <textarea id="ntDesc" class="support-input" rows="6" style="resize: vertical; min-height: 110px;" placeholder="Опишіть детально: що саме сталося, які кроки відтворили проблему або як повинна працювати ваша ідея..."></textarea>
         </div>
 
+        <div id="supportSuccessBanner" class="support-success-banner hidden">
+          <div class="support-success-badge">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+              <polyline points="20 6 9 17 4 12"></polyline>
+            </svg>
+          </div>
+          <div>
+            <div style="font-weight: 700; font-size: 14px; color: var(--text); margin-bottom: 2px;">Повідомлення успішно доставлено!</div>
+            <div style="font-size: 12px; color: var(--text-muted);">Запис передано у вашу Google Таблицю. Дякуємо за допомогу!</div>
+          </div>
+        </div>
+
         <div id="ntStatus" style="font-size: 13px; font-weight: 500; min-height: 18px; margin-bottom: 14px; text-align: center;"></div>
 
-        <button type="button" id="ntSubmitBtn" class="support-submit-btn" onclick="window.submitNewTicket()">
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"></line><polygon points="22 2 15 22 11 13 2 9 22 2"></polygon></svg>
-          <span>Надіслати повідомлення</span>
-        </button>
+        <div style="position: relative; width: 100%;">
+          <div id="supportConfettiContainer" class="support-confetti-wrap"></div>
+          <button type="button" id="ntSubmitBtn" class="support-submit-btn" onclick="window.submitNewTicket()">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"></line><polygon points="22 2 15 22 11 13 2 9 22 2"></polygon></svg>
+            <span>Надіслати повідомлення</span>
+          </button>
+        </div>
 
         <div style="display: flex; align-items: center; justify-content: center; gap: 8px; font-size: 12px; color: var(--text-muted); margin-top: 18px;">
           <img src="/img/icons/shield.svg" style="width: 14px; height: 14px; opacity: 0.65;" alt="">
@@ -2017,7 +2107,7 @@
       </div>
     </div>
 
-  <script type="module" src="/js/admin.js?v=1.2.3_6"></script>
+  <script type="module" src="/js/admin.js?v=1.2.3_7"></script>
   <div id="massImportModal" class="modal-backdrop hidden">
     <div class="modal-window">
       <div class="modal-window-head">
