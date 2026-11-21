@@ -1968,9 +1968,51 @@
           box-shadow: 0 4px 22px rgba(22, 163, 74, 0.45) !important;
           transform: scale(1.01);
         }
+        .support-submit-btn.is-error {
+          background: linear-gradient(135deg, #dc2626, #b91c1c) !important;
+          box-shadow: 0 4px 22px rgba(220, 38, 38, 0.4) !important;
+          animation: supportShake 0.4s ease;
+        }
+        @keyframes supportShake {
+          0%,100% { transform: translateX(0); }
+          20% { transform: translateX(-6px); }
+          40% { transform: translateX(6px); }
+          60% { transform: translateX(-4px); }
+          80% { transform: translateX(4px); }
+        }
         .support-spin-icon {
           animation: supportSpin 0.75s linear infinite;
           flex-shrink: 0;
+        }
+        .support-check-icon polyline {
+          stroke-dasharray: 24;
+          stroke-dashoffset: 24;
+          animation: supportCheckDraw 0.4s 0.05s cubic-bezier(0.16,1,0.3,1) forwards;
+        }
+        @keyframes supportCheckDraw {
+          to { stroke-dashoffset: 0; }
+        }
+        .support-error-banner {
+          display: flex;
+          align-items: center;
+          gap: 14px;
+          padding: 14px 18px;
+          background: rgba(220,38,38,0.1);
+          border: 1.5px solid rgba(220,38,38,0.35);
+          border-radius: 14px;
+          margin-bottom: 16px;
+          animation: supportPopIn 0.4s cubic-bezier(0.16,1,0.3,1) both;
+        }
+        .support-error-badge {
+          width: 38px;
+          height: 38px;
+          border-radius: 50%;
+          background: linear-gradient(135deg, #ef4444, #b91c1c);
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          flex-shrink: 0;
+          box-shadow: 0 4px 14px rgba(220,38,38,0.35);
         }
         .support-success-banner {
           display: flex;
@@ -2090,6 +2132,18 @@
           </div>
         </div>
 
+        <div id="supportErrorBanner" class="support-error-banner hidden">
+          <div class="support-error-badge">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+              <line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line>
+            </svg>
+          </div>
+          <div>
+            <div style="font-weight: 700; font-size: 14px; color: var(--text); margin-bottom: 2px;">Помилка надсилання</div>
+            <div id="supportErrorBannerMsg" style="font-size: 12px; color: var(--text-muted);"></div>
+          </div>
+        </div>
+
         <div id="ntStatus" style="font-size: 13px; font-weight: 500; min-height: 18px; margin-bottom: 14px; text-align: center;"></div>
 
         <div style="position: relative; width: 100%;">
@@ -2107,7 +2161,7 @@
       </div>
     </div>
 
-  <script type="module" src="/js/admin.js?v=1.2.3_8"></script>
+  <script type="module" src="/js/admin.js?v=1.2.3_9"></script>
   <div id="massImportModal" class="modal-backdrop hidden">
     <div class="modal-window">
       <div class="modal-window-head">

@@ -1637,22 +1637,35 @@ async function submitNewTicket() {
   const type = document.getElementById('ntType')?.value || 'bug';
   const title = document.getElementById('ntTitle')?.value.trim();
   const desc = document.getElementById('ntDesc')?.value.trim();
-  const status = document.getElementById('ntStatus');
   const btn = document.getElementById('ntSubmitBtn');
-  const banner = document.getElementById('supportSuccessBanner');
+  const bannerOk = document.getElementById('supportSuccessBanner');
+  const bannerErr = document.getElementById('supportErrorBanner');
+  const bannerErrMsg = document.getElementById('supportErrorBannerMsg');
+  const SVG_SEND = `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"></line><polygon points="22 2 15 22 11 13 2 9 22 2"></polygon></svg><span>Надіслати повідомлення</span>`;
+  const hideBanners = () => {
+    if (bannerOk) bannerOk.classList.add('hidden');
+    if (bannerErr) bannerErr.classList.add('hidden');
+  };
   if (!title || !desc) {
-    if (status) {
-      status.style.color = 'var(--accent-red)';
-      status.textContent = 'Будь ласка, заповніть заголовок та опис';
+    if (bannerErr) {
+      if (bannerErrMsg) bannerErrMsg.textContent = 'Будь ласка, заповніть заголовок та опис';
+      bannerErr.classList.remove('hidden');
+      bannerErr.classList.add('hidden');
+      void bannerErr.offsetWidth;
+      bannerErr.classList.remove('hidden');
+    }
+    if (btn) {
+      btn.classList.add('is-error');
+      setTimeout(() => btn.classList.remove('is-error'), 600);
     }
     return;
   }
-  if (status) status.textContent = '';
-  if (banner) banner.classList.add('hidden');
+  hideBanners();
   if (btn) {
     btn.disabled = true;
+    btn.classList.remove('is-success', 'is-error');
     btn.classList.add('is-loading');
-    btn.innerHTML = `<svg class="support-spin-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="12" cy="12" r="10" stroke-opacity="0.25"></circle><path d="M12 2a10 10 0 0 1 10 10" stroke-linecap="round"></path></svg><span>Відправляємо до Google Таблиці...</span>`;
+    btn.innerHTML = `<svg class="support-spin-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="12" cy="12" r="10" stroke-opacity="0.25"></circle><path d="M12 2a10 10 0 0 1 10 10" stroke-linecap="round"></path></svg><span>Надсилаємо...</span>`;
   }
   try {
     const r = await fetch('/api/support/submit', {
@@ -1661,16 +1674,16 @@ async function submitNewTicket() {
       body: JSON.stringify({ type, title, description: desc, name: 'Вчитель' })
     });
     const d = await r.json();
-    if (!r.ok) throw new Error(d.error || 'Помилка');
-    if (d.sheetsStatus === 'error' || d.sheetsStatus === 'forbidden') {
-      throw new Error('Помилка з\'єднання з Google Таблицею (' + d.sheetsStatus + ')');
+    if (!r.ok) throw new Error(d.error || 'Помилка сервера');
+    if (d.sheetsStatus && d.sheetsStatus !== 'ok') {
+      throw new Error('Google Таблиця: ' + d.sheetsStatus);
     }
     if (btn) {
       btn.classList.remove('is-loading');
       btn.classList.add('is-success');
-      btn.innerHTML = `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg><span>Успішно надіслано!</span>`;
+      btn.innerHTML = `<svg class="support-check-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg><span>Успішно надіслано!</span>`;
     }
-    if (banner) banner.classList.remove('hidden');
+    if (bannerOk) { bannerOk.classList.add('hidden'); void bannerOk.offsetWidth; bannerOk.classList.remove('hidden'); }
     triggerSupportConfetti();
     const titleEl = document.getElementById('ntTitle');
     const descEl = document.getElementById('ntDesc');
@@ -1678,24 +1691,20 @@ async function submitNewTicket() {
     if (descEl) descEl.value = '';
     selectSupportType('bug');
     setTimeout(() => {
-      if (btn) {
-        btn.classList.remove('is-success');
-        btn.disabled = false;
-        btn.innerHTML = `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"></line><polygon points="22 2 15 22 11 13 2 9 22 2"></polygon></svg><span>Надіслати повідомлення</span>`;
-      }
-    }, 3500);
-    setTimeout(() => {
-      if (banner) banner.classList.add('hidden');
-    }, 6000);
+      if (btn) { btn.classList.remove('is-success'); btn.disabled = false; btn.innerHTML = SVG_SEND; }
+      if (bannerOk) bannerOk.classList.add('hidden');
+    }, 4000);
   } catch (e) {
     if (btn) {
       btn.classList.remove('is-loading');
-      btn.disabled = false;
-      btn.innerHTML = `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"></line><polygon points="22 2 15 22 11 13 2 9 22 2"></polygon></svg><span>Надіслати повідомлення</span>`;
+      btn.classList.add('is-error');
+      btn.innerHTML = `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg><span>Не вдалося надіслати</span>`;
+      setTimeout(() => { btn.classList.remove('is-error'); btn.disabled = false; btn.innerHTML = SVG_SEND; }, 3500);
     }
-    if (status) {
-      status.style.color = 'var(--accent-red)';
-      status.textContent = e.message;
+    if (bannerErr) {
+      if (bannerErrMsg) bannerErrMsg.textContent = e.message || 'Невідома помилка. Перевірте з\'єднання.';
+      bannerErr.classList.add('hidden'); void bannerErr.offsetWidth; bannerErr.classList.remove('hidden');
+      setTimeout(() => bannerErr.classList.add('hidden'), 7000);
     }
   }
 }
