@@ -14,20 +14,17 @@ const __dirname = path.dirname(__filename);
 
 function loadEnv() {
   try {
-    let envFile = path.join(__dirname, '.env');
-    if (!fs.existsSync(envFile)) {
-      envFile = path.join(__dirname, '..', '.env');
-    }
-    if (fs.existsSync(envFile)) {
-      const lines = fs.readFileSync(envFile, 'utf-8').split(/\r?\n/);
-      for (const line of lines) {
-        const trimmed = line.trim();
-        if (trimmed && !trimmed.startsWith('#')) {
-          const eq = trimmed.indexOf('=');
-          if (eq > 0) {
-            const k = trimmed.slice(0, eq).trim();
-            const v = trimmed.slice(eq + 1).trim();
-            if (!process.env[k]) {
+    const files = [path.join(__dirname, '..', '.env'), path.join(__dirname, '.env')];
+    for (const f of files) {
+      if (fs.existsSync(f)) {
+        const lines = fs.readFileSync(f, 'utf-8').split(/\r?\n/);
+        for (const line of lines) {
+          const trimmed = line.trim();
+          if (trimmed && !trimmed.startsWith('#')) {
+            const eq = trimmed.indexOf('=');
+            if (eq > 0) {
+              const k = trimmed.slice(0, eq).trim();
+              const v = trimmed.slice(eq + 1).trim();
               process.env[k] = v;
             }
           }
@@ -334,18 +331,23 @@ app.post('/api/support/submit', async (req, res) => {
   };
   await db.saveSupportTicket(ticket);
   const webhookUrl = process.env.GOOGLE_SHEETS_WEBHOOK_URL;
+  let sheetsStatus = 'skipped';
   if (webhookUrl) {
     try {
-      await fetch(webhookUrl, {
+      const resp = await fetch(webhookUrl, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ ...ticket, secret: process.env.GOOGLE_SHEETS_SECRET || '' }),
         redirect: 'follow',
-        signal: AbortSignal.timeout(8000)
+        signal: AbortSignal.timeout(10000)
       });
-    } catch {}
+      const data = await resp.json().catch(() => null);
+      sheetsStatus = data?.status || resp.status;
+    } catch {
+      sheetsStatus = 'error';
+    }
   }
-  res.json({ success: true, ticket });
+  res.json({ success: true, ticket, sheetsStatus });
 });
 
 app.get('/api/admin/support', requireAdmin, async (req, res) => {

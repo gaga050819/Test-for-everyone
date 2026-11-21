@@ -1662,6 +1662,9 @@ async function submitNewTicket() {
     });
     const d = await r.json();
     if (!r.ok) throw new Error(d.error || 'Помилка');
+    if (d.sheetsStatus === 'error' || d.sheetsStatus === 'forbidden') {
+      throw new Error('Помилка з\'єднання з Google Таблицею (' + d.sheetsStatus + ')');
+    }
     if (btn) {
       btn.classList.remove('is-loading');
       btn.classList.add('is-success');
