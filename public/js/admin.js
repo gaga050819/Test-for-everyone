@@ -1591,94 +1591,9 @@ function switchTabTo(tabName) {
     renderTestCatalog();
   } else if (tabName === 'testEditor') {
     loadAdminTest();
-  } else if (tabName === 'support') {
-    loadSupportTickets();
   }
 }
 window.switchTabTo = switchTabTo;
-
-let _supportSubTab = 'bug';
-
-async function loadSupportTickets() {
-  const token = getAdminToken();
-  const bugsList = document.getElementById('supportBugsList');
-  const ideasList = document.getElementById('supportIdeasList');
-  if (!bugsList || !ideasList) return;
-  bugsList.innerHTML = '<p style="color:var(--text-muted);font-size:13px;">Завантаження...</p>';
-  ideasList.innerHTML = '';
-  let tickets = [];
-  try {
-    const r = await fetch('/api/admin/support', { headers: { 'x-admin-token': token } });
-    if (!r.ok) throw new Error(await r.text());
-    tickets = await r.json();
-  } catch (e) {
-    bugsList.innerHTML = '<p style="color:var(--accent-red);font-size:13px;">Помилка завантаження</p>';
-    return;
-  }
-  const bugs = tickets.filter(t => t.type === 'bug');
-  const ideas = tickets.filter(t => t.type === 'idea');
-  const renderList = (items) => {
-    if (!items.length) return '<p style="color:var(--text-muted);font-size:13px;text-align:center;padding:24px;">Порожньо</p>';
-    return items.map(t => `
-      <div class="card-panel" style="margin-bottom:10px;padding:14px 16px;display:flex;flex-direction:column;gap:6px;">
-        <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:10px;">
-          <div style="font-weight:600;font-size:14px;">${escHtml(t.title)}</div>
-          <button class="btn-secondary" style="font-size:11px;padding:3px 10px;flex-shrink:0;" type="button" onclick="window.deleteSupportTicket('${t.id}')"><img src="/img/icons/trash.svg" class="pixel-icon inline" alt=""> Видалити</button>
-        </div>
-        <div style="font-size:13px;color:var(--text-secondary);white-space:pre-wrap;">${escHtml(t.description)}</div>
-        <div style="font-size:11px;color:var(--text-muted);display:flex;gap:12px;flex-wrap:wrap;">
-          <span><b>Від:</b> ${escHtml(t.name)}${t.contact ? ` (${escHtml(t.contact)})` : ''}</span>
-          <span><b>Дата:</b> ${new Date(t.createdAt).toLocaleString('uk-UA')}</span>
-        </div>
-      </div>`).join('');
-  };
-  bugsList.innerHTML = renderList(bugs);
-  ideasList.innerHTML = renderList(ideas);
-  showSupportSubTab(_supportSubTab);
-}
-
-function showSupportSubTab(tab) {
-  _supportSubTab = tab;
-  const bugsList = document.getElementById('supportBugsList');
-  const ideasList = document.getElementById('supportIdeasList');
-  const bugBtn = document.getElementById('supportTabBugBtn');
-  const ideaBtn = document.getElementById('supportTabIdeaBtn');
-  if (bugsList) bugsList.classList.toggle('hidden', tab !== 'bug');
-  if (ideasList) ideasList.classList.toggle('hidden', tab !== 'idea');
-  if (bugBtn) { bugBtn.classList.toggle('btn-primary', tab === 'bug'); bugBtn.classList.toggle('btn-secondary', tab !== 'bug'); }
-  if (ideaBtn) { ideaBtn.classList.toggle('btn-primary', tab === 'idea'); ideaBtn.classList.toggle('btn-secondary', tab !== 'idea'); }
-}
-
-async function deleteSupportTicket(id) {
-  const token = getAdminToken();
-  try {
-    const r = await fetch(`/api/admin/support/${id}`, { method: 'DELETE', headers: { 'x-admin-token': token } });
-    if (!r.ok) throw new Error(await r.text());
-    loadSupportTickets();
-  } catch (e) {
-    alert('Помилка видалення');
-  }
-}
-
-function escHtml(s) {
-  return String(s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
-}
-
-window.loadSupportTickets = loadSupportTickets;
-window.showSupportSubTab = showSupportSubTab;
-window.deleteSupportTicket = deleteSupportTicket;
-
-function openNewTicketModal() {
-  const m = document.getElementById('newTicketModal');
-  if (!m) return;
-  document.getElementById('ntTitle').value = '';
-  document.getElementById('ntDesc').value = '';
-  document.getElementById('ntStatus').textContent = '';
-  document.getElementById('ntSubmitBtn').disabled = false;
-  const bugRadio = document.getElementById('ntTypeBug');
-  if (bugRadio) bugRadio.checked = true;
-  m.classList.remove('hidden');
-}
 
 async function submitNewTicket() {
   const type = document.querySelector('input[name="ntType"]:checked')?.value || 'bug';
@@ -1692,15 +1607,17 @@ async function submitNewTicket() {
     const r = await fetch('/api/support/submit', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ type, title, description: desc, name: 'Вчитель' }) });
     const d = await r.json();
     if (!r.ok) throw new Error(d.error || 'Помилка');
-    status.style.color = '#4caf50'; status.textContent = 'Надіслано!';
-    setTimeout(() => { document.getElementById('newTicketModal').classList.add('hidden'); loadSupportTickets(); }, 1000);
+    status.style.color = '#4caf50'; status.textContent = '✓ Надіслано! Дякуємо за зворотній зв\'язок.';
+    document.getElementById('ntTitle').value = '';
+    document.getElementById('ntDesc').value = '';
+    document.getElementById('ntTypeBug').checked = true;
+    document.getElementById('ntSubmitBtn').disabled = false;
   } catch (e) {
     status.style.color = 'var(--accent-red)'; status.textContent = e.message;
     document.getElementById('ntSubmitBtn').disabled = false;
   }
 }
 
-window.openNewTicketModal = openNewTicketModal;
 window.submitNewTicket = submitNewTicket;
 
 function initTabNavigation() {
