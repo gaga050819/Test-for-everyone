@@ -1,12 +1,18 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64">
-  <path d="M10 46 L8 22 L20 32 L32 14 L44 32 L56 22 L54 46 Z" fill="#d97706"/>
-  <path d="M12 45 L10 24 L21 33 L32 17 L43 33 L54 24 L52 45 Z" fill="#fbbf24"/>
-  <rect x="10" y="45" width="44" height="8" rx="3" fill="#b45309"/>
-  <rect x="12" y="46" width="40" height="6" rx="2" fill="#f59e0b"/>
-  <circle cx="8" cy="21" r="3" fill="#fef08a"/>
-  <circle cx="32" cy="14" r="3.5" fill="#fef08a"/>
-  <circle cx="56" cy="21" r="3" fill="#fef08a"/>
-  <circle cx="20" cy="49" r="2" fill="#ef4444"/>
-  <circle cx="32" cy="49" r="2" fill="#3b82f6"/>
-  <circle cx="44" cy="49" r="2" fill="#10b981"/>
+  <defs>
+    <linearGradient id="crownGold" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#fef08a"/>
+      <stop offset="50%" stop-color="#fbbf24"/>
+      <stop offset="100%" stop-color="#d97706"/>
+    </linearGradient>
+  </defs>
+  <path d="M10 46 L7 20 L20 31 L32 12 L44 31 L57 20 L54 46 Z" fill="url(#crownGold)"/>
+  <rect x="9" y="46" width="46" height="8" rx="3" fill="#b45309"/>
+  <rect x="11" y="47.5" width="42" height="5" rx="2" fill="#f59e0b"/>
+  <circle cx="7" cy="19" r="3.5" fill="#fef08a"/>
+  <circle cx="32" cy="12" r="4" fill="#fef08a"/>
+  <circle cx="57" cy="19" r="3.5" fill="#fef08a"/>
+  <circle cx="19" cy="50" r="2.3" fill="#ef4444"/>
+  <circle cx="32" cy="50" r="2.5" fill="#38bdf8"/>
+  <circle cx="45" cy="50" r="2.3" fill="#10b981"/>
 </svg>

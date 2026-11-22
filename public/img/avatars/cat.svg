@@ -1,17 +1,25 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64">
-  <polygon points="12,8 24,24 8,26" fill="#fb923c"/>
-  <polygon points="14,13 22,23 11,24" fill="#fda4af"/>
-  <polygon points="52,8 40,24 56,26" fill="#fb923c"/>
-  <polygon points="50,13 42,23 53,24" fill="#fda4af"/>
-  <ellipse cx="32" cy="37" rx="22" ry="18" fill="#fdba74"/>
-  <circle cx="23" cy="34" r="4" fill="#0284c7"/>
-  <circle cx="24" cy="33" r="1.5" fill="#ffffff"/>
-  <circle cx="41" cy="34" r="4" fill="#0284c7"/>
-  <circle cx="42" cy="33" r="1.5" fill="#ffffff"/>
-  <polygon points="32,41 29,43 35,43" fill="#f43f5e"/>
-  <path d="M29 44 Q32 47 35 44" stroke="#1e293b" stroke-width="1.5" fill="none" stroke-linecap="round"/>
-  <line x1="12" y1="39" x2="22" y2="41" stroke="#1e293b" stroke-width="1.5" stroke-linecap="round"/>
-  <line x1="11" y1="44" x2="22" y2="43" stroke="#1e293b" stroke-width="1.5" stroke-linecap="round"/>
-  <line x1="52" y1="39" x2="42" y2="41" stroke="#1e293b" stroke-width="1.5" stroke-linecap="round"/>
-  <line x1="53" y1="44" x2="42" y2="43" stroke="#1e293b" stroke-width="1.5" stroke-linecap="round"/>
+  <defs>
+    <linearGradient id="catHead" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#fdba74"/>
+      <stop offset="100%" stop-color="#fb923c"/>
+    </linearGradient>
+  </defs>
+  <polygon points="10,7 24,24 7,27" fill="#fb923c"/>
+  <polygon points="13,12 21,23 10,25" fill="#fda4af"/>
+  <polygon points="54,7 40,24 57,27" fill="#fb923c"/>
+  <polygon points="51,12 43,23 54,25" fill="#fda4af"/>
+  <ellipse cx="32" cy="37" rx="23" ry="19" fill="url(#catHead)"/>
+  <circle cx="23" cy="33" r="4.5" fill="#0284c7"/>
+  <circle cx="23" cy="33" r="2.8" fill="#0f172a"/>
+  <circle cx="24.5" cy="31.5" r="1.5" fill="#ffffff"/>
+  <circle cx="41" cy="33" r="4.5" fill="#0284c7"/>
+  <circle cx="41" cy="33" r="2.8" fill="#0f172a"/>
+  <circle cx="42.5" cy="31.5" r="1.5" fill="#ffffff"/>
+  <polygon points="32,40 28.5,43 35.5,43" fill="#f43f5e"/>
+  <path d="M28 44 Q32 47 36 44" stroke="#1e293b" stroke-width="1.8" fill="none" stroke-linecap="round"/>
+  <line x1="11" y1="38" x2="21" y2="40" stroke="#1e293b" stroke-width="1.8" stroke-linecap="round"/>
+  <line x1="10" y1="43" x2="21" y2="42" stroke="#1e293b" stroke-width="1.8" stroke-linecap="round"/>
+  <line x1="53" y1="38" x2="43" y2="40" stroke="#1e293b" stroke-width="1.8" stroke-linecap="round"/>
+  <line x1="54" y1="43" x2="43" y2="42" stroke="#1e293b" stroke-width="1.8" stroke-linecap="round"/>
 </svg>

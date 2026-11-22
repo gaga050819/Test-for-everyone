@@ -1,6 +1,25 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 40 40" width="40" height="40" shape-rendering="crispEdges">
-  <rect x="5" y="7" width="9" height="27" fill="#0284c7"/><rect x="8" y="10" width="3" height="21" fill="#e0f2fe"/>
-  <rect x="15" y="4" width="10" height="30" fill="#475569"/><rect x="18" y="7" width="4" height="24" fill="#f8fafc"/>
-  <rect x="26" y="10" width="9" height="24" fill="#38bdf8"/><rect x="29" y="13" width="3" height="18" fill="#e0f2fe"/>
-  <rect x="3" y="34" width="34" height="3" fill="#0f172a"/>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 40 40" width="40" height="40" fill="none">
+  <defs>
+    <linearGradient id="book1" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#0284c7"/>
+      <stop offset="100%" stop-color="#38bdf8"/>
+    </linearGradient>
+    <linearGradient id="book2" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#4f46e5"/>
+      <stop offset="100%" stop-color="#818cf8"/>
+    </linearGradient>
+    <linearGradient id="book3" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#059669"/>
+      <stop offset="100%" stop-color="#34d399"/>
+    </linearGradient>
+  </defs>
+  <rect x="4" y="34.5" width="32" height="2.5" rx="1.25" fill="#64748b"/>
+  <rect x="6.5" y="9" width="7" height="24" rx="2" fill="url(#book1)"/>
+  <rect x="9.5" y="11" width="1.5" height="20" fill="#e0f2fe" opacity="0.6"/>
+  <rect x="15" y="5" width="8" height="28" rx="2" fill="url(#book2)"/>
+  <rect x="18" y="7" width="2" height="24" fill="#e0e7ff" opacity="0.6"/>
+  <g transform="rotate(12 28 20)">
+    <rect x="25" y="9" width="7.5" height="23" rx="2" fill="url(#book3)"/>
+    <rect x="27.5" y="11" width="1.8" height="19" fill="#d1fae5" opacity="0.6"/>
+  </g>
 </svg>

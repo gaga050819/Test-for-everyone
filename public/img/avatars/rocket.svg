@@ -1,11 +1,29 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64">
-  <path d="M26 44 L32 58 L38 44 Z" fill="#f59e0b"/>
-  <path d="M29 44 L32 54 L35 44 Z" fill="#fef08a"/>
-  <path d="M18 36 L10 46 L20 44 Z" fill="#ef4444"/>
-  <path d="M46 36 L54 46 L44 44 Z" fill="#ef4444"/>
-  <path d="M32 6 C22 14 18 28 18 42 L46 42 C46 28 42 14 32 6 Z" fill="#f8fafc"/>
-  <path d="M32 6 C28 10 24 16 23 20 L41 20 C40 16 36 10 32 6 Z" fill="#ef4444"/>
-  <circle cx="32" cy="29" r="6.5" fill="#0284c7"/>
-  <circle cx="32" cy="29" r="4.5" fill="#38bdf8"/>
-  <circle cx="30.5" cy="27.5" r="1.5" fill="#ffffff"/>
+  <defs>
+    <linearGradient id="rocketBody" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#ffffff"/>
+      <stop offset="50%" stop-color="#f1f5f9"/>
+      <stop offset="100%" stop-color="#cbd5e1"/>
+    </linearGradient>
+    <linearGradient id="rocketRed" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#f87171"/>
+      <stop offset="100%" stop-color="#dc2626"/>
+    </linearGradient>
+    <linearGradient id="flameGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#fde047"/>
+      <stop offset="40%" stop-color="#f97316"/>
+      <stop offset="100%" stop-color="#ef4444"/>
+    </linearGradient>
+  </defs>
+  <path d="M24 44 Q32 60 32 60 Q32 60 40 44 Z" fill="url(#flameGrad)"/>
+  <path d="M27 44 Q32 54 32 54 Q32 54 37 44 Z" fill="#fef08a"/>
+  <path d="M16 35 L7 47 L20 45 Z" fill="url(#rocketRed)"/>
+  <path d="M48 35 L57 47 L44 45 Z" fill="url(#rocketRed)"/>
+  <path d="M32 5 C21 14 17 28 17 43 L47 43 C47 28 43 14 32 5 Z" fill="url(#rocketBody)"/>
+  <path d="M32 5 C27 9 23 15 22 20 L42 20 C41 15 37 9 32 5 Z" fill="url(#rocketRed)"/>
+  <rect x="22" y="41" width="20" height="3" rx="1.5" fill="#64748b"/>
+  <circle cx="32" cy="29" r="7.5" fill="#0369a1"/>
+  <circle cx="32" cy="29" r="5.5" fill="#38bdf8"/>
+  <circle cx="30" cy="27" r="1.8" fill="#ffffff"/>
+  <path d="M29 33 Q32 34 35 33" stroke="#0284c7" stroke-width="1.2" fill="none" stroke-linecap="round"/>
 </svg>

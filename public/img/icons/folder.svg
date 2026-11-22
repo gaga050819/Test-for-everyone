@@ -1,1 +1,15 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 40 40" width="40" height="40" fill="none"><path d="M6 10a3 3 0 0 1 3-3h7.5a3 3 0 0 1 2.1.9l2.8 2.8a3 3 0 0 0 2.1.9H31a3 3 0 0 1 3 3v2H6v-6.6z" fill="#475569"/><rect x="5" y="14" width="30" height="18" rx="3.5" fill="#f59e0b" stroke="#d97706" stroke-width="1.5"/><path d="M12 21h16M12 25h10" stroke="#fef3c7" stroke-width="2" stroke-linecap="round"/></svg>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 40 40" width="40" height="40" fill="none">
+  <defs>
+    <linearGradient id="folderBack" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#64748b"/>
+      <stop offset="100%" stop-color="#475569"/>
+    </linearGradient>
+    <linearGradient id="folderFront" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#fbbf24"/>
+      <stop offset="100%" stop-color="#d97706"/>
+    </linearGradient>
+  </defs>
+  <path d="M5 10.5a3.5 3.5 0 0 1 3.5-3.5h7c1 0 2 .5 2.6 1.3l2.2 2.6c.6.6 1.4 1 2.2 1H32a3.5 3.5 0 0 1 3.5 3.5v2H5v-6.9z" fill="url(#folderBack)"/>
+  <rect x="4" y="14" width="32" height="19" rx="3.5" fill="url(#folderFront)" stroke="#b45309" stroke-width="1.2"/>
+  <path d="M11 21h18M11 25.5h12" stroke="#ffffff" stroke-width="2.2" stroke-linecap="round" opacity="0.8"/>
+</svg>

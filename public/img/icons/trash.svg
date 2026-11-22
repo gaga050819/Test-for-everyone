@@ -1,4 +1,10 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 40 40" width="40" height="40" fill="none">
-  <path d="M8 11h24M16 7h8M12 11l1.5 21a2 2 0 0 0 2 1.9h9a2 2 0 0 0 2-1.9L28 11" stroke="#ef4444" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
-  <path d="M16 16v12M20 16v12M24 16v12" stroke="#ef4444" stroke-width="2" stroke-linecap="round"/>
+  <defs>
+    <linearGradient id="trashGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#f87171"/>
+      <stop offset="100%" stop-color="#dc2626"/>
+    </linearGradient>
+  </defs>
+  <path d="M7 11h26M15 7h10M11 11l1.6 22a2.5 2.5 0 0 0 2.5 2.3h9.8a2.5 2.5 0 0 0 2.5-2.3L29 11" stroke="url(#trashGrad)" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M16 17v12M20 17v12M24 17v12" stroke="url(#trashGrad)" stroke-width="2.2" stroke-linecap="round"/>
 </svg>

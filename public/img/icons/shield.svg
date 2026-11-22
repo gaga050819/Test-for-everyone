@@ -1,5 +1,15 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 40 40" width="40" height="40" fill="none">
-  <path d="M20 5l13 4v11c0 9-6 14-13 16-7-2-13-7-13-16V9l13-4z" fill="#4f46e5"/>
-  <path d="M20 7.5L30.5 11v8c0 7.5-4.5 12-10.5 13.5V7.5z" fill="#6366f1"/>
-  <path d="M14 20l4 4 8-8" stroke="#ffffff" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+  <defs>
+    <linearGradient id="shieldL" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#4f46e5"/>
+      <stop offset="100%" stop-color="#3730a3"/>
+    </linearGradient>
+    <linearGradient id="shieldR" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#818cf8"/>
+      <stop offset="100%" stop-color="#4f46e5"/>
+    </linearGradient>
+  </defs>
+  <path d="M20 4L7 9v11c0 9 5.5 14.5 13 16V4z" fill="url(#shieldL)"/>
+  <path d="M20 4l13 5v11c0 9-5.5 14.5-13 16V4z" fill="url(#shieldR)"/>
+  <path d="M14 20l4.5 4.5 8-8" stroke="#ffffff" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round"/>
 </svg>

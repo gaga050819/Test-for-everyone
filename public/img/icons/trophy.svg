@@ -1,7 +1,14 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 40 40" width="40" height="40" shape-rendering="crispEdges">
-  <rect x="12" y="5" width="16" height="4" fill="#d97706"/><rect x="9" y="9" width="22" height="12" fill="#f59e0b"/>
-  <rect x="5" y="9" width="5" height="4" fill="#d97706"/><rect x="3" y="13" width="5" height="7" fill="#f59e0b"/>
-  <rect x="30" y="9" width="5" height="4" fill="#d97706"/><rect x="32" y="13" width="5" height="7" fill="#f59e0b"/>
-  <rect x="15" y="21" width="10" height="7" fill="#475569"/><rect x="11" y="28" width="18" height="4" fill="#0f172a"/>
-  <rect x="7" y="32" width="26" height="4" fill="#475569"/><rect x="18" y="12" width="4" height="7" fill="#fff7cc"/>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 40 40" width="40" height="40" fill="none">
+  <defs>
+    <linearGradient id="trophyCup" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#fde047"/>
+      <stop offset="100%" stop-color="#d97706"/>
+    </linearGradient>
+  </defs>
+  <path d="M11 6h18v11a9 9 0 0 1-18 0V6z" fill="url(#trophyCup)" stroke="#b45309" stroke-width="1.5"/>
+  <path d="M11 9H6a4 4 0 0 0-4 4v1a5 5 0 0 0 5 5h4M29 9h5a4 4 0 0 1 4 4v1a5 5 0 0 1-5 5h-4" stroke="#d97706" stroke-width="2.8" stroke-linecap="round"/>
+  <path d="M18 25h4v5h-4z" fill="#b45309"/>
+  <rect x="12" y="30" width="16" height="4" rx="2" fill="#475569"/>
+  <rect x="9" y="34" width="22" height="3" rx="1.5" fill="#1e293b"/>
+  <path d="M20 10l1.2 2.5 2.8.4-2 2 .5 2.8L20 16.4l-2.5 1.3.5-2.8-2-2 2.8-.4L20 10z" fill="#ffffff" opacity="0.9"/>
 </svg>

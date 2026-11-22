@@ -1,5 +1,12 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 40 40" width="40" height="40" fill="none">
-  <path d="M26 6a14 14 0 1 0 8 25 15 15 0 0 1-8-25z" fill="#38bdf8" stroke="#0284c7" stroke-width="1.5"/>
-  <circle cx="10" cy="11" r="1" fill="#fef08a"/>
-  <circle cx="29" cy="8" r="1.5" fill="#fef08a"/>
+  <defs>
+    <linearGradient id="moonGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#67e8f9"/>
+      <stop offset="100%" stop-color="#0284c7"/>
+    </linearGradient>
+  </defs>
+  <path d="M27 6a14 14 0 1 0 7 25 14.5 14.5 0 0 1-7-25z" fill="url(#moonGrad)" stroke="#0369a1" stroke-width="1.5"/>
+  <circle cx="10" cy="11" r="1.5" fill="#fef08a"/>
+  <circle cx="30" cy="8" r="1.8" fill="#fef08a"/>
+  <circle cx="32" cy="18" r="1.2" fill="#fef08a"/>
 </svg>

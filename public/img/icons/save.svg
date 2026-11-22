@@ -1,7 +1,13 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 40 40" width="40" height="40" fill="none">
-  <path d="M8 7a2 2 0 0 1 2-2h16l6 6v20a2 2 0 0 1-2 2H10a2 2 0 0 1-2-2V7z" fill="#2563eb"/>
-  <rect x="13" y="5" width="14" height="8" rx="1" fill="#ffffff"/>
-  <rect x="12" y="20" width="16" height="13" rx="1.5" fill="#f8fafc"/>
-  <rect x="15" y="23" width="10" height="2" fill="#94a3b8"/>
-  <rect x="15" y="27" width="7" height="2" fill="#94a3b8"/>
+  <defs>
+    <linearGradient id="saveBody" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#3b82f6"/>
+      <stop offset="100%" stop-color="#1d4ed8"/>
+    </linearGradient>
+  </defs>
+  <path d="M7 8a3 3 0 0 1 3-3h17l6 6v21a3 3 0 0 1-3 3H10a3 3 0 0 1-3-3V8z" fill="url(#saveBody)" stroke="#1e40af" stroke-width="1.5"/>
+  <rect x="13" y="5" width="14" height="8.5" rx="1.5" fill="#f8fafc"/>
+  <rect x="21" y="6.5" width="3.5" height="5" rx="0.8" fill="#1e293b"/>
+  <rect x="11.5" y="20" width="17" height="13" rx="2" fill="#ffffff"/>
+  <path d="M15 24h10M15 28h7" stroke="#64748b" stroke-width="2" stroke-linecap="round"/>
 </svg>

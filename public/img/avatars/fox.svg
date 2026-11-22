@@ -1,16 +1,32 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64">
-  <path d="M10 8 L24 28 L8 34 Z" fill="#e65100"/>
-  <path d="M12 12 L22 26 L12 30 Z" fill="#ffe0b2"/>
-  <path d="M54 8 L40 28 L56 34 Z" fill="#e65100"/>
-  <path d="M52 12 L42 26 L52 30 Z" fill="#ffe0b2"/>
-  <ellipse cx="32" cy="37" rx="22" ry="18" fill="#ff7043"/>
-  <path d="M10 38 Q20 54 32 54 Q44 54 54 38 Q46 32 32 34 Q18 32 10 38 Z" fill="#ffffff"/>
-  <circle cx="24" cy="34" r="3.5" fill="#1e293b"/>
-  <circle cx="25.5" cy="32.5" r="1.2" fill="#ffffff"/>
-  <circle cx="40" cy="34" r="3.5" fill="#1e293b"/>
-  <circle cx="41.5" cy="32.5" r="1.2" fill="#ffffff"/>
-  <ellipse cx="32" cy="42" rx="3.5" ry="2.5" fill="#0f172a"/>
-  <path d="M30 45 Q32 47 34 45" stroke="#0f172a" stroke-width="1.5" fill="none" stroke-linecap="round"/>
-  <ellipse cx="18" cy="41" rx="3" ry="2" fill="#ff8a80" opacity="0.6"/>
-  <ellipse cx="46" cy="41" rx="3" ry="2" fill="#ff8a80" opacity="0.6"/>
+  <defs>
+    <linearGradient id="foxHead" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#ff7a3d"/>
+      <stop offset="100%" stop-color="#e64a19"/>
+    </linearGradient>
+    <linearGradient id="foxEarOut" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#d84315"/>
+      <stop offset="100%" stop-color="#bf360c"/>
+    </linearGradient>
+    <linearGradient id="foxEarIn" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#ffffff"/>
+      <stop offset="100%" stop-color="#ffe0b2"/>
+    </linearGradient>
+  </defs>
+  <path d="M8 8 L24 28 L8 34 Z" fill="url(#foxEarOut)"/>
+  <path d="M11 12 L21 26 L11 30 Z" fill="url(#foxEarIn)"/>
+  <path d="M56 8 L40 28 L56 34 Z" fill="url(#foxEarOut)"/>
+  <path d="M53 12 L43 26 L53 30 Z" fill="url(#foxEarIn)"/>
+  <ellipse cx="32" cy="37" rx="23" ry="19" fill="url(#foxHead)"/>
+  <path d="M9 36 Q19 54 32 54 Q45 54 55 36 Q47 31 32 33 Q17 31 9 36 Z" fill="#ffffff"/>
+  <circle cx="23" cy="33" r="4" fill="#1e293b"/>
+  <circle cx="24.8" cy="31.2" r="1.5" fill="#ffffff"/>
+  <circle cx="22" cy="34.5" r="0.7" fill="#ffffff"/>
+  <circle cx="41" cy="33" r="4" fill="#1e293b"/>
+  <circle cx="42.8" cy="31.2" r="1.5" fill="#ffffff"/>
+  <circle cx="40" cy="34.5" r="0.7" fill="#ffffff"/>
+  <ellipse cx="32" cy="41" rx="3.5" ry="2.3" fill="#0f172a"/>
+  <path d="M29 44 Q32 47 35 44" stroke="#0f172a" stroke-width="1.8" fill="none" stroke-linecap="round"/>
+  <ellipse cx="16" cy="40" rx="3.5" ry="2" fill="#ff7043" opacity="0.6"/>
+  <ellipse cx="48" cy="40" rx="3.5" ry="2" fill="#ff7043" opacity="0.6"/>
 </svg>

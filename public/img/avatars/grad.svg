@@ -1,8 +1,13 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64">
-  <polygon points="32,14 58,25 32,36 6,25" fill="#1e293b"/>
-  <polygon points="32,16 54,25 32,34 10,25" fill="#334155"/>
-  <path d="M18 30 L18 42 C18 48 32 52 32 52 C32 52 46 48 46 42 L46 30" fill="#1e293b"/>
-  <circle cx="32" cy="25" r="3" fill="#fbbf24"/>
-  <path d="M32 25 Q46 27 50 38" stroke="#fbbf24" stroke-width="2.5" fill="none" stroke-linecap="round"/>
-  <rect x="48" y="38" width="4" height="8" rx="1.5" fill="#f59e0b"/>
+  <defs>
+    <linearGradient id="capGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#334155"/>
+      <stop offset="100%" stop-color="#0f172a"/>
+    </linearGradient>
+  </defs>
+  <polygon points="32,13 60,25 32,37 4,25" fill="url(#capGrad)"/>
+  <path d="M17 31 L17 44 C17 50 32 54 32 54 C32 54 47 50 47 44 L47 31" fill="#1e293b"/>
+  <circle cx="32" cy="25" r="3.5" fill="#facc15"/>
+  <path d="M32 25 Q48 27 52 38" stroke="#facc15" stroke-width="2.8" fill="none" stroke-linecap="round"/>
+  <rect x="50" y="38" width="4.5" height="9" rx="2" fill="#f59e0b"/>
 </svg>

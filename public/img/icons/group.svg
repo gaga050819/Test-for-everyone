@@ -1,6 +1,16 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 40 40" width="40" height="40" shape-rendering="crispEdges">
-  <rect x="7" y="7" width="10" height="10" fill="#0284c7"/><rect x="25" y="9" width="8" height="8" fill="#475569"/>
-  <rect x="4" y="19" width="16" height="12" fill="#0284c7"/><rect x="22" y="19" width="14" height="11" fill="#475569"/>
-  <rect x="1" y="30" width="22" height="5" fill="#0f172a"/><rect x="19" y="29" width="20" height="5" fill="#0f172a"/>
-  <rect x="8" y="21" width="8" height="8" fill="#38bdf8"/>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 40 40" width="40" height="40" fill="none">
+  <defs>
+    <linearGradient id="usrGrad1" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#38bdf8"/>
+      <stop offset="100%" stop-color="#0284c7"/>
+    </linearGradient>
+    <linearGradient id="usrGrad2" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#818cf8"/>
+      <stop offset="100%" stop-color="#4f46e5"/>
+    </linearGradient>
+  </defs>
+  <circle cx="27" cy="14" r="5" fill="#94a3b8"/>
+  <path d="M21 31v-3a5 5 0 0 1 5-5h2a5 5 0 0 1 5 5v3" stroke="#94a3b8" stroke-width="3" stroke-linecap="round"/>
+  <circle cx="15" cy="13" r="6" fill="url(#usrGrad1)"/>
+  <path d="M6 32v-3.5a6.5 6.5 0 0 1 6.5-6.5h5A6.5 6.5 0 0 1 24 28.5V32" fill="url(#usrGrad2)"/>
 </svg>

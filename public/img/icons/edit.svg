@@ -1,5 +1,11 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 40 40" width="40" height="40" fill="none">
-  <path d="M28.5 7.5a3 3 0 0 1 4.2 4.2L12 32.5l-6 1.5 1.5-6L28.5 7.5z" fill="#f59e0b" stroke="#d97706" stroke-width="1.5" stroke-linejoin="round"/>
-  <path d="M25 11l4.2 4.2" stroke="#ffffff" stroke-width="1.5"/>
-  <path d="M6 34l3.5-.8L7 30.5 6 34z" fill="#1e293b"/>
+  <defs>
+    <linearGradient id="penGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#fde047"/>
+      <stop offset="100%" stop-color="#d97706"/>
+    </linearGradient>
+  </defs>
+  <path d="M29 6a3.5 3.5 0 0 1 5 5L12.5 32.5l-7 1.5 1.5-7L29 6z" fill="url(#penGrad)" stroke="#b45309" stroke-width="1.5" stroke-linejoin="round"/>
+  <path d="M25 10l5 5" stroke="#ffffff" stroke-width="2" stroke-linecap="round" opacity="0.8"/>
+  <path d="M5.5 34l3.5-.8-2.7-2.7L5.5 34z" fill="#1e293b"/>
 </svg>

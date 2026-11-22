@@ -1,5 +1,16 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64">
-  <path d="M38 4 L14 34 L30 34 L22 60 L50 26 L34 26 Z" fill="#d97706"/>
-  <path d="M36 6 L17 32 L31 32 L25 54 L46 28 L33 28 Z" fill="#fbbf24"/>
-  <path d="M35 10 L22 30 L31 30 L27 46 L41 29 L32 29 Z" fill="#fef08a"/>
+  <defs>
+    <linearGradient id="boltFace" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#fef08a"/>
+      <stop offset="60%" stop-color="#facc15"/>
+      <stop offset="100%" stop-color="#f59e0b"/>
+    </linearGradient>
+    <linearGradient id="boltShadow" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#d97706"/>
+      <stop offset="100%" stop-color="#92400e"/>
+    </linearGradient>
+  </defs>
+  <path d="M41 4 L14 34 L31 34 L21 60 L52 26 L35 26 Z" fill="url(#boltShadow)"/>
+  <path d="M38 6 L17 32 L31 32 L24 54 L47 28 L34 28 Z" fill="url(#boltFace)"/>
+  <polygon points="36,9 23,30 31,30 27,46 42,28 33,28" fill="#ffffff" opacity="0.5"/>
 </svg>

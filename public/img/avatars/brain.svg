@@ -1,8 +1,14 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64">
-  <path d="M30 14 C24 14 18 18 18 24 C14 26 12 30 12 34 C12 38 14 42 17 44 C16 48 18 52 23 54 C26 55 29 54 31 52 C31 46 31 20 31 14 Z" fill="#f472b6" stroke="#db2777" stroke-width="1.8"/>
-  <path d="M34 14 C40 14 46 18 46 24 C50 26 52 30 52 34 C52 38 50 42 47 44 C48 48 46 52 41 54 C38 55 35 54 33 52 C33 46 33 20 33 14 Z" fill="#f472b6" stroke="#db2777" stroke-width="1.8"/>
-  <path d="M22 24 Q26 28 22 34 Q28 36 24 44" stroke="#db2777" stroke-width="2" fill="none" stroke-linecap="round"/>
-  <path d="M42 24 Q38 28 42 34 Q36 36 40 44" stroke="#db2777" stroke-width="2" fill="none" stroke-linecap="round"/>
-  <circle cx="32" cy="10" r="2" fill="#fde047"/>
-  <path d="M28 7 L32 10 L36 7" stroke="#fde047" stroke-width="1.5" fill="none" stroke-linecap="round"/>
+  <defs>
+    <linearGradient id="brainPink" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#f472b6"/>
+      <stop offset="100%" stop-color="#db2777"/>
+    </linearGradient>
+  </defs>
+  <path d="M30 13 C23 13 17 17 17 23 C13 25 11 29 11 34 C11 38 13 42 16 44 C15 48 17 53 22 55 C26 56 29 55 31 53 C31 46 31 19 31 13 Z" fill="url(#brainPink)" stroke="#be185d" stroke-width="2"/>
+  <path d="M34 13 C41 13 47 17 47 23 C51 25 53 29 53 34 C53 38 51 42 48 44 C49 48 47 53 42 55 C38 56 35 55 33 53 C33 46 33 19 33 13 Z" fill="url(#brainPink)" stroke="#be185d" stroke-width="2"/>
+  <path d="M21 23 Q25 28 21 34 Q28 36 23 44" stroke="#ffffff" stroke-width="2.2" stroke-linecap="round" fill="none" opacity="0.6"/>
+  <path d="M43 23 Q39 28 43 34 Q36 36 41 44" stroke="#ffffff" stroke-width="2.2" stroke-linecap="round" fill="none" opacity="0.6"/>
+  <circle cx="32" cy="8" r="3" fill="#fde047"/>
+  <path d="M27 5 L32 8 L37 5" stroke="#fde047" stroke-width="1.8" fill="none" stroke-linecap="round"/>
 </svg>

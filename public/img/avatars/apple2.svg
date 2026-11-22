@@ -1,7 +1,13 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64">
-  <path d="M32 18 C30 10 34 6 36 4" stroke="#78350f" stroke-width="3" stroke-linecap="round" fill="none"/>
-  <path d="M35 10 C42 6 48 8 48 8 C48 8 48 14 41 16 C35 18 35 10 35 10 Z" fill="#22c55e"/>
-  <path d="M32 20 C24 14 12 18 10 30 C8 44 20 56 32 56 C44 56 56 44 54 30 C52 18 40 14 32 20 Z" fill="#dc2626"/>
-  <path d="M32 22 C25 17 14 20 12 30 C10 42 21 54 32 54 C43 54 54 42 52 30 C50 20 39 17 32 22 Z" fill="#ef4444"/>
-  <path d="M16 28 C16 24 22 22 26 22" stroke="#fca5a5" stroke-width="2" stroke-linecap="round" fill="none" opacity="0.7"/>
+  <defs>
+    <radialGradient id="appleRed" cx="35%" cy="30%" r="70%">
+      <stop offset="0%" stop-color="#f87171"/>
+      <stop offset="40%" stop-color="#ef4444"/>
+      <stop offset="100%" stop-color="#991b1b"/>
+    </radialGradient>
+  </defs>
+  <path d="M32 17 C30 9 35 5 37 3" stroke="#78350f" stroke-width="3.5" stroke-linecap="round" fill="none"/>
+  <path d="M36 9 C43 5 50 7 50 7 C50 7 50 14 43 16 C36 18 36 9 36 9 Z" fill="#22c55e"/>
+  <path d="M32 19 C23 13 10 17 8 29 C6 44 19 57 32 57 C45 57 58 44 56 29 C54 17 41 13 32 19 Z" fill="url(#appleRed)"/>
+  <path d="M15 27 C15 22 21 19 26 19" stroke="#fca5a5" stroke-width="2.5" stroke-linecap="round" fill="none" opacity="0.7"/>
 </svg>

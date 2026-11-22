@@ -1,9 +1,10 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 40 40" width="40" height="40" shape-rendering="crispEdges">
-  <rect x="5" y="31" width="30" height="4" fill="#475569"/>
-  <rect x="8" y="27" width="5" height="5" fill="#475569"/>
-  <rect x="27" y="27" width="5" height="5" fill="#475569"/>
-  <rect x="17" y="5" width="6" height="18" fill="#0284c7"/>
-  <rect x="13" y="18" width="14" height="5" fill="#0284c7"/>
-  <rect x="10" y="21" width="20" height="5" fill="#38bdf8"/>
-  <rect x="14" y="26" width="12" height="4" fill="#38bdf8"/>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 40 40" width="40" height="40" fill="none">
+  <defs>
+    <linearGradient id="downGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#38bdf8"/>
+      <stop offset="100%" stop-color="#0284c7"/>
+    </linearGradient>
+  </defs>
+  <path d="M7 26v4a4 4 0 0 0 4 4h18a4 4 0 0 0 4-4v-4" stroke="#64748b" stroke-width="3.2" stroke-linecap="round"/>
+  <path d="M20 6v19m0 0l-7-7m7 7l7-7" stroke="url(#downGrad)" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"/>
 </svg>

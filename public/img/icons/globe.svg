@@ -1,5 +1,11 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 40 40" width="40" height="40" fill="none">
-  <circle cx="20" cy="20" r="14" fill="#0284c7" stroke="#0369a1" stroke-width="2"/>
-  <ellipse cx="20" cy="20" rx="7" ry="14" stroke="#e0f2fe" stroke-width="2"/>
-  <path d="M6 20h28M8 12h24M8 28h24" stroke="#e0f2fe" stroke-width="1.8"/>
+  <defs>
+    <linearGradient id="globeGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#38bdf8"/>
+      <stop offset="100%" stop-color="#0284c7"/>
+    </linearGradient>
+  </defs>
+  <circle cx="20" cy="20" r="15" fill="url(#globeGrad)" stroke="#0369a1" stroke-width="1.5"/>
+  <ellipse cx="20" cy="20" rx="7.5" ry="15" stroke="#ffffff" stroke-width="2" opacity="0.85"/>
+  <path d="M5 20h30M7.5 12h25M7.5 28h25" stroke="#ffffff" stroke-width="1.8" opacity="0.85"/>
 </svg>

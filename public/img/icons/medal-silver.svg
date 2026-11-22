@@ -1,5 +1,21 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 40 40" width="40" height="40" shape-rendering="crispEdges">
-  <rect x="9" y="4" width="8" height="15" fill="#0284c7"/><rect x="23" y="4" width="8" height="15" fill="#38bdf8"/>
-  <rect x="12" y="15" width="16" height="17" fill="#64748b"/><rect x="15" y="12" width="10" height="23" fill="#cbd5e1"/>
-  <rect x="18" y="18" width="4" height="11" fill="#f8fafc"/><rect x="15" y="21" width="10" height="4" fill="#f8fafc"/>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 40 40" width="40" height="40" fill="none">
+  <defs>
+    <linearGradient id="silverGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#f1f5f9"/>
+      <stop offset="100%" stop-color="#94a3b8"/>
+    </linearGradient>
+    <linearGradient id="silvRibbon1" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#ef4444"/>
+      <stop offset="100%" stop-color="#b91c1c"/>
+    </linearGradient>
+    <linearGradient id="silvRibbon2" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#3b82f6"/>
+      <stop offset="100%" stop-color="#1d4ed8"/>
+    </linearGradient>
+  </defs>
+  <path d="M13 3l5 13-6 2L7 5z" fill="url(#silvRibbon1)"/>
+  <path d="M27 3l-5 13 6 2 5-13z" fill="url(#silvRibbon2)"/>
+  <circle cx="20" cy="24" r="11" fill="url(#silverGrad)" stroke="#64748b" stroke-width="1.5"/>
+  <circle cx="20" cy="24" r="8.5" stroke="#ffffff" stroke-width="1" stroke-dasharray="2 2"/>
+  <text x="20" y="28" font-size="11" font-weight="bold" fill="#334155" text-anchor="middle" font-family="Arial, sans-serif">2</text>
 </svg>
