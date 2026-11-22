@@ -490,7 +490,15 @@ async function resumeSession(cached) {
 
     const elapsedSeconds = Math.floor((Date.now() - state.startedAt) / 1000);
     const totalSeconds = (currentTest.durationMinutes || 15) * 60;
-    testSecondsRemaining = Math.max(10, totalSeconds - elapsedSeconds);
+    const remainingSecs = totalSeconds - elapsedSeconds;
+    if (remainingSecs <= 0) {
+      testSecondsRemaining = 0;
+      updateTimerDisplay();
+      showToast('Час на складання тесту вичерпано! Тест завершується автоматично...', 'warning');
+      submitTest();
+      return;
+    }
+    testSecondsRemaining = remainingSecs;
 
     proctor = new ProctorEngine({
       sessionId: currentSession.id,
@@ -926,6 +934,7 @@ startTestBtn.addEventListener('click', async () => {
         studentName: name,
         studentId: studentId,
         testId: currentTest.id,
+        avatar: getStudentAvatar(),
         resumeSessionId,
         proctorBypassed: isDebugMode,
         clientInfo: {
@@ -1043,7 +1052,14 @@ function startTimer() {
 
     if (testSecondsRemaining <= 0) {
       clearInterval(testTimer);
-      showToast('Час на складання тесту вичерпано!', 'warning');
+      if (typeof closeSummaryModal === 'function') closeSummaryModal();
+      const wm = document.getElementById('warningModal');
+      if (wm) wm.classList.add('hidden');
+      const tw = document.getElementById('teacherWarningOverlay');
+      if (tw) tw.classList.add('hidden');
+      const lb = document.getElementById('imageLightboxModal');
+      if (lb) lb.classList.add('hidden');
+      showToast('Час на складання тесту вичерпано! Тест завершується автоматично...', 'warning');
       submitTest();
     }
   }, 1000);
@@ -2553,4 +2569,130 @@ function initImageLightbox() {
 }
 
 initImageLightbox();
+
+let selectedAvatarColor = '#6366f1';
+let selectedAvatarValue = '';
+let selectedAvatarType = 'initials';
+
+const AVATAR_COLORS = ['#6366f1', '#3b82f6', '#10b981', '#f59e0b', '#ec4899', '#8b5cf6', '#06b6d4', '#ef4444'];
+const KHAHOOT_EMOJIS = ['🦊', '🦉', '🚀', '🦁', '🐯', '🐼', '⚡', '🎯', '🌟', '🎨', '🧠', '🐱', '🐶', '🦄', '🤖', '🎮', '👑', '🏆', '💎', '🍎', '⚽'];
+
+function getStudentInitials(name) {
+  const clean = (name || '').trim();
+  if (!clean) return '🎓';
+  const parts = clean.split(/\s+/).filter(Boolean);
+  if (parts.length >= 2) return (parts[0][0] + parts[1][0]).toUpperCase();
+  return clean.substring(0, 2).toUpperCase();
+}
+
+function getDeterministicColor(name) {
+  const clean = (name || '').trim();
+  if (!clean) return AVATAR_COLORS[0];
+  let hash = 0;
+  for (let i = 0; i < clean.length; i++) hash = (hash << 5) - hash + clean.charCodeAt(i);
+  return AVATAR_COLORS[Math.abs(hash) % AVATAR_COLORS.length];
+}
+
+function updateAvatarPreview() {
+  const preview = document.getElementById('studentAvatarPreview');
+  const display = document.getElementById('studentAvatarDisplay');
+  if (!preview || !display) return;
+  preview.style.background = selectedAvatarColor;
+  preview.style.boxShadow = `0 4px 14px ${selectedAvatarColor}55`;
+  if (selectedAvatarType === 'emoji' && selectedAvatarValue) {
+    display.textContent = selectedAvatarValue;
+  } else {
+    const nameInp = document.getElementById('studentNameInput');
+    display.textContent = getStudentInitials(nameInp ? nameInp.value : '');
+  }
+}
+
+function initStudentAvatarSelector() {
+  const toggleBtn = document.getElementById('toggleAvatarPickerBtn');
+  const preview = document.getElementById('studentAvatarPreview');
+  const container = document.getElementById('avatarPickerContainer');
+  const colorWrap = document.getElementById('avatarColorPalette');
+  const emojiWrap = document.getElementById('avatarEmojiGrid');
+  const nameInp = document.getElementById('studentNameInput');
+
+  if (!container || !colorWrap || !emojiWrap) return;
+
+  const toggle = () => {
+    container.classList.toggle('hidden');
+    if (toggleBtn) toggleBtn.textContent = container.classList.contains('hidden') ? 'Змінити ▾' : 'Закрити ▴';
+  };
+
+  if (toggleBtn) toggleBtn.addEventListener('click', toggle);
+  if (preview) preview.addEventListener('click', toggle);
+
+  colorWrap.innerHTML = '';
+  AVATAR_COLORS.forEach(c => {
+    const dot = document.createElement('div');
+    dot.style.cssText = `width: 28px; height: 28px; border-radius: 50%; background: ${c}; cursor: pointer; border: 2px solid ${c === selectedAvatarColor ? '#fff' : 'transparent'}; box-shadow: 0 2px 6px rgba(0,0,0,0.2); transition: transform 0.15s;`;
+    dot.addEventListener('click', () => {
+      selectedAvatarColor = c;
+      colorWrap.querySelectorAll('div').forEach(el => el.style.border = '2px solid transparent');
+      dot.style.border = '2px solid #fff';
+      updateAvatarPreview();
+    });
+    colorWrap.appendChild(dot);
+  });
+
+  emojiWrap.innerHTML = '';
+  const initialsBtn = document.createElement('button');
+  initialsBtn.type = 'button';
+  initialsBtn.className = 'btn-secondary';
+  initialsBtn.style.cssText = 'padding: 6px 4px; font-size: 11px; font-weight: 700; grid-column: span 2; height: 36px;';
+  initialsBtn.textContent = 'Ініціали';
+  initialsBtn.addEventListener('click', () => {
+    selectedAvatarType = 'initials';
+    selectedAvatarValue = '';
+    updateAvatarPreview();
+  });
+  emojiWrap.appendChild(initialsBtn);
+
+  KHAHOOT_EMOJIS.forEach(emo => {
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.style.cssText = 'font-size: 20px; height: 36px; border: 1px solid var(--border); border-radius: var(--radius-sm); background: var(--bg-elevated); cursor: pointer; display: flex; align-items: center; justify-content: center; transition: transform 0.15s;';
+    btn.textContent = emo;
+    btn.addEventListener('click', () => {
+      selectedAvatarType = 'emoji';
+      selectedAvatarValue = emo;
+      updateAvatarPreview();
+    });
+    emojiWrap.appendChild(btn);
+  });
+
+  if (nameInp) {
+    nameInp.addEventListener('input', () => {
+      if (selectedAvatarType === 'initials') {
+        selectedAvatarColor = getDeterministicColor(nameInp.value);
+        if (colorWrap) {
+          colorWrap.querySelectorAll('div').forEach((el, idx) => {
+            el.style.border = AVATAR_COLORS[idx] === selectedAvatarColor ? '2px solid #fff' : '2px solid transparent';
+          });
+        }
+      }
+      updateAvatarPreview();
+    });
+  }
+
+  updateAvatarPreview();
+}
+
+function getStudentAvatar() {
+  const nameInp = document.getElementById('studentNameInput');
+  const val = selectedAvatarType === 'emoji' && selectedAvatarValue
+    ? selectedAvatarValue
+    : getStudentInitials(nameInp ? nameInp.value : '');
+  return {
+    type: selectedAvatarType,
+    value: val,
+    color: selectedAvatarColor
+  };
+}
+window.getStudentAvatar = getStudentAvatar;
+
+initStudentAvatarSelector();
 

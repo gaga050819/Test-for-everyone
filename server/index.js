@@ -1,6 +1,7 @@
 import './fetch-polyfill.js';
 import express from 'express';
 import http from 'http';
+import https from 'https';
 import os from 'os';
 import { WebSocketServer, WebSocket } from 'ws';
 import path from 'path';
@@ -43,14 +44,105 @@ process.on('unhandledRejection', (reason) => {
 });
 
 const PORT = process.env.PORT || 3500;
+const HTTPS_PORT = parseInt(process.env.HTTPS_PORT, 10) || (parseInt(PORT, 10) + 1);
 const DEFAULT_GEMINI_KEY = process.env.GEMINI_API_KEY || '';
+
+const sslDir = path.join(__dirname, 'ssl');
+const certPath = path.join(sslDir, 'cert.pem');
+const keyPath = path.join(sslDir, 'key.pem');
+
+async function getOrCreateSslCert() {
+  try {
+    if (fs.existsSync(certPath) && fs.existsSync(keyPath)) {
+      return {
+        cert: fs.readFileSync(certPath, 'utf8'),
+        key: fs.readFileSync(keyPath, 'utf8')
+      };
+    }
+    if (!fs.existsSync(sslDir)) {
+      fs.mkdirSync(sslDir, { recursive: true });
+    }
+    const selfsignedModule = await import('selfsigned');
+    const generator = selfsignedModule.generate || selfsignedModule.default?.generate;
+    const pems = await generator(
+      [
+        { name: 'commonName', value: 'localhost' },
+        { name: 'organizationName', value: 'SecureExam' }
+      ],
+      {
+        days: 365,
+        keySize: 2048,
+        algorithm: 'sha256'
+      }
+    );
+    fs.writeFileSync(certPath, pems.cert, 'utf8');
+    fs.writeFileSync(keyPath, pems.private, 'utf8');
+    return { cert: pems.cert, key: pems.private };
+  } catch (err) {
+    console.error('SSL cert generation error:', err);
+    return null;
+  }
+}
+
+const rateLimitBuckets = new Map();
+function createRateLimiter(options) {
+  const windowMs = options.windowMs || 60000;
+  const max = options.max || 120;
+  const message = options.message || 'Забагато запитів. Зачекайте хвилину.';
+  return (req, res, next) => {
+    const ip = req.headers['x-forwarded-for'] || req.socket.remoteAddress || '127.0.0.1';
+    const key = `${options.prefix || 'rl'}:${ip}`;
+    const now = Date.now();
+    let record = rateLimitBuckets.get(key);
+    if (!record || now > record.resetAt) {
+      record = { count: 1, resetAt: now + windowMs };
+      rateLimitBuckets.set(key, record);
+      return next();
+    }
+    record.count++;
+    if (record.count > max) {
+      res.setHeader('Retry-After', Math.ceil((record.resetAt - now) / 1000));
+      return res.status(429).json({ error: message });
+    }
+    next();
+  };
+}
+setInterval(() => {
+  const now = Date.now();
+  for (const [key, record] of rateLimitBuckets.entries()) {
+    if (now > record.resetAt) {
+      rateLimitBuckets.delete(key);
+    }
+  }
+}, 300000);
+
+const globalApiLimiter = createRateLimiter({ prefix: 'api', max: 180, windowMs: 60000 });
+const loginLimiter = createRateLimiter({ prefix: 'login', max: 15, windowMs: 60000, message: 'Забагато спроб входу. Зачекайте 1 хвилину.' });
+const supportLimiter = createRateLimiter({ prefix: 'support', max: 20, windowMs: 60000 });
+const sessionStartLimiter = createRateLimiter({ prefix: 'ses_start', max: 35, windowMs: 60000 });
 
 const app = express();
 const server = http.createServer(app);
-const wss = new WebSocketServer({ server, path: '/ws' });
+let httpsServer = null;
+
+const wss = new WebSocketServer({ noServer: true });
+
+function handleUpgrade(req, socket, head) {
+  const host = req.headers.host || 'localhost';
+  const url = new URL(req.url, `http://${host}`);
+  if (url.pathname === '/ws') {
+    wss.handleUpgrade(req, socket, head, (ws) => {
+      wss.emit('connection', ws, req);
+    });
+  } else {
+    socket.destroy();
+  }
+}
+server.on('upgrade', handleUpgrade);
 
 app.use(express.json({ limit: '15mb' }));
 app.use(express.urlencoded({ extended: true, limit: '15mb' }));
+app.use('/api/', globalApiLimiter);
 app.use((req, res, next) => {
   if (/\.(html|js|css)$/.test(req.path)) {
     res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
@@ -289,7 +381,7 @@ function requireAdmin(req, res, next) {
   return res.status(401).json({ error: 'Несанкціонований доступ' });
 }
 
-app.post('/api/admin/login', (req, res) => {
+app.post('/api/admin/login', loginLimiter, (req, res) => {
   const { password } = req.body || {};
   if (typeof password === 'string' && password.trim() === ADMIN_PASSWORD) {
     return res.json({ success: true, token: ADMIN_PASSWORD });
@@ -316,7 +408,7 @@ app.post('/api/admin/change-password', requireAdmin, (req, res) => {
   res.json({ success: true, message: 'Пароль успішно змінено', token: cleanNew });
 });
 
-app.post('/api/support/submit', async (req, res) => {
+app.post('/api/support/submit', supportLimiter, async (req, res) => {
   const { type, title, description, name, contact } = req.body || {};
   if (!type || !title || !description) return res.status(400).json({ error: 'Заповніть усі поля' });
   const ticket = {
@@ -540,8 +632,8 @@ app.get('/api/admin/pause-state', requireAdmin, (req, res) => {
   res.json({ paused: globalExamPaused });
 });
 
-app.post('/api/sessions/start', async (req, res) => {
-  const { studentName, studentId, testId, clientInfo, resumeSessionId } = req.body;
+app.post('/api/sessions/start', sessionStartLimiter, async (req, res) => {
+  const { studentName, studentId, testId, clientInfo, resumeSessionId, avatar } = req.body;
 
   if (resumeSessionId) {
     const existing = await db.getSession(resumeSessionId);
@@ -552,6 +644,7 @@ app.post('/api/sessions/start', async (req, res) => {
         testId: existing.testId,
         studentName: existing.studentName,
         studentId: existing.studentId,
+        avatar: existing.avatar || null,
         startedAt: existing.startedAt,
         clientIp: existing.clientIp,
         questions: sanitizedQuestions,
@@ -578,6 +671,7 @@ app.post('/api/sessions/start', async (req, res) => {
     testId,
     studentName,
     studentId: studentId || ('ID-' + Math.floor(100000 + Math.random() * 900000)),
+    avatar: avatar || null,
     clientIp: req.headers['x-forwarded-for'] || req.socket.remoteAddress || '127.0.0.1',
     clientInfo: clientInfo || {},
     proctorBypassed: globalDebugBypass || !!req.body.proctorBypassed
@@ -591,6 +685,7 @@ app.post('/api/sessions/start', async (req, res) => {
     testId: session.testId,
     studentName: session.studentName,
     studentId: session.studentId,
+    avatar: session.avatar || null,
     startedAt: session.startedAt,
     clientIp: session.clientIp,
     questions: sanitizedQuestions,
@@ -760,7 +855,8 @@ app.delete('/api/admin/tests/:id', requireAdmin, async (req, res) => {
 });
 
 app.get('/api/admin/tests/:id/analytics', requireAdmin, async (req, res) => {
-  const analytics = await db.getTestAnalytics(req.params.id);
+  const { classId } = req.query || {};
+  const analytics = await db.getTestAnalytics(req.params.id, classId);
   if (!analytics) {
     return res.status(404).json({ error: 'Тест не знайдено' });
   }
@@ -1459,6 +1555,12 @@ app.delete('/api/admin/sessions/:id', requireAdmin, async (req, res) => {
 });
 
 app.delete('/api/admin/sessions', requireAdmin, async (req, res) => {
+  const { classId, status } = req.query || req.body || {};
+  if (classId || status) {
+    const count = await db.deleteSessionsByFilter({ classId, status });
+    broadcastToAdmins({ type: 'all_sessions_cleared' });
+    return res.json({ success: true, count });
+  }
   const count = await db.clearAllSessions();
   broadcastToAdmins({ type: 'all_sessions_cleared' });
   res.json({ success: true, count });
@@ -1986,6 +2088,17 @@ async function getTunnelUrl() {
 
 async function bootstrap() {
   await db.init();
+  const sslData = await getOrCreateSslCert();
+  if (sslData && sslData.cert && sslData.key) {
+    try {
+      httpsServer = https.createServer({ cert: sslData.cert, key: sslData.key }, app);
+      httpsServer.on('upgrade', handleUpgrade);
+      httpsServer.listen(HTTPS_PORT, () => {});
+    } catch (err) {
+      console.error('HTTPS setup error:', err);
+    }
+  }
+
   server.listen(PORT, async () => {
     const localIp = getLocalNetworkIp();
     let tunnel = await getTunnelUrl();
@@ -1996,9 +2109,15 @@ async function bootstrap() {
     console.log('\n==========================================================');
     console.log('       СИСТЕМА БЕЗПЕЧНОГО ТЕСТУВАННЯ ЗАПУЩЕНА');
     console.log('==========================================================');
-    console.log(`[+] Адмін-панель:            http://localhost:${PORT}/admin.html`);
+    console.log(`[+] Адмін-панель (HTTP):    http://localhost:${PORT}/admin.html`);
+    if (httpsServer) {
+      console.log(`[+] Адмін-панель (HTTPS):   https://localhost:${HTTPS_PORT}/admin.html (Камера/SSL)`);
+    }
     console.log(`[+] Пароль викладача:        ${ADMIN_PASSWORD}`);
     console.log(`[+] Локальна мережа (Wi-Fi): http://${localIp}:${PORT}`);
+    if (httpsServer) {
+      console.log(`[+] Wi-Fi HTTPS:            https://${localIp}:${HTTPS_PORT}`);
+    }
     if (tunnel) {
       console.log(`[+] Інтернет (Ngrok тунель): ${tunnel}`);
     }

@@ -255,6 +255,8 @@ function init() {
     });
   }
 
+  initBulkDeleteModal();
+
   if (copyTunnelUrlBtn) {
     copyTunnelUrlBtn.addEventListener('click', () => {
       if (tunnelUrlInput.value) {
@@ -448,6 +450,129 @@ function init() {
   loadAdminTestsList();
   if (typeof window.setLiteMode === 'function') {
     window.setLiteMode(localStorage.getItem('admin_lite_mode') === 'true');
+  }
+}
+
+function renderAvatarHtml(avatar, studentName, size = 30) {
+  let color = '#6366f1';
+  let val = '🎓';
+  if (avatar && avatar.color) color = avatar.color;
+  if (avatar && avatar.value) {
+    val = avatar.value;
+  } else if (studentName) {
+    const parts = (studentName || '').trim().split(/\s+/).filter(Boolean);
+    val = parts.length >= 2 ? (parts[0][0] + parts[1][0]).toUpperCase() : (studentName || '').substring(0, 2).toUpperCase() || '🎓';
+    const colors = ['#6366f1', '#3b82f6', '#10b981', '#f59e0b', '#ec4899', '#8b5cf6', '#06b6d4', '#ef4444'];
+    let hash = 0;
+    for (let i = 0; i < studentName.length; i++) hash = (hash << 5) - hash + studentName.charCodeAt(i);
+    color = colors[Math.abs(hash) % colors.length];
+  }
+  const isEmoji = /[\u{1F300}-\u{1F9FF}]|[\u{2600}-\u{26FF}]|[\u{2700}-\u{27BF}]/u.test(val);
+  const fontSize = isEmoji ? Math.round(size * 0.58) : Math.round(size * 0.42);
+  return `<span style="width:${size}px; height:${size}px; border-radius:50%; background:${color}; color:#fff; display:inline-flex; align-items:center; justify-content:center; font-size:${fontSize}px; font-weight:700; flex-shrink:0; box-shadow:0 2px 6px rgba(0,0,0,0.15); user-select:none; margin-right:8px; vertical-align:middle;">${escapeHtml(val)}</span>`;
+}
+
+function initBulkDeleteModal() {
+  const openBtn = document.getElementById('bulkDeleteSessionsBtn');
+  const modal = document.getElementById('bulkDeleteModal');
+  const closeBtn = document.getElementById('closeBulkDeleteModalBtn');
+  const cancelBtn = document.getElementById('cancelBulkDeleteBtn');
+  const confirmBtn = document.getElementById('confirmBulkDeleteBtn');
+  const modeSelect = document.getElementById('bulkDeleteModeSelect');
+  const classWrap = document.getElementById('bulkDeleteClassSelectWrap');
+  const classSelect = document.getElementById('bulkDeleteClassSelect');
+  const countSpan = document.getElementById('bulkDeleteCountVal');
+
+  if (!openBtn || !modal) return;
+
+  const updateCount = () => {
+    const mode = modeSelect ? modeSelect.value : 'incomplete';
+    const cls = classSelect ? classSelect.value : '';
+    let count = 0;
+    sessions.forEach(s => {
+      if (mode === 'all') count++;
+      else if (mode === 'incomplete' && s.status !== 'completed') count++;
+      else if (mode === 'completed' && s.status === 'completed') count++;
+      else if (mode === 'disqualified' && s.status === 'disqualified') count++;
+      else if (mode === 'class' && (s.studentId === cls || s.classId === cls)) count++;
+    });
+    if (countSpan) countSpan.textContent = count;
+  };
+
+  const openModal = () => {
+    if (classSelect) {
+      const distinctClasses = [...new Set(sessions.map(s => s.studentId).filter(Boolean))].sort();
+      classSelect.innerHTML = distinctClasses.map(c => `<option value="${escapeHtml(c)}">${escapeHtml(c)}</option>`).join('');
+    }
+    if (modeSelect) {
+      modeSelect.value = 'incomplete';
+      if (classWrap) classWrap.classList.add('hidden');
+    }
+    updateCount();
+    modal.classList.remove('hidden');
+  };
+
+  const closeModal = () => {
+    modal.classList.add('hidden');
+  };
+
+  openBtn.addEventListener('click', openModal);
+  if (closeBtn) closeBtn.addEventListener('click', closeModal);
+  if (cancelBtn) cancelBtn.addEventListener('click', closeModal);
+
+  if (modeSelect) {
+    modeSelect.addEventListener('change', () => {
+      if (classWrap) {
+        if (modeSelect.value === 'class') classWrap.classList.remove('hidden');
+        else classWrap.classList.add('hidden');
+      }
+      updateCount();
+    });
+  }
+
+  if (classSelect) {
+    classSelect.addEventListener('change', updateCount);
+  }
+
+  if (confirmBtn) {
+    confirmBtn.addEventListener('click', async () => {
+      const mode = modeSelect.value;
+      const cls = classSelect ? classSelect.value : '';
+      let url = '/api/admin/sessions';
+      if (mode === 'incomplete') url += '?status=incomplete';
+      else if (mode === 'completed') url += '?status=completed';
+      else if (mode === 'disqualified') url += '?status=disqualified';
+      else if (mode === 'class') {
+        if (!cls) {
+          adminAlert('Будь ласка, оберіть клас');
+          return;
+        }
+        url += `?classId=${encodeURIComponent(cls)}`;
+      }
+
+      if (!await adminConfirm('Видалити обрані сесії? Цю дію неможливо скасувати!')) return;
+
+      try {
+        confirmBtn.disabled = true;
+        const res = await adminFetch(url, { method: 'DELETE' });
+        if (res.ok) {
+          const data = await res.json();
+          showAdminToast(`Видалено сесій: ${data.count || 0}`);
+          closeModal();
+          selectedSessionId = null;
+          sessionDetailContent.classList.add('hidden');
+          sessionDetailPlaceholder.classList.remove('hidden');
+          await loadSessions();
+        } else {
+          const err = await res.json();
+          adminAlert(err.error || 'Помилка видалення');
+        }
+      } catch (e) {
+        adminAlert('Помилка: ' + e.message);
+      } finally {
+        confirmBtn.disabled = false;
+      }
+    });
   }
 }
 
@@ -1109,9 +1234,14 @@ function renderSessionsTable() {
 
     tr.innerHTML = `
       <td>
-        <strong>${s.studentName}</strong>
-        <div style="font-size: 11px; color: var(--text-dim);">${s.id} • ${deviceBadge}</div>
-        ${finishInfo}
+        <div style="display: flex; align-items: center;">
+          ${renderAvatarHtml(s.avatar, s.studentName, 32)}
+          <div>
+            <strong>${escapeHtml(s.studentName)}</strong>
+            <div style="font-size: 11px; color: var(--text-dim);">${s.id} • ${deviceBadge}</div>
+            ${finishInfo}
+          </div>
+        </div>
       </td>
       <td>${s.studentId}</td>
       <td>${scoreDisplay}</td>
@@ -1264,7 +1394,7 @@ function renderSessionsTiles() {
 
     tile.innerHTML = `
       <div style="font-size: 13px; font-weight: 700; color: var(--text); margin-bottom: 4px; display: flex; align-items: center; gap: 6px;">
-        <img src="${iconSrc}" class="pixel-icon inline" alt=""> <span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${escapeHtml(s.studentName)}</span>
+        ${renderAvatarHtml(s.avatar, s.studentName, 24)} <span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${escapeHtml(s.studentName)}</span>
       </div>
       <div style="font-size: 11px; color: var(--text-muted); margin-bottom: 6px;">${escapeHtml(s.studentId || '—')}</div>
       <div style="font-size: 10px; color: var(--text-muted); display: flex; justify-content: space-between; align-items: center;">
@@ -1287,7 +1417,7 @@ window.inspectSession = async function(sessionId) {
     sessionDetailPlaceholder.classList.add('hidden');
     sessionDetailContent.classList.remove('hidden');
 
-    detailStudentName.textContent = data.session.studentName;
+    detailStudentName.innerHTML = `${renderAvatarHtml(data.session.avatar, data.session.studentName, 32)} <span style="vertical-align: middle;">${escapeHtml(data.session.studentName)}</span>`;
     detailStudentMeta.textContent = `ID: ${data.session.studentId} | IP: ${data.session.clientIp || '127.0.0.1'} | Сесія: ${data.session.id}`;
 
     const sess = data.session;
@@ -2512,15 +2642,18 @@ function renderLiveRadarGrid() {
     card.onmouseout = () => card.style.transform = 'none';
 
     card.innerHTML = `
-      <div style="display: flex; justify-content: space-between; align-items: flex-start;">
-        <div>
-          <div style="display: flex; align-items: center; gap: 6px;">
-            <span class="status-dot ${isOffline ? 'danger' : (isHighPing ? 'warning' : '')}"></span>
-            <strong style="font-size: 14px; color: var(--text);">${escapeHtml(name)}</strong>
+      <div style="display: flex; justify-content: space-between; align-items: flex-start; gap: 8px;">
+        <div style="display: flex; align-items: center; gap: 8px; min-width: 0;">
+          ${renderAvatarHtml(sess ? sess.avatar : null, name, 34)}
+          <div style="min-width: 0;">
+            <div style="display: flex; align-items: center; gap: 6px;">
+              <span class="status-dot ${isOffline ? 'danger' : (isHighPing ? 'warning' : '')}"></span>
+              <strong style="font-size: 14px; color: var(--text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">${escapeHtml(name)}</strong>
+            </div>
+            ${studentClass ? `<div style="font-size: 11px; color: var(--text-muted); margin-top: 2px;">Клас: ${escapeHtml(studentClass)}</div>` : ''}
           </div>
-          ${studentClass ? `<div style="font-size: 11px; color: var(--text-muted); margin-top: 2px;">Клас: ${escapeHtml(studentClass)}</div>` : ''}
         </div>
-        <span class="tag-badge ${trust >= 70 ? 'approved' : 'warning'}" style="font-size: 10px;">${trust}% довіри</span>
+        <span class="tag-badge ${trust >= 70 ? 'approved' : 'warning'}" style="font-size: 10px; flex-shrink: 0;">${trust}% довіри</span>
       </div>
 
       <div style="background: var(--bg-elevated); padding: 8px 10px; border-radius: var(--radius-sm); border: 1px solid var(--border);">
@@ -2569,17 +2702,35 @@ function initLiveRadarControls() {
   });
 }
 
-async function loadTestAnalytics(testId = selectedAdminTestId) {
+async function loadTestAnalytics(testId = selectedAdminTestId, classId = null) {
   const container = document.getElementById('analyticsQuestionsContainer');
   if (!container) return;
 
+  const classFilterEl = document.getElementById('analyticsClassFilter');
+  if (classId === null && classFilterEl) {
+    classId = classFilterEl.value || '';
+  }
+
   try {
-    const res = await adminFetch(`/api/admin/tests/${encodeURIComponent(testId)}/analytics`);
+    const query = classId ? `?classId=${encodeURIComponent(classId)}` : '';
+    const res = await adminFetch(`/api/admin/tests/${encodeURIComponent(testId)}/analytics${query}`);
     if (!res.ok) {
       container.innerHTML = '<div style="text-align: center; padding: 24px; color: var(--text-muted);">Аналітика недоступна для цього тесту.</div>';
       return;
     }
     const data = await res.json();
+
+    if (classFilterEl && Array.isArray(data.availableClasses)) {
+      const currentSelected = classId || classFilterEl.value || '';
+      classFilterEl.innerHTML = '<option value="">Усі класи</option>';
+      data.availableClasses.forEach(cls => {
+        const opt = document.createElement('option');
+        opt.value = cls;
+        opt.textContent = cls;
+        if (cls === currentSelected) opt.selected = true;
+        classFilterEl.appendChild(opt);
+      });
+    }
 
     const elTotal = document.getElementById('analyticsTotalParticipants');
     const elSub = document.getElementById('analyticsCompletionSub');
@@ -2664,6 +2815,10 @@ async function loadTestAnalytics(testId = selectedAdminTestId) {
 function initAnalyticsControls() {
   const refreshBtn = document.getElementById('refreshAnalyticsBtn');
   if (refreshBtn) refreshBtn.addEventListener('click', () => loadTestAnalytics(selectedAdminTestId));
+  const classFilterEl = document.getElementById('analyticsClassFilter');
+  if (classFilterEl) {
+    classFilterEl.addEventListener('change', () => loadTestAnalytics(selectedAdminTestId, classFilterEl.value));
+  }
 }
 
 async function loadAdminLeaderboard(testId = selectedAdminTestId) {
@@ -2741,7 +2896,12 @@ function renderAdminLeaderboardTable() {
     const tr = document.createElement('tr');
     tr.innerHTML = `
       <td style="text-align: center; font-weight: 700;">${medal}</td>
-      <td><strong>${escapeHtml(item.studentName)}</strong></td>
+      <td>
+        <div style="display: flex; align-items: center;">
+          ${renderAvatarHtml(item.avatar, item.studentName, 26)}
+          <strong>${escapeHtml(item.studentName)}</strong>
+        </div>
+      </td>
       <td>${escapeHtml(item.studentId || '—')}</td>
       <td style="font-size: 11px; color: var(--text-muted);">${escapeHtml(item.testTitle || 'Тест')}</td>
       <td style="color: var(--accent-blue); font-weight: 800; font-size: 14px;">${item.score12} / 12</td>

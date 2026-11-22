@@ -28,6 +28,28 @@ export class DatabaseAdapter {
   async saveSupportTicket(ticket) {}
   async getSupportTickets() {}
   async deleteSupportTicket(ticketId) {}
+  async deleteSessionsByFilter(filter) {}
+}
+
+function generateDefaultAvatar(name) {
+  const colors = ['#6366f1', '#3b82f6', '#10b981', '#f59e0b', '#ec4899', '#8b5cf6', '#06b6d4', '#ef4444'];
+  const clean = (name || '').trim();
+  let initials = '?';
+  if (clean) {
+    const parts = clean.split(/\s+/).filter(Boolean);
+    if (parts.length >= 2) {
+      initials = (parts[0][0] + parts[1][0]).toUpperCase();
+    } else {
+      initials = clean.substring(0, 2).toUpperCase();
+    }
+  }
+  let hash = 0;
+  for (let i = 0; i < clean.length; i++) {
+    hash = (hash << 5) - hash + clean.charCodeAt(i);
+    hash |= 0;
+  }
+  const color = colors[Math.abs(hash) % colors.length];
+  return { type: 'initials', value: initials, color };
 }
 
 export class JsonFileDatabaseAdapter extends DatabaseAdapter {
@@ -425,6 +447,7 @@ export class JsonFileDatabaseAdapter extends DatabaseAdapter {
 
     this.data.sessions[session.id] = {
       ...session,
+      avatar: (session.avatar && session.avatar.value) ? session.avatar : generateDefaultAvatar(session.studentName),
       startedAt: Date.now(),
       status: 'in_progress',
       trustScore: 100,
@@ -788,6 +811,28 @@ export class JsonFileDatabaseAdapter extends DatabaseAdapter {
     return count;
   }
 
+  async deleteSessionsByFilter(filter = {}) {
+    const { classId, status } = filter;
+    const toDeleteIds = [];
+    Object.values(this.data.sessions).forEach(s => {
+      let match = true;
+      if (classId && s.studentId !== classId && s.classId !== classId) match = false;
+      if (status) {
+        if (status === 'incomplete' && s.status === 'completed') match = false;
+        if (status === 'completed' && s.status !== 'completed') match = false;
+        if (status === 'disqualified' && s.status !== 'disqualified') match = false;
+      }
+      if (match) toDeleteIds.push(s.id);
+    });
+    for (const sid of toDeleteIds) {
+      delete this.data.sessions[sid];
+      if (this.data.pings) delete this.data.pings[sid];
+    }
+    this.data.incidents = this.data.incidents.filter(i => !toDeleteIds.includes(i.sessionId));
+    await this.persist();
+    return toDeleteIds.length;
+  }
+
   async getSessionIncidents(sessionId) {
     return this.data.incidents.filter(i => i.sessionId === sessionId);
   }
@@ -824,6 +869,7 @@ export class JsonFileDatabaseAdapter extends DatabaseAdapter {
         testTitle: test ? test.title : 'Тест',
         studentName: s.studentName,
         studentId: s.studentId,
+        avatar: s.avatar || generateDefaultAvatar(s.studentName),
         score12: s.score12 !== undefined ? s.score12 : 1,
         scorePercentage: s.scorePercentage || 0,
         rawScore: s.rawScore || 0,
@@ -835,10 +881,15 @@ export class JsonFileDatabaseAdapter extends DatabaseAdapter {
     });
   }
 
-  async getTestAnalytics(testId) {
+  async getTestAnalytics(testId, classId = '') {
     const test = this.data.tests[testId];
     if (!test) return null;
-    const testSessions = Object.values(this.data.sessions).filter(s => s.testId === testId);
+    const allTestSessions = Object.values(this.data.sessions).filter(s => s.testId === testId);
+    const availableClasses = [...new Set(allTestSessions.map(s => s.studentId).filter(Boolean))].sort();
+    let testSessions = allTestSessions;
+    if (classId) {
+      testSessions = testSessions.filter(s => s.studentId === classId || s.classId === classId);
+    }
     const totalSessions = testSessions.length;
     const completedSessions = testSessions.filter(s => s.status === 'completed');
 
@@ -917,7 +968,9 @@ export class JsonFileDatabaseAdapter extends DatabaseAdapter {
       avgScore12,
       avgScorePercent,
       avgTrustScore,
-      questionsAnalytics
+      questionsAnalytics,
+      availableClasses,
+      selectedClass: classId || ''
     };
   }
 

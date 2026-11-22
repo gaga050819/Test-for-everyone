@@ -9,3 +9,6 @@ server/backups/
 server/admin_secret.json
 .runtime/
 bin/runtime/
+
+server/ssl/
+ssl/
