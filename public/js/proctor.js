@@ -791,6 +791,9 @@ export class ProctorEngine {
 
     document.addEventListener('selectstart', (e) => {
       if (this.isBypassed) return true;
+      if (e.target && e.target.closest && e.target.closest('.ordering-card-item, .ordering-layout, [draggable="true"]')) {
+        return true;
+      }
       e.preventDefault();
       return false;
     });
@@ -947,10 +950,16 @@ export class ProctorEngine {
 
   _initDragBlocker() {
     document.addEventListener('dragstart', (e) => {
+      if (e.target && e.target.closest && e.target.closest('.ordering-card-item, .ordering-layout, [draggable="true"]')) {
+        return;
+      }
       e.preventDefault();
       return false;
     });
     document.addEventListener('drop', (e) => {
+      if (e.target && e.target.closest && e.target.closest('.ordering-card-item, .ordering-layout, [draggable="true"]')) {
+        return;
+      }
       e.preventDefault();
       return false;
     });

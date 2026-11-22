@@ -74,8 +74,8 @@
         </div>
 
         <div style="display: flex; align-items: center; gap: 14px; margin-bottom: 16px; padding: 12px 14px; background: var(--bg-surface); border: 1px solid var(--border); border-radius: var(--radius-sm); box-shadow: var(--shadow-sm);">
-          <div id="studentAvatarPreview" style="width: 52px; height: 52px; border-radius: 50%; background: #6366f1; color: #fff; display: flex; align-items: center; justify-content: center; font-size: 24px; font-weight: 700; flex-shrink: 0; box-shadow: 0 4px 12px rgba(99, 102, 241, 0.35); cursor: pointer; user-select: none; transition: transform 0.2s;" title="Натисніть для вибору аватара">
-            <span id="studentAvatarDisplay">🎓</span>
+          <div id="studentAvatarPreview" style="width: 52px; height: 52px; border-radius: 50%; background: #6366f1; color: #fff; display: flex; align-items: center; justify-content: center; font-size: 22px; font-weight: 700; flex-shrink: 0; box-shadow: 0 4px 12px rgba(99, 102, 241, 0.35); cursor: pointer; user-select: none; transition: transform 0.2s; overflow: hidden;" title="Натисніть для вибору аватара">
+            <span id="studentAvatarDisplay" style="display: flex; align-items: center; justify-content: center; width: 100%; height: 100%; line-height: 1; pointer-events: none;">?</span>
           </div>
           <div style="flex: 1; min-width: 0;">
             <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 2px;">
@@ -89,8 +89,7 @@
         <div id="avatarPickerContainer" class="hidden" style="margin-bottom: 16px; padding: 14px; background: var(--bg-surface); border: 1.5px solid var(--border-active); border-radius: var(--radius-sm);">
           <div style="font-size: 11px; font-weight: 700; text-transform: uppercase; color: var(--text-muted); margin-bottom: 8px;">Колір фону</div>
           <div id="avatarColorPalette" style="display: flex; gap: 8px; margin-bottom: 14px; flex-wrap: wrap;"></div>
-          <div style="font-size: 11px; font-weight: 700; text-transform: uppercase; color: var(--text-muted); margin-bottom: 8px;">Персонаж (як у Kahoot)</div>
-          <div id="avatarEmojiGrid" style="display: grid; grid-template-columns: repeat(7, 1fr); gap: 6px; max-height: 140px; overflow-y: auto; padding-right: 4px;"></div>
+          <div id="avatarEmojiGrid" style="display: grid; grid-template-columns: repeat(7, 1fr); gap: 6px; max-height: 140px; overflow-y: auto; padding-right: 4px; justify-items: center; align-items: center;"></div>
         </div>
 
         <div class="form-group">
@@ -311,7 +310,7 @@
 
       <div style="margin-top: 24px; text-align: center; display: flex; justify-content: center; gap: 10px; flex-wrap: wrap;">
         <a href="/" class="btn-primary" style="text-decoration: none; width: auto; padding: 9px 24px;">Пройти ще раз</a>
-        <a href="/admin.html" class="btn-secondary" style="text-decoration: none; width: auto; padding: 9px 20px;">Панель викладача →</a>
+        <a href="/" class="btn-secondary" style="text-decoration: none; width: auto; padding: 9px 20px;">Вийти</a>
       </div>
     </section>
 

@@ -1619,10 +1619,49 @@ button[id^="close"] .pixel-icon {
   border: 1px solid var(--border);
   border-radius: var(--radius-sm);
   padding: 10px 14px;
-  transition: transform 0.15s, border-color 0.15s;
+  cursor: grab;
+  user-select: none;
+  touch-action: pan-y;
+  transition: transform 0.15s, border-color 0.15s, box-shadow 0.15s, opacity 0.15s;
 }
 .ordering-card-item:hover {
   border-color: var(--accent);
+}
+.ordering-card-item:active {
+  cursor: grabbing;
+}
+.ordering-card-item.dragging {
+  opacity: 0.4;
+  border: 1.5px dashed var(--accent);
+  background: var(--bg-surface);
+  cursor: grabbing;
+}
+.ordering-card-item.drag-over {
+  border-color: var(--accent);
+  background: rgba(99, 102, 241, 0.08);
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(99, 102, 241, 0.2);
+}
+.ordering-drag-handle {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: grab;
+  color: var(--text-muted);
+  flex-shrink: 0;
+  width: 16px;
+  height: 16px;
+  opacity: 0.6;
+  pointer-events: none;
+  transition: opacity 0.15s;
+}
+.ordering-drag-handle img {
+  pointer-events: none;
+  user-select: none;
+  -webkit-user-drag: none;
+}
+.ordering-card-item:hover .ordering-drag-handle {
+  opacity: 1;
 }
 .ordering-item-index {
   width: 24px;
@@ -1636,16 +1675,19 @@ button[id^="close"] .pixel-icon {
   align-items: center;
   justify-content: center;
   flex-shrink: 0;
+  pointer-events: none;
 }
 .ordering-item-text {
   flex: 1;
   font-size: 13px;
   font-weight: 500;
   color: var(--text);
+  pointer-events: none;
 }
 .ordering-actions {
   display: flex;
   gap: 4px;
+  pointer-events: auto;
 }
 .ordering-move-btn {
   background: var(--bg-surface);

@@ -455,20 +455,23 @@ function init() {
 
 function renderAvatarHtml(avatar, studentName, size = 30) {
   let color = '#6366f1';
-  let val = '🎓';
+  let val = '?';
   if (avatar && avatar.color) color = avatar.color;
   if (avatar && avatar.value) {
     val = avatar.value;
   } else if (studentName) {
     const parts = (studentName || '').trim().split(/\s+/).filter(Boolean);
-    val = parts.length >= 2 ? (parts[0][0] + parts[1][0]).toUpperCase() : (studentName || '').substring(0, 2).toUpperCase() || '🎓';
+    val = parts.length >= 2 ? (parts[0][0] + parts[1][0]).toUpperCase() : (studentName || '').substring(0, 2).toUpperCase() || '?';
     const colors = ['#6366f1', '#3b82f6', '#10b981', '#f59e0b', '#ec4899', '#8b5cf6', '#06b6d4', '#ef4444'];
     let hash = 0;
     for (let i = 0; i < studentName.length; i++) hash = (hash << 5) - hash + studentName.charCodeAt(i);
     color = colors[Math.abs(hash) % colors.length];
   }
-  const isEmoji = /[\u{1F300}-\u{1F9FF}]|[\u{2600}-\u{26FF}]|[\u{2700}-\u{27BF}]/u.test(val);
-  const fontSize = isEmoji ? Math.round(size * 0.58) : Math.round(size * 0.42);
+  if ((avatar && avatar.type === 'emoji') || (typeof val === 'string' && val.startsWith('/img/'))) {
+    const imgSize = Math.round(size * 0.62);
+    return `<span style="width:${size}px; height:${size}px; border-radius:50%; background:${color}; display:inline-flex; align-items:center; justify-content:center; flex-shrink:0; box-shadow:0 2px 6px rgba(0,0,0,0.15); user-select:none; margin-right:8px; vertical-align:middle; overflow:hidden;"><img src="${val}" style="width:${imgSize}px;height:${imgSize}px;display:block;object-fit:contain;margin:auto;filter:drop-shadow(0 1px 2px rgba(0,0,0,0.3));" alt=""></span>`;
+  }
+  const fontSize = Math.round(size * 0.42);
   return `<span style="width:${size}px; height:${size}px; border-radius:50%; background:${color}; color:#fff; display:inline-flex; align-items:center; justify-content:center; font-size:${fontSize}px; font-weight:700; flex-shrink:0; box-shadow:0 2px 6px rgba(0,0,0,0.15); user-select:none; margin-right:8px; vertical-align:middle;">${escapeHtml(val)}</span>`;
 }
 
@@ -1714,6 +1717,8 @@ function switchTabTo(tabName) {
   } else if (tabName === 'liveRadar') {
     renderLiveRadarGrid();
   } else if (tabName === 'analytics') {
+    const acf = document.getElementById('analyticsClassFilter');
+    if (acf) acf.value = '';
     loadTestAnalytics(selectedAdminTestId);
   } else if (tabName === 'leaderboard') {
     loadAdminLeaderboard(selectedAdminTestId);
@@ -2073,6 +2078,8 @@ function renderTestCatalog() {
           showAdminToast(`Тест «${t.title}» призначено активним!`, true);
           checkTunnelStatus();
           await loadAdminTest();
+          const acfEl = document.getElementById('analyticsClassFilter');
+          if (acfEl) acfEl.value = '';
           await loadTestAnalytics(t.id);
           await loadAdminLeaderboard(t.id);
           renderTestCatalog();

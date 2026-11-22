@@ -1349,11 +1349,22 @@ function renderQuestion(index, direction = 'right') {
       userAnswers[question.id] = [...currentOrder];
     }
 
+    let draggedIndex = null;
+    let currentDraggedEl = null;
+
+    layout.addEventListener('dragover', (e) => {
+      e.preventDefault();
+      e.dataTransfer.dropEffect = 'move';
+    });
+
     currentOrder.forEach((itemText, itIdx) => {
       const card = document.createElement('div');
       card.className = 'ordering-card-item';
+      card.draggable = true;
+      card.dataset.index = String(itIdx);
 
       card.innerHTML = `
+        <div class="ordering-drag-handle" title="Перетягніть для зміни порядку"><img src="/img/icons/grip.svg" class="pixel-icon" style="width:14px;height:14px;" alt=""></div>
         <div class="ordering-item-index">${itIdx + 1}</div>
         <div class="ordering-item-text">${escapeHtml(itemText)}</div>
         <div class="ordering-actions">
@@ -1362,10 +1373,115 @@ function renderQuestion(index, direction = 'right') {
         </div>
       `;
 
+      card.addEventListener('dragstart', (e) => {
+        draggedIndex = itIdx;
+        currentDraggedEl = card;
+        card.classList.add('dragging');
+        e.dataTransfer.effectAllowed = 'move';
+        e.dataTransfer.setData('text/plain', String(itIdx));
+        e.stopPropagation();
+      });
+
+      card.addEventListener('dragover', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        e.dataTransfer.dropEffect = 'move';
+        if (currentDraggedEl && currentDraggedEl !== card) {
+          card.classList.add('drag-over');
+        }
+      });
+
+      card.addEventListener('dragenter', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        if (currentDraggedEl && currentDraggedEl !== card) {
+          card.classList.add('drag-over');
+        }
+      });
+
+      card.addEventListener('dragleave', (e) => {
+        e.stopPropagation();
+        card.classList.remove('drag-over');
+      });
+
+      card.addEventListener('drop', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        card.classList.remove('drag-over');
+        const targetIndex = itIdx;
+        if (draggedIndex !== null && draggedIndex !== targetIndex) {
+          const item = currentOrder.splice(draggedIndex, 1)[0];
+          currentOrder.splice(targetIndex, 0, item);
+          userAnswers[question.id] = [...currentOrder];
+          persistLocalSession();
+          renderQuestion(currentQuestionIndex);
+          renderNavPills();
+        }
+      });
+
+      card.addEventListener('dragend', (e) => {
+        e.stopPropagation();
+        card.classList.remove('dragging');
+        layout.querySelectorAll('.ordering-card-item').forEach(c => c.classList.remove('drag-over', 'dragging'));
+        draggedIndex = null;
+        currentDraggedEl = null;
+      });
+
+      let touchStartY = 0;
+      let touchMoved = false;
+
+      card.addEventListener('touchstart', (e) => {
+        touchStartY = e.touches[0].clientY;
+        touchMoved = false;
+        draggedIndex = itIdx;
+        currentDraggedEl = card;
+      }, { passive: true });
+
+      card.addEventListener('touchmove', (e) => {
+        const currentY = e.touches[0].clientY;
+        if (Math.abs(currentY - touchStartY) > 8) {
+          touchMoved = true;
+          card.classList.add('dragging');
+          const targetEl = document.elementFromPoint(e.touches[0].clientX, currentY);
+          const hoverCard = targetEl ? targetEl.closest('.ordering-card-item') : null;
+          layout.querySelectorAll('.ordering-card-item').forEach(c => {
+            if (c === hoverCard && c !== card) {
+              c.classList.add('drag-over');
+            } else {
+              c.classList.remove('drag-over');
+            }
+          });
+        }
+      }, { passive: true });
+
+      card.addEventListener('touchend', (e) => {
+        if (touchMoved && draggedIndex !== null) {
+          const endY = e.changedTouches[0].clientY;
+          const targetEl = document.elementFromPoint(e.changedTouches[0].clientX, endY);
+          const targetCard = targetEl ? targetEl.closest('.ordering-card-item') : null;
+          if (targetCard && targetCard !== card) {
+            const targetIndex = parseInt(targetCard.dataset.index, 10);
+            if (!isNaN(targetIndex) && targetIndex !== draggedIndex) {
+              const item = currentOrder.splice(draggedIndex, 1)[0];
+              currentOrder.splice(targetIndex, 0, item);
+              userAnswers[question.id] = [...currentOrder];
+              persistLocalSession();
+              renderQuestion(currentQuestionIndex);
+              renderNavPills();
+            }
+          }
+        }
+        layout.querySelectorAll('.ordering-card-item').forEach(c => c.classList.remove('drag-over', 'dragging'));
+        draggedIndex = null;
+        currentDraggedEl = null;
+        touchMoved = false;
+      });
+
       const upBtn = card.querySelector('[data-dir="up"]');
       const downBtn = card.querySelector('[data-dir="down"]');
 
       if (upBtn) {
+        upBtn.draggable = false;
         upBtn.addEventListener('click', (e) => {
           e.stopPropagation();
           if (itIdx > 0) {
@@ -1381,6 +1497,7 @@ function renderQuestion(index, direction = 'right') {
       }
 
       if (downBtn) {
+        downBtn.draggable = false;
         downBtn.addEventListener('click', (e) => {
           e.stopPropagation();
           if (itIdx < currentOrder.length - 1) {
@@ -1849,10 +1966,15 @@ submitTestBtn.addEventListener('click', () => {
   openSummaryModal();
 });
 
+let isSubmitting = false;
 async function submitTest() {
+  if (isSubmitting) return;
+  isSubmitting = true;
   if (testTimer) clearInterval(testTimer);
-  submitTestBtn.disabled = true;
-  submitTestBtn.textContent = 'Обробка результатів...';
+  if (submitTestBtn) {
+    submitTestBtn.disabled = true;
+    submitTestBtn.textContent = 'Обробка результатів...';
+  }
 
   if (proctor) {
     proctor.isCompleted = true;
@@ -1888,6 +2010,11 @@ async function submitTest() {
     showResults(result, questionsSnapshot, timingsToSend);
   } catch (err) {
     console.error(err);
+    isSubmitting = false;
+    if (submitTestBtn) {
+      submitTestBtn.disabled = false;
+      submitTestBtn.textContent = 'Здати тест';
+    }
     showToast('Помилка надсилання: ' + err.message, 'error');
   }
 }
@@ -2572,14 +2699,37 @@ initImageLightbox();
 
 let selectedAvatarColor = '#6366f1';
 let selectedAvatarValue = '';
+let selectedAvatarSrc = '';
 let selectedAvatarType = 'initials';
 
 const AVATAR_COLORS = ['#6366f1', '#3b82f6', '#10b981', '#f59e0b', '#ec4899', '#8b5cf6', '#06b6d4', '#ef4444'];
-const KHAHOOT_EMOJIS = ['🦊', '🦉', '🚀', '🦁', '🐯', '🐼', '⚡', '🎯', '🌟', '🎨', '🧠', '🐱', '🐶', '🦄', '🤖', '🎮', '👑', '🏆', '💎', '🍎', '⚽'];
+const KHAHOOT_EMOJIS = [
+  { id: 'fox', label: '🦊', src: '/img/avatars/fox.svg' },
+  { id: 'owl', label: '🦉', src: '/img/avatars/owl.svg' },
+  { id: 'rocket', label: '🚀', src: '/img/avatars/rocket.svg' },
+  { id: 'lion', label: '🦁', src: '/img/avatars/lion.svg' },
+  { id: 'tiger', label: '🐯', src: '/img/avatars/tiger.svg' },
+  { id: 'panda', label: '🐼', src: '/img/avatars/panda.svg' },
+  { id: 'lightning', label: '⚡', src: '/img/avatars/lightning.svg' },
+  { id: 'target', label: '🎯', src: '/img/avatars/target.svg' },
+  { id: 'star', label: '🌟', src: '/img/avatars/star.svg' },
+  { id: 'palette', label: '🎨', src: '/img/avatars/palette.svg' },
+  { id: 'brain', label: '🧠', src: '/img/avatars/brain.svg' },
+  { id: 'cat', label: '🐱', src: '/img/avatars/cat.svg' },
+  { id: 'dog', label: '🐶', src: '/img/avatars/dog.svg' },
+  { id: 'unicorn', label: '🦄', src: '/img/avatars/unicorn.svg' },
+  { id: 'robot', label: '🤖', src: '/img/avatars/robot.svg' },
+  { id: 'gamepad', label: '🎮', src: '/img/avatars/gamepad.svg' },
+  { id: 'crown', label: '👑', src: '/img/avatars/crown.svg' },
+  { id: 'trophy2', label: '🏆', src: '/img/avatars/trophy2.svg' },
+  { id: 'diamond', label: '💎', src: '/img/avatars/diamond.svg' },
+  { id: 'apple2', label: '🍎', src: '/img/avatars/apple2.svg' },
+  { id: 'soccer', label: '⚽', src: '/img/avatars/soccer.svg' },
+];
 
 function getStudentInitials(name) {
   const clean = (name || '').trim();
-  if (!clean) return '🎓';
+  if (!clean) return '?';
   const parts = clean.split(/\s+/).filter(Boolean);
   if (parts.length >= 2) return (parts[0][0] + parts[1][0]).toUpperCase();
   return clean.substring(0, 2).toUpperCase();
@@ -2599,8 +2749,8 @@ function updateAvatarPreview() {
   if (!preview || !display) return;
   preview.style.background = selectedAvatarColor;
   preview.style.boxShadow = `0 4px 14px ${selectedAvatarColor}55`;
-  if (selectedAvatarType === 'emoji' && selectedAvatarValue) {
-    display.textContent = selectedAvatarValue;
+  if (selectedAvatarType === 'emoji' && selectedAvatarSrc) {
+    display.innerHTML = `<img src="${selectedAvatarSrc}" style="width:34px;height:34px;display:block;object-fit:contain;margin:auto;filter:drop-shadow(0 1px 3px rgba(0,0,0,0.3))" alt="">`;
   } else {
     const nameInp = document.getElementById('studentNameInput');
     display.textContent = getStudentInitials(nameInp ? nameInp.value : '');
@@ -2642,11 +2792,12 @@ function initStudentAvatarSelector() {
   const initialsBtn = document.createElement('button');
   initialsBtn.type = 'button';
   initialsBtn.className = 'btn-secondary';
-  initialsBtn.style.cssText = 'padding: 6px 4px; font-size: 11px; font-weight: 700; grid-column: span 2; height: 36px;';
+  initialsBtn.style.cssText = 'width: 100%; padding: 6px 4px; font-size: 11px; font-weight: 700; grid-column: span 2; height: 36px; display: flex; align-items: center; justify-content: center;';
   initialsBtn.textContent = 'Ініціали';
   initialsBtn.addEventListener('click', () => {
     selectedAvatarType = 'initials';
     selectedAvatarValue = '';
+    selectedAvatarSrc = '';
     updateAvatarPreview();
   });
   emojiWrap.appendChild(initialsBtn);
@@ -2654,11 +2805,12 @@ function initStudentAvatarSelector() {
   KHAHOOT_EMOJIS.forEach(emo => {
     const btn = document.createElement('button');
     btn.type = 'button';
-    btn.style.cssText = 'font-size: 20px; height: 36px; border: 1px solid var(--border); border-radius: var(--radius-sm); background: var(--bg-elevated); cursor: pointer; display: flex; align-items: center; justify-content: center; transition: transform 0.15s;';
-    btn.textContent = emo;
+    btn.style.cssText = 'width: 100%; max-width: 38px; height: 36px; border: 1px solid var(--border); border-radius: var(--radius-sm); background: var(--bg-elevated); cursor: pointer; display: flex; align-items: center; justify-content: center; padding: 0; overflow: hidden; transition: transform 0.15s; margin: 0 auto;';
+    btn.innerHTML = `<img src="${emo.src}" style="width:22px;height:22px;display:block;object-fit:contain;margin:auto;filter:drop-shadow(0 1px 2px rgba(0,0,0,0.3))" alt="${emo.label}">`;
     btn.addEventListener('click', () => {
       selectedAvatarType = 'emoji';
-      selectedAvatarValue = emo;
+      selectedAvatarValue = emo.id;
+      selectedAvatarSrc = emo.src;
       updateAvatarPreview();
     });
     emojiWrap.appendChild(btn);
@@ -2683,8 +2835,8 @@ function initStudentAvatarSelector() {
 
 function getStudentAvatar() {
   const nameInp = document.getElementById('studentNameInput');
-  const val = selectedAvatarType === 'emoji' && selectedAvatarValue
-    ? selectedAvatarValue
+  const val = selectedAvatarType === 'emoji' && selectedAvatarSrc
+    ? selectedAvatarSrc
     : getStudentInitials(nameInp ? nameInp.value : '');
   return {
     type: selectedAvatarType,

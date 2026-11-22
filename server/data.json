@@ -2737,7 +2737,7 @@
     "test_d4pc5wn": {
       "id": "test_d4pc5wn",
       "title": "Автоматичний тест верифікації системи",
-      "durationMinutes": 12,
+      "durationMinutes": 1,
       "questions": [
         {
           "id": "q_xz8sp2s",
@@ -2752,7 +2752,10 @@
           "matchingPairs": [],
           "orderingItems": [],
           "correct": 1,
-          "timeLimitSeconds": 45
+          "timeLimitSeconds": 45,
+          "timeLimit": 45,
+          "points": 1,
+          "explanation": ""
         },
         {
           "id": "q_vie5u2b",
@@ -2770,7 +2773,9 @@
             0,
             1
           ],
-          "timeLimitSeconds": 50
+          "timeLimitSeconds": 50,
+          "timeLimit": 50,
+          "points": 1
         },
         {
           "id": "q_v624pdy",
@@ -2789,7 +2794,9 @@
           ],
           "orderingItems": [],
           "correct": {},
-          "timeLimitSeconds": 60
+          "timeLimitSeconds": 60,
+          "timeLimit": 60,
+          "points": 1
         },
         {
           "id": "q_v9lf3bg",
@@ -2809,12 +2816,16 @@
             "Ядро ОС",
             "Графічна оболонка"
           ],
-          "timeLimitSeconds": 60
+          "timeLimitSeconds": 60,
+          "timeLimit": 60,
+          "points": 1
         }
       ],
       "topic": "Інформатика та безпека",
       "subject": "Інформатика",
-      "tags": []
+      "tags": [],
+      "shuffleQuestions": false,
+      "shuffleOptions": false
     }
   },
   "sessions": {},

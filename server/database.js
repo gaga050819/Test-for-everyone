@@ -818,7 +818,7 @@ export class JsonFileDatabaseAdapter extends DatabaseAdapter {
       let match = true;
       if (classId && s.studentId !== classId && s.classId !== classId) match = false;
       if (status) {
-        if (status === 'incomplete' && s.status === 'completed') match = false;
+        if (status === 'incomplete' && (s.status === 'completed' || s.status === 'disqualified')) match = false;
         if (status === 'completed' && s.status !== 'completed') match = false;
         if (status === 'disqualified' && s.status !== 'disqualified') match = false;
       }
