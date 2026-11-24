@@ -16,9 +16,13 @@ npm start
 
 ## Безкоштовне демо на Render
 
-У корені є `render.yaml` для розгортання гілки `github-no-ai` як Node web service. У Render виберіть **New → Blueprint**, підключіть репозиторій і цю гілку, а для `ADMIN_PASSWORD` задайте окремий довгий пароль у секретах Render. Не використовуйте пароль із локального `.env`.
+[![Deploy to Render](https://render.com/images/deploy-to-render-button.svg)](https://render.com/deploy?repo=https://github.com/gaga050819/Test-for-everyone/tree/github-no-ai)
+
+Кнопка відкриє налаштування розгортання гілки `github-no-ai` як Node web service. У Render створи або відкрий свій акаунт, переглянь Blueprint і для `ADMIN_PASSWORD` задай окремий довгий пароль у секретах Render. Не використовуй пароль із локального `.env`.
 
 Безкоштовний сервіс засинає після періоду без запитів, а його файлова система тимчасова. Оскільки SecureExam зберігає тести та результати у JSON-файлі, зміни можуть зникнути після сну, перезапуску чи нового розгортання. Це підходить для демо; для постійного використання потрібне платне постійне сховище. [Обмеження безкоштовного плану Render](https://render.com/docs/free).
+
+Автоматичне розгортання після push вимкнене; оновлення сервісу можна запускати вручну в Render.
 
 ## Про GitHub Pages
 
