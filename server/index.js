@@ -45,6 +45,7 @@ process.on('unhandledRejection', (reason) => {
 
 const PORT = process.env.PORT || 3500;
 const HTTPS_PORT = parseInt(process.env.HTTPS_PORT, 10) || (parseInt(PORT, 10) + 1);
+const ENABLE_LOCAL_HTTPS = process.env.ENABLE_LOCAL_HTTPS !== 'false';
 const AI_DISABLED_MESSAGE = 'Функції ШІ вимкнені у цій версії.';
 
 const sslDir = path.join(__dirname, 'ssl');
@@ -355,6 +356,9 @@ function getInitialAdminPassword() {
   if (process.env.ADMIN_PASSWORD && process.env.ADMIN_PASSWORD.trim()) {
     saveAdminPasswordToFile(process.env.ADMIN_PASSWORD.trim());
     return process.env.ADMIN_PASSWORD.trim();
+  }
+  if (process.env.NODE_ENV === 'production') {
+    throw new Error('Set ADMIN_PASSWORD in the hosting provider environment before starting SecureExam.');
   }
   try {
     if (fs.existsSync(secretPath)) {
@@ -1700,7 +1704,7 @@ async function getTunnelUrl() {
 
 async function bootstrap() {
   await db.init();
-  const sslData = await getOrCreateSslCert();
+  const sslData = ENABLE_LOCAL_HTTPS ? await getOrCreateSslCert() : null;
   if (sslData && sslData.cert && sslData.key) {
     try {
       httpsServer = https.createServer({ cert: sslData.cert, key: sslData.key }, app);
@@ -1711,10 +1715,10 @@ async function bootstrap() {
     }
   }
 
-  server.listen(PORT, async () => {
+  server.listen(PORT, '0.0.0.0', async () => {
     const localIp = getLocalNetworkIp();
-    let tunnel = await getTunnelUrl();
-    if (!tunnel) {
+    let tunnel = process.env.NODE_ENV === 'production' ? null : await getTunnelUrl();
+    if (!tunnel && process.env.NODE_ENV !== 'production') {
       await new Promise(r => setTimeout(r, 2500));
       tunnel = await getTunnelUrl();
     }
@@ -1725,7 +1729,7 @@ async function bootstrap() {
     if (httpsServer) {
       console.log(`[+] Адмін-панель (HTTPS):   https://localhost:${HTTPS_PORT}/admin.html (Камера/SSL)`);
     }
-    console.log(`[+] Пароль викладача:        ${ADMIN_PASSWORD}`);
+    console.log('[+] Пароль викладача збережений у server/admin_secret.json; значення приховане.');
     console.log(`[+] Локальна мережа (Wi-Fi): http://${localIp}:${PORT}`);
     if (httpsServer) {
       console.log(`[+] Wi-Fi HTTPS:            https://${localIp}:${HTTPS_PORT}`);
