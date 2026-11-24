@@ -1,5 +1,4 @@
-const GEMINI_API_KEY = localStorage.getItem('gemini_api_key') || '';
-const GEMINI_MODELS = ['gemini-3.1-flash-lite', 'gemini-flash-lite-latest', 'gemini-3-flash-preview', 'gemini-flash-latest'];
+const AI_DISABLED_MESSAGE = 'Функції ШІ вимкнені у цій версії.';
 
 const defaultSampleTest = {
   id: 'test_sample_studio_01',
@@ -654,11 +653,9 @@ function renderTypeSpecificControls(q) {
     }
     const aiToggle = document.getElementById('editorAiGradingToggle');
     if (aiToggle) {
-      aiToggle.checked = !!q.useAiGrading;
-      aiToggle.onchange = (e) => {
-        q.useAiGrading = e.target.checked;
-        saveDraftToStorage();
-      };
+      aiToggle.checked = false;
+      aiToggle.disabled = true;
+      q.useAiGrading = false;
     }
   }
 }
@@ -1189,85 +1186,8 @@ function saveCurrentEditorQuestion() {
   if (explanationText) q.explanation = explanationText.value;
 }
 
-async function callGeminiApi(promptText, expectJson = true) {
-  let token = localStorage.getItem('admin_token') || '05081988';
-  try {
-    let sRes = await fetch('/api/admin/gemini/prompt', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'x-admin-token': token
-      },
-      body: JSON.stringify({
-        prompt: promptText,
-        expectJson,
-        apiKey: localStorage.getItem('gemini_api_key') || ''
-      })
-    });
-    if (sRes.status === 401 && token !== '05081988') {
-      token = '05081988';
-      localStorage.setItem('admin_token', '05081988');
-      sRes = await fetch('/api/admin/gemini/prompt', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'x-admin-token': token
-        },
-        body: JSON.stringify({
-          prompt: promptText,
-          expectJson,
-          apiKey: localStorage.getItem('gemini_api_key') || ''
-        })
-      });
-    }
-    if (sRes.ok) {
-      const sData = await sRes.json();
-      if (sData.success && sData.result !== undefined) {
-        return sData.result;
-      }
-    }
-  } catch {}
-
-  const clientKey = localStorage.getItem('gemini_api_key') || '';
-  if (clientKey) {
-    for (const model of GEMINI_MODELS) {
-      try {
-        const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${encodeURIComponent(clientKey)}`;
-        const reqBody = {
-          systemInstruction: { parts: [{ text: 'Відповідай виключно українською мовою. All responses must be in Ukrainian language.' }] },
-          contents: [{ parts: [{ text: promptText }] }],
-          generationConfig: {
-            maxOutputTokens: 8192
-          }
-        };
-        if (expectJson) {
-          reqBody.generationConfig.responseMimeType = 'application/json';
-        }
-        const res = await fetch(apiUrl, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(reqBody),
-          signal: AbortSignal.timeout(12000)
-        });
-        if (!res.ok) continue;
-        const data = await res.json();
-        const parts = data.candidates?.[0]?.content?.parts || [];
-        const rawText = parts.map(p => p.text || '').join('');
-        if (rawText) {
-          if (expectJson) {
-            try {
-              return JSON.parse(rawText);
-            } catch {
-              const m = rawText.match(/\{[\s\S]*\}/);
-              if (m) return JSON.parse(m[0]);
-            }
-          } else {
-            return rawText;
-          }
-        }
-      } catch {}
-    }
-  }
+async function callGeminiApi() {
+  showToast(AI_DISABLED_MESSAGE);
   return null;
 }
 
@@ -1276,7 +1196,11 @@ function bindAiSmartTools() {
   const improveTextBtn = document.getElementById('aiImproveTextBtn');
   const explainBtn = document.getElementById('aiExplainBtn');
   const openChatSidebarBtn = document.getElementById('openChatSidebarBtn');
-
+  const openAiGenerateModalBtn = document.getElementById('openAiGenerateModalBtn');
+  [genOptionsBtn, improveTextBtn, explainBtn, openChatSidebarBtn, openAiGenerateModalBtn].forEach(btn => {
+    if (btn) btn.classList.add('hidden');
+  });
+  return;
   if (openChatSidebarBtn) {
     openChatSidebarBtn.addEventListener('click', () => {
       switchToRightTab('chat');
@@ -1569,6 +1493,17 @@ function extractJsonFromText(text) {
 function bindAiChatSidebar() {
   const tabChatBtn = document.getElementById('rightTabChatBtn');
   const tabPreviewBtn = document.getElementById('rightTabPreviewBtn');
+  const chatPanel = document.getElementById('rightAiChatPanel');
+  const previewPanel = document.getElementById('rightPreviewPanel');
+  if (tabChatBtn) tabChatBtn.classList.add('hidden');
+  if (chatPanel) chatPanel.classList.add('hidden');
+  if (tabPreviewBtn) {
+    tabPreviewBtn.classList.add('active');
+    tabPreviewBtn.addEventListener('click', () => switchToRightTab('preview'));
+  }
+  if (previewPanel) previewPanel.classList.remove('hidden');
+  return;
+
   const input = document.getElementById('aiChatInput');
   const sendBtn = document.getElementById('aiChatSendBtn');
   const clearBtn = document.getElementById('clearChatBtn');
@@ -2279,6 +2214,10 @@ function parseRawTestText(raw) {
 function bindAiGeneratorModal() {
   const openBtn = document.getElementById('openAiGenModalBtn');
   const modal = document.getElementById('aiGenModal');
+  if (openBtn) openBtn.classList.add('hidden');
+  if (modal) modal.classList.add('hidden');
+  return;
+
   const closeBtn = document.getElementById('closeAiModalBtn');
   const cancelBtn = document.getElementById('cancelAiGenBtn');
   const startBtn = document.getElementById('startAiGenBtn');

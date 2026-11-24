@@ -3662,15 +3662,11 @@ function initTestEditor() {
     });
   }
 
-  if (openAiGenerateBtn) {
-    openAiGenerateBtn.addEventListener('click', () => {
-      aiModalError.textContent = '';
-      if (aiGeneratingIndicator) aiGeneratingIndicator.classList.add('hidden');
-      if (aiSuccessIndicator) aiSuccessIndicator.classList.add('hidden');
-      aiTopicInput.value = '';
-      aiGenerateModal.classList.remove('hidden');
-      setTimeout(() => aiTopicInput.focus(), 50);
-    });
+  if (openAiGenerateBtn) openAiGenerateBtn.classList.add('hidden');
+  if (aiGenerateModal) aiGenerateModal.classList.add('hidden');
+  if (startAiGenerateBtn) {
+    startAiGenerateBtn.disabled = true;
+    startAiGenerateBtn.title = 'Функції ШІ вимкнені у цій версії.';
   }
 
   if (closeAiModalBtn) closeAiModalBtn.addEventListener('click', () => aiGenerateModal.classList.add('hidden'));
@@ -4211,7 +4207,7 @@ function initImportQuestionsControls() {
       }
       try {
         parseImportWithAiBtn.disabled = true;
-        if (importParsingStatus) importParsingStatus.textContent = 'ШІ аналізує текст та витягує питання...';
+        if (importParsingStatus) importParsingStatus.textContent = 'Локальний парсер розпізнає форматований текст...';
 
         const res = await adminFetch('/api/admin/ai-parse-import', {
           method: 'POST',
@@ -4226,7 +4222,7 @@ function initImportQuestionsControls() {
         }
 
         if (importParsingStatus) {
-          importParsingStatus.innerHTML = `<img src="/img/icons/check.svg" class="pixel-icon inline" alt=""> Успішно розпізнано ${parsedQuestions.length} питань (${data.source === 'gemini' ? 'Gemini AI' : 'Локальний парсер'})`;
+          importParsingStatus.innerHTML = `<img src="/img/icons/check.svg" class="pixel-icon inline" alt=""> Локально розпізнано ${parsedQuestions.length} питань`;
         }
 
         renderImportPreview(parsedQuestions);

@@ -45,7 +45,7 @@ process.on('unhandledRejection', (reason) => {
 
 const PORT = process.env.PORT || 3500;
 const HTTPS_PORT = parseInt(process.env.HTTPS_PORT, 10) || (parseInt(PORT, 10) + 1);
-const DEFAULT_GEMINI_KEY = process.env.GEMINI_API_KEY || '';
+const AI_DISABLED_MESSAGE = 'Функції ШІ вимкнені у цій версії.';
 
 const sslDir = path.join(__dirname, 'ssl');
 const certPath = path.join(sslDir, 'cert.pem');
@@ -770,11 +770,6 @@ app.post('/api/sessions/submit', async (req, res) => {
     return res.status(404).json({ error: 'Сесію не знайдено' });
   }
 
-  const hasAiPending = Object.values(result.answers || {}).some(a => a.needsAiGrading);
-  if (hasAiPending) {
-    runAiGradingForSession(result, db).catch(() => {});
-  }
-
   broadcastToAdmins({
     type: 'session_completed',
     sessionId,
@@ -1101,87 +1096,9 @@ app.post('/api/admin/sessions/:id/send-message', requireAdmin, async (req, res) 
 
 app.post('/api/admin/ai-parse-import', requireAdmin, async (req, res) => {
   try {
-    const { rawText, apiKey = '' } = req.body;
+    const { rawText } = req.body;
     if (!rawText || !rawText.trim()) {
       return res.status(400).json({ error: 'Введіть текст тесту для розпізнавання' });
-    }
-
-    const candidateKeys = [];
-    if (DEFAULT_GEMINI_KEY) candidateKeys.push(DEFAULT_GEMINI_KEY);
-    if (apiKey && apiKey.trim() && !candidateKeys.includes(apiKey.trim())) {
-      candidateKeys.push(apiKey.trim());
-    }
-
-    if (candidateKeys.length > 0) {
-      const promptText = `Ти — експертний методист і парсер тестів українською мовою.
-Твоє завдання — перетворити будь-який сирий текст тесту (з підручника, Word, сайту чи ЗНО) у структурований JSON.
-Підтримуй такі типи питань:
-1. "single": одна правильна відповідь. options: масив рядків, correct: індекс правильної відповіді (0, 1, 2...).
-2. "multiple": кілька правильних відповідей. options: масив рядків, correct: масив індексів (наприклад [0, 2]).
-3. "matching": встановлення відповідності між парами. matchingPairs: масив об'єктів [{"left": "...", "right": "..."}].
-4. "ordering": встановлення послідовності. orderingItems: масив елементів у правильному хронологічному порядку.
-
-Якщо варіант позначено +, *, "вірно" чи вказано ключ відповідей в кінці, визнач правильну відповідь.
-Час на питання timeLimitSeconds: 60.
-
-Ось текст:
-${rawText.trim()}
-
-Поверни результат ТІЛЬКИ як валідний JSON у форматі:
-{
-  "questions": [
-    {
-      "text": "Текст питання",
-      "type": "single",
-      "options": ["Варіант 1", "Варіант 2", "Варіант 3", "Варіант 4"],
-      "correct": 0,
-      "timeLimitSeconds": 60
-    }
-  ]
-}`;
-
-      const modelsToTry = ['gemini-3.1-flash-lite', 'gemini-flash-lite-latest', 'gemini-3-flash-preview', 'gemini-flash-latest'];
-      let geminiRes = null;
-
-      for (const keyToUse of candidateKeys) {
-        for (const model of modelsToTry) {
-          try {
-            const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${encodeURIComponent(keyToUse)}`;
-            const gRes = await fetch(apiUrl, {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({
-                systemInstruction: { parts: [{ text: 'Відповідай виключно українською мовою. All responses must be in Ukrainian language.' }] },
-                contents: [{ parts: [{ text: promptText }] }],
-                generationConfig: {
-                  responseMimeType: 'application/json',
-                  temperature: 0.2
-                }
-              }),
-              signal: AbortSignal.timeout(12000)
-            });
-
-            if (gRes.ok) {
-              geminiRes = await gRes.json();
-              break;
-            }
-          } catch {}
-        }
-        if (geminiRes) break;
-      }
-
-      if (geminiRes) {
-        const parts = geminiRes.candidates?.[0]?.content?.parts || [];
-        const rawContent = parts.map(p => p.text || '').join('');
-        if (rawContent) {
-          try {
-            const parsed = JSON.parse(rawContent);
-            if (Array.isArray(parsed.questions) && parsed.questions.length > 0) {
-              return res.json({ success: true, source: 'gemini', questions: parsed.questions });
-            }
-          } catch {}
-        }
-      }
     }
 
     const fallbackQuestions = [];
@@ -1225,7 +1142,7 @@ ${rawText.trim()}
       return res.json({ success: true, source: 'local_parser', questions: fallbackQuestions });
     }
 
-    res.status(400).json({ error: 'Не вдалося розпізнати питання з тексту. Перевірте формат або підключення до ШІ.' });
+    res.status(400).json({ error: 'Не вдалося розпізнати питання. Перевірте, що кожне питання має окремий рядок із варіантами відповіді.' });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -1250,239 +1167,12 @@ app.delete('/api/admin/tests/:id/questions', requireAdmin, async (req, res) => {
   res.json({ success: true, removed });
 });
 
-app.post('/api/admin/generate-test', requireAdmin, async (req, res) => {
-  try {
-    const {
-      topic,
-      count = 5,
-      difficulty = 'medium',
-      timeLimitSeconds = 60,
-      customInstructions = '',
-      apiKey = '',
-      testId = 'demo-test-1',
-      applyToTest = false,
-      replaceExisting = false
-    } = req.body;
-
-    if (!topic || typeof topic !== 'string' || !topic.trim()) {
-      return res.status(400).json({ error: 'Вкажіть тему тесту' });
-    }
-
-    const candidateKeys = [];
-    if (DEFAULT_GEMINI_KEY) candidateKeys.push(DEFAULT_GEMINI_KEY);
-    if (apiKey && apiKey.trim() && !candidateKeys.includes(apiKey.trim())) {
-      candidateKeys.push(apiKey.trim());
-    }
-    if (candidateKeys.length === 0) {
-      return res.status(400).json({ error: 'Не вказано Gemini API ключ' });
-    }
-
-    const questionCount = Math.max(1, Math.min(50, parseInt(count, 10) || 5));
-    const timeLimit = Math.max(10, Math.min(600, parseInt(timeLimitSeconds, 10) || 60));
-
-    const difficultyMap = {
-      easy: 'початковий / легкий (базові поняття та терміни)',
-      medium: 'середній (розуміння принципів та практичне застосування)',
-      hard: 'складний (глибокий аналіз, неочевидні ситуації та винятки)',
-      olympiad: 'олімпіадний / експертний (комплексні задачі та нестандартне мислення)'
-    };
-    const difficultyText = difficultyMap[difficulty] || difficultyMap.medium;
-
-    const promptText = `Ти — досвідчений викладач та методист.
-Створи навчальний тест українською мовою на тему: "${topic.trim()}".
-Рівень складності: ${difficultyText}.
-Кількість питань: ${questionCount}.
-Час на відповідь на одне питання: ${timeLimit} секунд.
-${customInstructions ? `Додаткові вимоги: ${customInstructions.trim()}` : ''}
-
-Вимоги до тесту:
-1. Питання мають бути грамотними, точними та однозначними.
-2. Для кожного питання сформулюй рівно 4 реалістичні та змістовні варіанти відповіді.
-3. Лише один варіант відповіді є правильним.
-4. Поле "correct" повинно містити цілочисельний індекс правильного варіанта (0, 1, 2 або 3). Переконайся, що варіант за цим індексом на 100% правильний.
-5. Поле "timeLimitSeconds" встанови рівним ${timeLimit}.
-
-Поверни результат ВИКЛЮЧНО у форматі валідного JSON наступної структури:
-{
-  "title": "Назва тесту відповідно до теми",
-  "questions": [
-    {
-      "text": "Текст питання",
-      "options": ["Варіант 1", "Варіант 2", "Варіант 3", "Варіант 4"],
-      "correct": 0,
-      "timeLimitSeconds": ${timeLimit}
-    }
-  ]
-}`;
-
-    const modelsToTry = ['gemini-3.1-flash-lite', 'gemini-flash-lite-latest', 'gemini-3-flash-preview', 'gemini-flash-latest'];
-    let lastError = null;
-    let geminiResponse = null;
-
-    for (const keyToUse of candidateKeys) {
-      for (const model of modelsToTry) {
-        try {
-          const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${encodeURIComponent(keyToUse)}`;
-          const gRes = await fetch(apiUrl, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              systemInstruction: { parts: [{ text: 'Відповідай виключно українською мовою. All responses must be in Ukrainian language.' }] },
-              contents: [{ parts: [{ text: promptText }] }],
-              generationConfig: {
-                responseMimeType: 'application/json',
-                temperature: 0.7
-              }
-            }),
-            signal: AbortSignal.timeout(12000)
-          });
-
-          if (gRes.ok) {
-            geminiResponse = await gRes.json();
-            break;
-          } else {
-            const errData = await gRes.json().catch(() => ({}));
-            lastError = errData.error ? `${errData.error.message} (${errData.error.code})` : `Помилка ${gRes.status}`;
-          }
-        } catch (err) {
-          lastError = err.message;
-        }
-      }
-      if (geminiResponse) break;
-    }
-
-    if (!geminiResponse) {
-      return res.status(502).json({ error: `Помилка запиту до Gemini API: ${lastError || 'Неможливо отримати відповідь'}` });
-    }
-
-    const parts = geminiResponse.candidates?.[0]?.content?.parts || [];
-    const rawContent = parts.map(p => p.text || '').join('');
-    if (!rawContent) {
-      return res.status(502).json({ error: 'Gemini не повернув вміст для генерації' });
-    }
-
-    let parsed;
-    try {
-      parsed = JSON.parse(rawContent);
-    } catch {
-      const match = rawContent.match(/\{[\s\S]*\}/);
-      if (match) {
-        parsed = JSON.parse(match[0]);
-      } else {
-        throw new Error('Неможливо розібрати JSON відповідь від Gemini');
-      }
-    }
-
-    const rawQuestions = Array.isArray(parsed.questions) ? parsed.questions : [];
-    if (rawQuestions.length === 0) {
-      return res.status(502).json({ error: 'ШІ не сформував жодного питання' });
-    }
-
-    const validatedQuestions = rawQuestions.map((q, idx) => {
-      const opts = Array.isArray(q.options) ? q.options.map(o => String(o).trim()).filter(Boolean) : [];
-      let c = parseInt(q.correct, 10);
-      if (isNaN(c) || c < 0 || c >= opts.length) c = 0;
-      return {
-        id: 'q_ai_' + Math.random().toString(36).substring(2, 9) + '_' + (idx + 1),
-        text: String(q.text || '').trim(),
-        options: opts,
-        correct: c,
-        timeLimitSeconds: parseInt(q.timeLimitSeconds, 10) || timeLimit,
-        type: 'single'
-      };
-    }).filter(q => q.text && q.options.length >= 2);
-
-    if (validatedQuestions.length === 0) {
-      return res.status(502).json({ error: 'Питання від ШІ не пройшли валідацію' });
-    }
-
-    let applied = false;
-    let savedTest = null;
-    if (applyToTest && testId) {
-      const test = await db.getTest(testId);
-      if (test) {
-        if (parsed.title && typeof parsed.title === 'string' && parsed.title.trim()) {
-          test.title = parsed.title.trim();
-        }
-        if (replaceExisting) {
-          test.questions = validatedQuestions;
-        } else {
-          test.questions = (test.questions || []).concat(validatedQuestions);
-        }
-        savedTest = await db.saveTest(test);
-        applied = true;
-      }
-    }
-
-    res.json({
-      success: true,
-      title: parsed.title || topic,
-      questions: validatedQuestions,
-      applied,
-      test: savedTest
-    });
-  } catch (err) {
-    res.status(500).json({ error: err.message || 'Внутрішня помилка сервера' });
-  }
+app.post('/api/admin/generate-test', requireAdmin, (req, res) => {
+  res.status(410).json({ error: AI_DISABLED_MESSAGE });
 });
 
-app.post('/api/admin/gemini/prompt', requireAdmin, async (req, res) => {
-  try {
-    const { prompt, expectJson } = req.body;
-    if (!prompt || typeof prompt !== 'string' || !prompt.trim()) {
-      return res.status(400).json({ error: 'Порожній запит' });
-    }
-    const candidateKeys = [];
-    if (DEFAULT_GEMINI_KEY) candidateKeys.push(DEFAULT_GEMINI_KEY);
-    if (req.body.apiKey && req.body.apiKey.trim() && !candidateKeys.includes(req.body.apiKey.trim())) {
-      candidateKeys.push(req.body.apiKey.trim());
-    }
-    if (candidateKeys.length === 0) {
-      return res.status(400).json({ error: 'Не вказано Gemini API ключ' });
-    }
-    const modelsToTry = ['gemini-3.1-flash-lite', 'gemini-flash-lite-latest', 'gemini-3-flash-preview', 'gemini-flash-latest'];
-    for (const keyToUse of candidateKeys) {
-      for (const model of modelsToTry) {
-        try {
-          const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${encodeURIComponent(keyToUse)}`;
-          const reqBody = {
-            systemInstruction: { parts: [{ text: 'Відповідай виключно українською мовою. All responses must be in Ukrainian language.' }] },
-            contents: [{ parts: [{ text: prompt }] }],
-            generationConfig: {
-              maxOutputTokens: 8192
-            }
-          };
-          if (expectJson) {
-            reqBody.generationConfig.responseMimeType = 'application/json';
-          }
-          const gRes = await fetch(apiUrl, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(reqBody),
-            signal: AbortSignal.timeout(12000)
-          });
-        if (!gRes.ok) continue;
-        const data = await gRes.json();
-        const parts = data.candidates?.[0]?.content?.parts || [];
-        const rawText = parts.map(p => p.text || '').join('');
-        if (rawText) {
-          if (expectJson) {
-            try {
-              const cleaned = rawText.replace(/^```json\s*/i, '').replace(/```\s*$/i, '').trim();
-              return res.json({ success: true, result: JSON.parse(cleaned) });
-            } catch {
-              return res.json({ success: true, result: rawText });
-            }
-          }
-          return res.json({ success: true, result: rawText });
-        }
-      } catch {}
-    }
-  }
-  res.status(502).json({ error: 'Не вдалося отримати відповідь від Gemini' });
-  } catch (err) {
-    res.status(500).json({ error: err.message || 'Помилка' });
-  }
+app.post('/api/admin/gemini/prompt', requireAdmin, (req, res) => {
+  res.status(410).json({ error: AI_DISABLED_MESSAGE });
 });
 
 app.post('/api/admin/sessions/:id/override-unlock', requireAdmin, async (req, res) => {
@@ -1993,84 +1683,6 @@ app.post('/api/admin/update/apply', requireAdmin, async (req, res) => {
     res.status(500).json({ error: 'Помилка оновлення: ' + err.message });
   }
 });
-
-async function runAiGradingForSession(session, database) {
-  const questions = session.questions || [];
-  const answers = session.answers || {};
-  const apiKey = DEFAULT_GEMINI_KEY;
-  if (!apiKey) return;
-
-  let changed = false;
-
-  for (const [qId, answerRecord] of Object.entries(answers)) {
-    if (!answerRecord.needsAiGrading) continue;
-    const question = questions.find(q => q.id === qId);
-    if (!question) continue;
-    const userText = String(answerRecord.userAnswer || '').trim();
-    if (!userText) {
-      answerRecord.needsAiGrading = false;
-      answerRecord.aiFeedback = 'Відповідь не надана';
-      changed = true;
-      continue;
-    }
-
-    const prompt = `Ти — шкільний вчитель. Оціни відповідь учня.
-
-Питання: ${question.text}
-Відповідь учня: ${userText}
-${question.correct ? `Еталонна відповідь (якщо є): ${question.correct}` : ''}
-
-Оціни відповідь від 0 до 1 (1 = повністю правильна, 0.5 = частково, 0 = неправильна).
-Поверни ТІЛЬКИ JSON: {"score": 0.8, "feedback": "Коротке пояснення"}`;
-
-    const modelsToTry = ['gemini-3.1-flash-lite', 'gemini-flash-lite-latest', 'gemini-3-flash-preview', 'gemini-flash-latest'];
-
-    for (const model of modelsToTry) {
-      try {
-        const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${encodeURIComponent(apiKey)}`;
-        const gRes = await fetch(apiUrl, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            systemInstruction: { parts: [{ text: 'Відповідай виключно українською мовою. All responses must be in Ukrainian language.' }] },
-            contents: [{ parts: [{ text: prompt }] }],
-            generationConfig: { responseMimeType: 'application/json', temperature: 0.1 }
-          }),
-          signal: AbortSignal.timeout(12000)
-        });
-        if (!gRes.ok) continue;
-        const gJson = await gRes.json();
-        const parts = gJson?.candidates?.[0]?.content?.parts || [];
-        const rawText = parts.map(p => p.text || '').join('');
-        const parsed = JSON.parse(rawText.replace(/^```json\s*/i, '').replace(/```\s*$/i, '').trim());
-        if (parsed && typeof parsed.score === 'number') {
-          answerRecord.earnedPoints = Math.min(1, Math.max(0, parsed.score));
-          answerRecord.isCorrect = answerRecord.earnedPoints >= 0.7;
-          answerRecord.aiFeedback = parsed.feedback || '';
-          answerRecord.needsAiGrading = false;
-          changed = true;
-          break;
-        }
-      } catch {}
-    }
-  }
-
-  if (changed) {
-    let correctCount = 0;
-    Object.values(session.answers).forEach(a => { correctCount += (a.earnedPoints || 0); });
-    const totalQ = session.totalQuestions || 1;
-    session.rawScore = correctCount;
-    session.scorePercentage = totalQ > 0 ? Math.round((correctCount / totalQ) * 100) : 0;
-    await database.persist();
-    broadcastToAdmins({
-      type: 'session_ai_graded',
-      sessionId: session.id,
-      studentName: session.studentName,
-      scorePercentage: session.scorePercentage,
-      score12: session.score12
-    });
-  }
-}
 
 async function getTunnelUrl() {
   try {

@@ -300,7 +300,7 @@ export class JsonFileDatabaseAdapter extends DatabaseAdapter {
             options: [],
             correct: q.correct !== undefined ? q.correct : '',
             correctKeywords: Array.isArray(q.correctKeywords) ? q.correctKeywords : [],
-            useAiGrading: q.useAiGrading || false,
+            useAiGrading: false,
             timeLimitSeconds: q.timeLimitSeconds
           };
         }
@@ -605,18 +605,13 @@ export class JsonFileDatabaseAdapter extends DatabaseAdapter {
           }
         }
       } else if (q.type === 'short_answer') {
-        if (q.useAiGrading) {
-          earnedPoints = 0;
-          isCorrect = false;
-        } else {
-          const userText = String(userAnswer || '').trim().toLowerCase();
-          const validList = Array.isArray(q.correctKeywords) && q.correctKeywords.length > 0
-            ? q.correctKeywords.map(k => String(k).trim().toLowerCase())
-            : String(q.correct || '').split(',').map(s => s.trim().toLowerCase()).filter(Boolean);
-          if (userText && validList.includes(userText)) {
-            isCorrect = true;
-            earnedPoints = 1;
-          }
+        const userText = String(userAnswer || '').trim().toLowerCase();
+        const validList = Array.isArray(q.correctKeywords) && q.correctKeywords.length > 0
+          ? q.correctKeywords.map(k => String(k).trim().toLowerCase())
+          : String(q.correct || '').split(',').map(s => s.trim().toLowerCase()).filter(Boolean);
+        if (userText && validList.includes(userText)) {
+          isCorrect = true;
+          earnedPoints = 1;
         }
       } else if (q.type === 'fill_blanks') {
         const blanks = Array.isArray(q.blanks) ? q.blanks : [];
@@ -661,7 +656,7 @@ export class JsonFileDatabaseAdapter extends DatabaseAdapter {
         isCorrect,
         earnedPoints: Math.round(earnedPoints * 100) / 100,
         timeSpent,
-        needsAiGrading: q.useAiGrading || false
+        needsAiGrading: false
       };
     });
 

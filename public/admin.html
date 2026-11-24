@@ -1049,31 +1049,22 @@
             <label for="editorShortKeywords" class="form-label">Правильні варіанти відповіді (через кому)</label>
             <input type="text" id="editorShortKeywords" class="form-input" style="font-size: 13px;" placeholder="Київ, київ, Kyiv">
             <div style="font-size: 11px; color: var(--text-muted); margin-top: 5px;">Відповідь зараховується при збігу з будь-яким словом зі списку (регістр ігнорується).</div>
-            <div style="display: flex; align-items: center; gap: 10px; margin-top: 10px; padding: 8px 12px; background: rgba(99,102,241,0.07); border-radius: 8px; border: 1px solid rgba(99,102,241,0.2);">
-              <label class="toggle-mini" title="Увімкнути ШІ-оцінювання через Gemini замість точного збігу">
-                <input type="checkbox" id="editorAiGradingToggle">
-                <span class="toggle-mini-slider"></span>
-              </label>
-              <div>
-                <div style="font-size: 12px; font-weight: 600;">ШІ-оцінювання (Gemini)</div>
-                <div style="font-size: 11px; color: var(--text-muted);">Gemini перевірить відповідь за змістом, а не точним словом. Поле «варіанти» стане підказкою для ШІ.</div>
-              </div>
-            </div>
+            <div style="font-size: 11px; color: var(--text-muted); margin-top: 8px;">У цій версії відповіді перевіряються локально за вказаними варіантами.</div>
           </div>
         </div>
       </section>
 
       <aside class="studio-sidebar-right card-panel">
         <div class="sidebar-right-nav">
-          <button type="button" id="rightTabChatBtn" class="right-nav-pill active">
+          <button type="button" id="rightTabChatBtn" class="right-nav-pill hidden">
             <img src="/img/icons/star.svg" class="pixel-icon inline" alt=""> Gemini ШІ-Чат
           </button>
-          <button type="button" id="rightTabPreviewBtn" class="right-nav-pill">
+          <button type="button" id="rightTabPreviewBtn" class="right-nav-pill active">
             <img src="/img/icons/mobile.svg" class="pixel-icon inline" alt=""> Прев'ю учня
           </button>
         </div>
 
-        <div id="rightAiChatPanel" class="right-panel-view">
+        <div id="rightAiChatPanel" class="right-panel-view hidden">
           <div class="chat-header-bar">
             <div class="chat-header-left">
               <span class="chat-online-dot"></span>
@@ -1112,7 +1103,7 @@
           </div>
         </div>
 
-        <div id="rightPreviewPanel" class="right-panel-view hidden">
+        <div id="rightPreviewPanel" class="right-panel-view">
           <div class="preview-header-bar">
             <div class="preview-heading">
               <span style="font-size: 13px; font-weight: 700;">Живий перегляд учня</span>
@@ -1405,7 +1396,7 @@
 
         <div style="display: flex; gap: 10px; margin-bottom: 14px; flex-wrap: wrap; align-items: center; justify-content: space-between;">
           <button id="parseImportWithAiBtn" class="btn-primary" style="width: auto; padding: 8px 18px; font-size: 12px; background: linear-gradient(135deg, #6366f1, #8b5cf6); border: none;" type="button">
-            <img src="/img/icons/star.svg" class="pixel-icon inline" alt="" style="filter: brightness(0) invert(1);"> Розпізнати через Gemini AI
+            <img src="/img/icons/star.svg" class="pixel-icon inline" alt="" style="filter: brightness(0) invert(1);"> Розпізнати локально
           </button>
           <div id="importParsingStatus" style="font-size: 12px; color: var(--accent); font-weight: 600;"></div>
         </div>
@@ -1439,7 +1430,7 @@
               <img src="/img/icons/star.svg" class="pixel-icon" alt="" style="filter: brightness(0) invert(1);">
             </div>
             <div>
-              <h3 style="font-size: 16px; font-weight: 700; margin: 0;">Генерація тесту через Gemini AI</h3>
+              <h3 style="font-size: 16px; font-weight: 700; margin: 0;">Генерація тесту недоступна у цій версії</h3>
               <div style="font-size: 11px; color: var(--text-muted); margin-top: 2px;">Автоматичне створення запитань із варіантами відповідей</div>
             </div>
           </div>
@@ -1501,7 +1492,7 @@
         <div id="aiModalError" style="color: var(--accent-red); font-size: 12px; margin-bottom: 14px; min-height: 16px;"></div>
 
         <div id="aiGeneratingIndicator" class="hidden" style="padding: 16px; margin-bottom: 14px; text-align: center; background: rgba(99,102,241,0.08); border: 1px dashed #6366f1; border-radius: var(--radius-sm);">
-          <div style="font-size: 13px; font-weight: 600; color: #6366f1; margin-bottom: 4px;">Gemini AI аналізує тему та генерує варіанти...</div>
+          <div style="font-size: 13px; font-weight: 600; color: #6366f1; margin-bottom: 4px;">Функції ШІ вимкнені у цій версії.</div>
           <div style="font-size: 11px; color: var(--text-muted);">Зазвичай це триває кілька секунд. Будь ласка, зачекайте.</div>
         </div>
 
@@ -1572,11 +1563,11 @@
                 <div style="font-size: 11px; color: var(--text-muted); margin-top: 2px;">Додавайте питання по одному або обирайте готові типи</div>
               </div>
             </label>
-            <label style="display: flex; align-items: center; gap: 10px; padding: 10px 14px; border: 1px solid var(--border); border-radius: var(--radius-sm); background: var(--bg-surface); cursor: pointer;">
-              <input type="radio" name="wizardFillMethod" value="ai" style="accent-color: var(--accent);">
+            <label class="hidden" style="display: flex; align-items: center; gap: 10px; padding: 10px 14px; border: 1px solid var(--border); border-radius: var(--radius-sm); background: var(--bg-surface); cursor: pointer;">
+              <input type="radio" name="wizardFillMethod" value="ai" disabled style="accent-color: var(--accent);">
               <div>
-                <div style="font-size: 13px; font-weight: 700; display: inline-flex; align-items: center; gap: 6px;"><img src="/img/icons/bulb.svg" class="pixel-icon inline" alt=""> Згенерувати за допомогою ШІ (Gemini)</div>
-                <div style="font-size: 11px; color: var(--text-muted); margin-top: 2px;">Миттєве автостворення 5-20 запитань за вказаною темою</div>
+                <div style="font-size: 13px; font-weight: 700; display: inline-flex; align-items: center; gap: 6px;"><img src="/img/icons/bulb.svg" class="pixel-icon inline" alt=""> Генерація ШІ вимкнена</div>
+                <div style="font-size: 11px; color: var(--text-muted); margin-top: 2px;">Створіть питання вручну або скористайтеся локальним імпортом</div>
               </div>
             </label>
             <label style="display: flex; align-items: center; gap: 10px; padding: 10px 14px; border: 1px solid var(--border); border-radius: var(--radius-sm); background: var(--bg-surface); cursor: pointer;">
