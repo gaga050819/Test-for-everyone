@@ -1,5 +1,3 @@
-const AI_DISABLED_MESSAGE = 'Функції ШІ вимкнені у цій версії.';
-
 const defaultSampleTest = {
   id: 'test_sample_studio_01',
   name: 'Географія 10 клас: Загальна характеристика Азії',
@@ -630,6 +628,64 @@ function renderEmptyEditorState() {
   updateLivePreview();
 }
 
+function parseEditorNumericVal(raw) {
+  if (raw === undefined || raw === null) return null;
+  const s = String(raw).trim().replace(/\s+/g, '').replace(',', '.');
+  if (!s || !/^[+-]?(?:\d+\.?\d*|\.\d+)$/.test(s)) return null;
+  const n = Number(s);
+  return Number.isFinite(n) ? n : null;
+}
+
+function formatEditorNumeric(n) {
+  return String(Number(n.toFixed(6)));
+}
+
+function syncEditorNumericToleranceUI(q) {
+  const targetInput = document.getElementById('editorNumericTarget');
+  const tolToggle = document.getElementById('editorNumericToleranceToggle');
+  const tolControls = document.getElementById('editorNumericToleranceControls');
+  const tolInput = document.getElementById('editorNumericTolerance');
+  const chipsWrap = document.getElementById('editorNumericTolChips');
+  const previewEl = document.getElementById('editorNumericRangePreview');
+  const applyAllBtn = document.getElementById('applyNumericTolAllBtn');
+  const statePill = document.getElementById('editorNumericTolStatePill');
+
+  const enabled = !!(tolToggle && tolToggle.checked);
+  if (statePill) {
+    statePill.textContent = enabled ? 'Увімкнено' : 'Вимкнено';
+    statePill.classList.toggle('is-on', enabled);
+  }
+  if (tolControls) tolControls.classList.toggle('hidden', !enabled);
+  const tolVal = enabled ? Math.max(0, Math.abs(parseEditorNumericVal(tolInput ? tolInput.value : 0) ?? 0)) : 0;
+
+  if (chipsWrap) {
+    chipsWrap.querySelectorAll('.tol-chip').forEach(ch => {
+      const chipVal = Number(ch.dataset.tol);
+      ch.classList.toggle('active', enabled && Math.abs(chipVal - tolVal) < 1e-9);
+    });
+  }
+
+  if (previewEl) {
+    const targetNum = parseEditorNumericVal(targetInput ? targetInput.value : q?.correct);
+    if (targetNum === null) {
+      previewEl.textContent = enabled
+        ? `Вкажіть правильне число (поточна похибка ± ${formatEditorNumeric(tolVal)}). Підтримуються крапка й кома.`
+        : 'Вкажіть правильне число. Похибка вимкнена (вимагатиметься точний збіг).';
+    } else if (!enabled || tolVal === 0) {
+      previewEl.textContent = `Приймається лише точне число: ${formatEditorNumeric(targetNum)} (крапка й кома однакові).`;
+    } else {
+      const minV = formatEditorNumeric(targetNum - tolVal);
+      const maxV = formatEditorNumeric(targetNum + tolVal);
+      previewEl.textContent = `Зарахуються числа від ${minV} до ${maxV} (± ${formatEditorNumeric(tolVal)}).`;
+    }
+  }
+
+  if (applyAllBtn) {
+    const numericCount = Array.isArray(currentTest?.questions) ? currentTest.questions.filter(item => item.type === 'numeric').length : 0;
+    applyAllBtn.classList.toggle('hidden', numericCount < 2);
+  }
+}
+
 function renderTypeSpecificControls(q) {
   const optionsSection = document.getElementById('optionsBuilderSection');
   const matchingSection = document.getElementById('matchingBuilderSection');
@@ -660,16 +716,28 @@ function renderTypeSpecificControls(q) {
     }
     const aiToggle = document.getElementById('editorAiGradingToggle');
     if (aiToggle) {
-      aiToggle.checked = false;
-      aiToggle.disabled = true;
-      q.useAiGrading = false;
+      aiToggle.disabled = false;
+      aiToggle.checked = !!q.useAiGrading;
+      aiToggle.onchange = (e) => {
+        q.useAiGrading = e.target.checked;
+        saveDraftToStorage();
+      };
     }
   } else if (q.type === 'numeric') {
     if (numericSection) numericSection.classList.remove('hidden');
     const targetInput = document.getElementById('editorNumericTarget');
     const tolInput = document.getElementById('editorNumericTolerance');
+    const tolToggle = document.getElementById('editorNumericToleranceToggle');
+    const rawTol = Number(String(q.numericTolerance ?? 0).replace(',', '.'));
+    const tolNum = Number.isFinite(rawTol) ? Math.abs(rawTol) : 0;
+    const isEnabled = q.numericToleranceEnabled !== undefined ? !!q.numericToleranceEnabled : tolNum > 0;
     if (targetInput) targetInput.value = q.correct !== undefined && q.correct !== null ? String(q.correct) : '';
-    if (tolInput) tolInput.value = q.numericTolerance !== undefined ? String(q.numericTolerance) : '0';
+    if (tolInput) {
+      if (tolNum > 0) tolInput.dataset.lastTol = String(tolNum);
+      tolInput.value = tolNum > 0 ? String(tolNum) : (tolInput.dataset.lastTol || '0.2');
+    }
+    if (tolToggle) tolToggle.checked = isEnabled;
+    syncEditorNumericToleranceUI(q);
   }
 }
 
@@ -903,6 +971,7 @@ function bindEditorInputs() {
       if (q.type === 'numeric') {
         if (q.correct === undefined || typeof q.correct !== 'number') q.correct = '';
         if (q.numericTolerance === undefined) q.numericTolerance = 0;
+        if (q.numericToleranceEnabled === undefined) q.numericToleranceEnabled = Number(q.numericTolerance) > 0;
       }
       renderTypeSpecificControls(q);
       renderQuestionsNav();
@@ -926,26 +995,104 @@ function bindEditorInputs() {
 
   const editorNumericTarget = document.getElementById('editorNumericTarget');
   const editorNumericTolerance = document.getElementById('editorNumericTolerance');
+  const editorNumericToleranceToggle = document.getElementById('editorNumericToleranceToggle');
+  const editorNumericTolChips = document.getElementById('editorNumericTolChips');
+  const applyNumericTolAllBtn = document.getElementById('applyNumericTolAllBtn');
+
   if (editorNumericTarget) {
     editorNumericTarget.addEventListener('input', e => {
       const q = currentTest.questions[activeQuestionIndex];
       if (q && q.type === 'numeric') {
-        const parsed = Number(String(e.target.value).trim().replace(',', '.'));
-        q.correct = (!e.target.value.trim() || !Number.isFinite(parsed)) ? e.target.value : parsed;
+        const parsed = parseEditorNumericVal(e.target.value);
+        q.correct = parsed === null ? e.target.value : parsed;
+        syncEditorNumericToleranceUI(q);
         updateTestAnalytics();
         updateLivePreview();
       }
+    });
+  }
+  if (editorNumericToleranceToggle) {
+    editorNumericToleranceToggle.addEventListener('change', e => {
+      const q = currentTest.questions[activeQuestionIndex];
+      if (!q || q.type !== 'numeric') return;
+      const enabled = !!e.target.checked;
+      q.numericToleranceEnabled = enabled;
+      if (enabled) {
+        const fallbackTol = parseEditorNumericVal(editorNumericTolerance?.dataset.lastTol) || 0.2;
+        const currentTol = parseEditorNumericVal(editorNumericTolerance?.value);
+        const nextTol = (currentTol !== null && currentTol > 0) ? currentTol : fallbackTol;
+        if (editorNumericTolerance) editorNumericTolerance.value = String(nextTol);
+        q.numericTolerance = nextTol;
+      } else {
+        const prevTol = parseEditorNumericVal(editorNumericTolerance?.value);
+        if (prevTol !== null && prevTol > 0 && editorNumericTolerance) {
+          editorNumericTolerance.dataset.lastTol = String(prevTol);
+        }
+        q.numericTolerance = 0;
+      }
+      syncEditorNumericToleranceUI(q);
+      updateTestAnalytics();
+      updateLivePreview();
+      saveDraftToStorage();
     });
   }
   if (editorNumericTolerance) {
     editorNumericTolerance.addEventListener('input', e => {
       const q = currentTest.questions[activeQuestionIndex];
       if (q && q.type === 'numeric') {
-        const parsed = Number(String(e.target.value).trim().replace(',', '.'));
-        q.numericTolerance = Number.isFinite(parsed) ? Math.abs(parsed) : 0;
+        const parsed = parseEditorNumericVal(e.target.value);
+        const absTol = parsed !== null ? Math.abs(parsed) : 0;
+        if (absTol > 0) e.target.dataset.lastTol = String(absTol);
+        const isEnabled = editorNumericToleranceToggle ? editorNumericToleranceToggle.checked : absTol > 0;
+        q.numericToleranceEnabled = isEnabled && absTol > 0;
+        q.numericTolerance = isEnabled ? absTol : 0;
+        syncEditorNumericToleranceUI(q);
         updateTestAnalytics();
         updateLivePreview();
       }
+    });
+  }
+  if (editorNumericTolChips) {
+    editorNumericTolChips.addEventListener('click', e => {
+      const btn = e.target.closest('.tol-chip');
+      if (!btn) return;
+      const val = parseEditorNumericVal(btn.dataset.tol);
+      if (val === null) return;
+      const q = currentTest.questions[activeQuestionIndex];
+      if (!q || q.type !== 'numeric') return;
+      if (editorNumericToleranceToggle) editorNumericToleranceToggle.checked = true;
+      if (editorNumericTolerance) {
+        editorNumericTolerance.value = String(val);
+        editorNumericTolerance.dataset.lastTol = String(val);
+      }
+      q.numericToleranceEnabled = true;
+      q.numericTolerance = val;
+      syncEditorNumericToleranceUI(q);
+      updateTestAnalytics();
+      updateLivePreview();
+      saveDraftToStorage();
+    });
+  }
+  if (applyNumericTolAllBtn) {
+    applyNumericTolAllBtn.addEventListener('click', () => {
+      const q = currentTest.questions[activeQuestionIndex];
+      if (!q || q.type !== 'numeric') return;
+      const enabled = editorNumericToleranceToggle ? editorNumericToleranceToggle.checked : false;
+      const tolVal = enabled ? Math.max(0, Math.abs(parseEditorNumericVal(editorNumericTolerance?.value) ?? 0)) : 0;
+      let updatedCount = 0;
+      recordUndoSnapshot();
+      (currentTest.questions || []).forEach(item => {
+        if (item.type === 'numeric') {
+          item.numericToleranceEnabled = enabled && tolVal > 0;
+          item.numericTolerance = enabled ? tolVal : 0;
+          updatedCount++;
+        }
+      });
+      saveDraftToStorage();
+      updateLivePreview();
+      showToast(enabled && tolVal > 0
+        ? `Похибку ± ${formatEditorNumeric(tolVal)} застосовано до ${updatedCount} числових питань`
+        : `Похибку вимкнено для ${updatedCount} числових питань`);
     });
   }
 
@@ -1242,14 +1389,16 @@ function saveCurrentEditorQuestion() {
   if (q.type === 'numeric') {
     const targetInput = document.getElementById('editorNumericTarget');
     const tolInput = document.getElementById('editorNumericTolerance');
+    const tolToggle = document.getElementById('editorNumericToleranceToggle');
     if (targetInput) {
-      const parsed = Number(String(targetInput.value).trim().replace(',', '.'));
-      if (targetInput.value.trim() && Number.isFinite(parsed)) q.correct = parsed;
+      const parsed = parseEditorNumericVal(targetInput.value);
+      if (parsed !== null) q.correct = parsed;
     }
-    if (tolInput) {
-      const parsedTol = Number(String(tolInput.value).trim().replace(',', '.'));
-      q.numericTolerance = Number.isFinite(parsedTol) ? Math.abs(parsedTol) : 0;
-    }
+    const enabled = tolToggle ? tolToggle.checked : false;
+    const parsedTol = tolInput ? parseEditorNumericVal(tolInput.value) : 0;
+    const absTol = parsedTol !== null ? Math.abs(parsedTol) : 0;
+    q.numericToleranceEnabled = enabled && absTol > 0;
+    q.numericTolerance = q.numericToleranceEnabled ? absTol : 0;
   } else if (q.type === 'short_answer') {
     const shortInput = document.getElementById('editorShortKeywords');
     if (shortInput) {
@@ -1259,8 +1408,38 @@ function saveCurrentEditorQuestion() {
   }
 }
 
-async function callGeminiApi() {
-  showToast(AI_DISABLED_MESSAGE);
+let lastGeminiError = '';
+
+async function callGeminiApi(promptText, expectJson = true) {
+  lastGeminiError = '';
+  const token = localStorage.getItem('admin_token') || '';
+  if (!token) {
+    lastGeminiError = 'Потрібна авторизація адміністратора.';
+    showToast(lastGeminiError);
+    return null;
+  }
+  try {
+    const res = await fetch('/api/admin/gemini/prompt', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-admin-token': token
+      },
+      body: JSON.stringify({
+        prompt: promptText,
+        expectJson: !!expectJson
+      })
+    });
+    const data = await res.json().catch(() => ({}));
+    if (res.ok && data.success && data.result !== undefined) {
+      return data.result;
+    }
+    lastGeminiError = data.error || `Помилка Gemini API (${res.status})`;
+    showToast(lastGeminiError);
+  } catch (err) {
+    lastGeminiError = err.message || 'Мережева помилка при зверненні до сервера';
+    showToast(lastGeminiError);
+  }
   return null;
 }
 
@@ -1269,11 +1448,6 @@ function bindAiSmartTools() {
   const improveTextBtn = document.getElementById('aiImproveTextBtn');
   const explainBtn = document.getElementById('aiExplainBtn');
   const openChatSidebarBtn = document.getElementById('openChatSidebarBtn');
-  const openAiGenerateModalBtn = document.getElementById('openAiGenerateModalBtn');
-  [genOptionsBtn, improveTextBtn, explainBtn, openChatSidebarBtn, openAiGenerateModalBtn].forEach(btn => {
-    if (btn) btn.classList.add('hidden');
-  });
-  return;
   if (openChatSidebarBtn) {
     openChatSidebarBtn.addEventListener('click', () => {
       switchToRightTab('chat');
@@ -1568,14 +1742,10 @@ function bindAiChatSidebar() {
   const tabPreviewBtn = document.getElementById('rightTabPreviewBtn');
   const chatPanel = document.getElementById('rightAiChatPanel');
   const previewPanel = document.getElementById('rightPreviewPanel');
-  if (tabChatBtn) tabChatBtn.classList.add('hidden');
-  if (chatPanel) chatPanel.classList.add('hidden');
-  if (tabPreviewBtn) {
-    tabPreviewBtn.classList.add('active');
-    tabPreviewBtn.addEventListener('click', () => switchToRightTab('preview'));
+  if (tabChatBtn) tabChatBtn.classList.remove('hidden');
+  if (chatPanel && previewPanel && tabChatBtn && tabPreviewBtn) {
+    switchToRightTab('chat');
   }
-  if (previewPanel) previewPanel.classList.remove('hidden');
-  return;
 
   const input = document.getElementById('aiChatInput');
   const sendBtn = document.getElementById('aiChatSendBtn');
@@ -1660,7 +1830,7 @@ function bindAiChatSidebar() {
     removeTypingIndicator(typingId);
 
     if (!reply) {
-      reply = 'Вибачте, не вдалося зв\'язатися з Gemini API. Перевірте з\'єднання з інтернетом або ключ у файлі .env.';
+      reply = lastGeminiError || 'Не вдалося отримати відповідь від Gemini API на сервері.';
     }
 
     let parsedAction = extractJsonFromText(reply);
@@ -2287,9 +2457,7 @@ function parseRawTestText(raw) {
 function bindAiGeneratorModal() {
   const openBtn = document.getElementById('openAiGenModalBtn');
   const modal = document.getElementById('aiGenModal');
-  if (openBtn) openBtn.classList.add('hidden');
-  if (modal) modal.classList.add('hidden');
-  return;
+  if (openBtn) openBtn.classList.remove('hidden');
 
   const closeBtn = document.getElementById('closeAiModalBtn');
   const cancelBtn = document.getElementById('cancelAiGenBtn');
@@ -2377,25 +2545,10 @@ function bindAiGeneratorModal() {
       let generated = aiResult?.questions;
 
       if (!generated || !Array.isArray(generated) || generated.length === 0) {
-        generated = [];
-        for (let i = 1; i <= count; i++) {
-          generated.push({
-            id: 'q_ai_' + Date.now() + '_' + i,
-            text: `Яке з наведених тверджень найкраще характеризує тему «${topic}» (${difficulty}, ${grade}) (завдання #${i})?`,
-            type: i === 2 ? 'multiple' : 'single',
-            options: [
-              `Основна закономірність та ключове положення теми #${i}`,
-              `Другорядний взаємопов'язаний фактор`,
-              `Хибне альтернативне твердження`,
-              `Застаріле визначення або термін`
-            ],
-            correct: i === 2 ? [0, 1] : 0,
-            points: i === 2 ? 2 : 1,
-            timeLimit: 60,
-            imageUrl: '',
-            explanation: `Завдання згенеровано за навчальною програмою курсу «${subject}» для ${grade} (${difficulty}).`
-          });
-        }
+        if (progressWrap) progressWrap.classList.add('hidden');
+        startBtn.disabled = false;
+        showToast(lastGeminiError || 'Не вдалося згенерувати питання через Gemini AI');
+        return;
       } else {
         generated.forEach((q, idx) => {
           q.id = 'q_ai_' + Date.now() + '_' + idx;

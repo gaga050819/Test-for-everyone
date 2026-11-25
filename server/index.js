@@ -48,7 +48,97 @@ process.on('unhandledRejection', (reason) => {
 const PORT = process.env.PORT || 3500;
 const HTTPS_PORT = parseInt(process.env.HTTPS_PORT, 10) || (parseInt(PORT, 10) + 1);
 const ENABLE_LOCAL_HTTPS = process.env.ENABLE_LOCAL_HTTPS !== 'false';
-const AI_DISABLED_MESSAGE = 'Функції ШІ вимкнені у цій версії.';
+const GEMINI_MODELS = ['gemini-2.5-flash', 'gemini-flash-lite-latest', 'gemini-3.1-flash-lite', 'gemini-3-flash-preview', 'gemini-flash-latest'];
+
+function getGeminiApiKey() {
+  return (process.env.GEMINI_API_KEY || '').trim();
+}
+
+function sanitizeGeminiMessage(msg, apiKey) {
+  let text = String(msg || '');
+  if (apiKey) {
+    text = text.split(apiKey).join('[REDACTED]').split(encodeURIComponent(apiKey)).join('[REDACTED]');
+  }
+  return text.replace(/key=[A-Za-z0-9_\-]+/gi, 'key=[REDACTED]');
+}
+
+function parseAiJsonResponse(rawText) {
+  if (!rawText) return null;
+  const cleaned = String(rawText).replace(/^```json\s*/i, '').replace(/```\s*$/i, '').trim();
+  try {
+    return JSON.parse(cleaned);
+  } catch {}
+  const match = cleaned.match(/\{[\s\S]*\}|\[[\s\S]*\]/);
+  if (match) {
+    try {
+      return JSON.parse(match[0]);
+    } catch {}
+  }
+  return null;
+}
+
+async function callGeminiServer(promptText, options = {}) {
+  const apiKey = getGeminiApiKey();
+  if (!apiKey) {
+    return { ok: false, status: 503, error: 'GEMINI_API_KEY не налаштований на сервері' };
+  }
+  const cleanPrompt = String(promptText || '').trim();
+  if (!cleanPrompt || cleanPrompt.length > 24000) {
+    return { ok: false, status: 400, error: 'Некоректний розмір запиту для ШІ' };
+  }
+
+  const generationConfig = {
+    maxOutputTokens: options.maxOutputTokens || 8192
+  };
+  if (options.expectJson) {
+    generationConfig.responseMimeType = 'application/json';
+  }
+  if (options.temperature !== undefined) {
+    generationConfig.temperature = options.temperature;
+  }
+
+  let lastError = 'Не вдалося отримати відповідь від Gemini';
+  for (const model of GEMINI_MODELS) {
+    try {
+      const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`;
+      const gRes = await fetch(apiUrl, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-goog-api-key': apiKey
+        },
+        body: JSON.stringify({
+          systemInstruction: {
+            parts: [{ text: 'Відповідай виключно українською мовою. All responses must be in Ukrainian language.' }]
+          },
+          contents: [{ parts: [{ text: cleanPrompt }] }],
+          generationConfig
+        }),
+        signal: AbortSignal.timeout(options.timeoutMs || 18000)
+      });
+
+      if (gRes.ok) {
+        const data = await gRes.json();
+        const parts = data.candidates?.[0]?.content?.parts || [];
+        const rawText = parts.map(p => p.text || '').join('');
+        if (rawText) {
+          if (options.expectJson) {
+            const parsed = parseAiJsonResponse(rawText);
+            return { ok: true, result: parsed !== null ? parsed : rawText, rawText, model };
+          }
+          return { ok: true, result: rawText, rawText, model };
+        }
+      } else {
+        const errData = await gRes.json().catch(() => ({}));
+        const rawErr = errData.error ? `${errData.error.message} (${errData.error.code})` : `HTTP ${gRes.status}`;
+        lastError = sanitizeGeminiMessage(rawErr, apiKey);
+      }
+    } catch (err) {
+      lastError = sanitizeGeminiMessage(err.message, apiKey);
+    }
+  }
+  return { ok: false, status: 502, error: lastError };
+}
 
 const sslDir = path.join(__dirname, 'ssl');
 const certPath = path.join(sslDir, 'cert.pem');
@@ -150,6 +240,7 @@ const globalApiLimiter = createRateLimiter({ prefix: 'api', max: 180, windowMs: 
 const loginLimiter = createRateLimiter({ prefix: 'login', max: 15, windowMs: 60000, message: 'Забагато спроб входу. Зачекайте 1 хвилину.' });
 const supportLimiter = createRateLimiter({ prefix: 'support', max: 20, windowMs: 60000 });
 const sessionStartLimiter = createRateLimiter({ prefix: 'ses_start', max: 35, windowMs: 60000 });
+const aiLimiter = createRateLimiter({ prefix: 'ai', max: 20, windowMs: 60000, message: 'Забагато AI-запитів. Зачекайте 1 хвилину.' });
 
 const app = express();
 const server = http.createServer(app);
@@ -1150,6 +1241,11 @@ app.post('/api/sessions/submit', async (req, res) => {
     return res.status(404).json({ error: 'Сесію не знайдено' });
   }
 
+  const hasAiPending = Object.values(result.answers || {}).some(a => a && a.needsAiGrading);
+  if (hasAiPending && getGeminiApiKey()) {
+    runAiGradingForSession(result, db).catch(() => {});
+  }
+
   broadcastToAdmins({
     type: 'session_completed',
     sessionId,
@@ -1262,8 +1358,11 @@ app.put('/api/admin/tests/:id', requireAdmin, async (req, res) => {
       const copy = { ...q };
       if (copy.type === 'numeric') {
         const parsedTarget = parseNumericInput(copy.correct);
+        const rawTol = Math.max(0, Math.abs(parseNumericInput(copy.numericTolerance) ?? 0));
+        const tolEnabled = copy.numericToleranceEnabled !== undefined ? !!copy.numericToleranceEnabled : rawTol > 0;
         copy.correct = parsedTarget !== null ? parsedTarget : 0;
-        copy.numericTolerance = Math.max(0, Math.abs(parseNumericInput(copy.numericTolerance) ?? 0));
+        copy.numericTolerance = tolEnabled ? rawTol : 0;
+        copy.numericToleranceEnabled = tolEnabled && copy.numericTolerance > 0;
       }
       return copy;
     });
@@ -1275,10 +1374,11 @@ app.put('/api/admin/tests/:id', requireAdmin, async (req, res) => {
 });
 
 function parseQuestionPayload(body) {
-  const { text, options, correct, numericTolerance, timeLimitSeconds, type, matchingPairs, orderingItems, blanks, hotspotTarget, imageUrl, images, correctKeywords } = body;
+  const { text, options, correct, numericTolerance, numericToleranceEnabled, useAiGrading, timeLimitSeconds, type, matchingPairs, orderingItems, blanks, hotspotTarget, imageUrl, images, correctKeywords } = body;
   const qType = type || 'single';
   let processedCorrect = 0;
   let processedTolerance = undefined;
+  let processedToleranceEnabled = undefined;
 
   if (qType === 'multiple') {
     processedCorrect = Array.isArray(correct) ? correct.map(Number).filter(n => !isNaN(n)) : [0];
@@ -1297,8 +1397,10 @@ function parseQuestionPayload(body) {
     if (parsedTol === null || parsedTol < 0) {
       return { error: 'Допустима похибка має бути невід’ємним числом' };
     }
+    const tolEnabled = numericToleranceEnabled !== undefined ? !!numericToleranceEnabled : Math.abs(parsedTol) > 0;
     processedCorrect = parsedTarget;
-    processedTolerance = Math.abs(parsedTol);
+    processedTolerance = tolEnabled ? Math.abs(parsedTol) : 0;
+    processedToleranceEnabled = tolEnabled && processedTolerance > 0;
   } else if (qType === 'true_false') {
     processedCorrect = Number(correct) === 1 ? 1 : 0;
   } else {
@@ -1319,6 +1421,8 @@ function parseQuestionPayload(body) {
     hotspotTarget: hotspotTarget || null,
     processedCorrect,
     processedTolerance,
+    processedToleranceEnabled,
+    useAiGrading: qType === 'short_answer' ? !!useAiGrading : false,
     correctKeywords: Array.isArray(correctKeywords) ? correctKeywords : (typeof processedCorrect === 'string' ? processedCorrect.split(',').map(s => s.trim()).filter(Boolean) : []),
     timeLimitSeconds: parseInt(timeLimitSeconds, 10) || 60
   };
@@ -1344,10 +1448,11 @@ app.post('/api/admin/tests/:id/questions', requireAdmin, async (req, res) => {
     hotspotTarget: parsed.hotspotTarget,
     correct: parsed.processedCorrect,
     numericTolerance: parsed.processedTolerance,
+    numericToleranceEnabled: parsed.processedToleranceEnabled,
     correctKeywords: parsed.correctKeywords,
     timeLimitSeconds: parsed.timeLimitSeconds,
     type: parsed.qType,
-    useAiGrading: false
+    useAiGrading: parsed.useAiGrading
   });
 
   if (!newQ) {
@@ -1392,6 +1497,8 @@ app.post('/api/admin/tests/:id/questions/bulk', requireAdmin, async (req, res) =
       hotspotTarget: parsed.hotspotTarget,
       correct: parsed.processedCorrect,
       numericTolerance: parsed.processedTolerance,
+      numericToleranceEnabled: parsed.processedToleranceEnabled,
+      useAiGrading: parsed.useAiGrading,
       correctKeywords: parsed.correctKeywords,
       timeLimitSeconds: parsed.timeLimitSeconds
     };
@@ -1420,6 +1527,8 @@ app.put('/api/admin/tests/:id/questions/:qId', requireAdmin, async (req, res) =>
     hotspotTarget: req.body.hotspotTarget !== undefined ? parsed.hotspotTarget : undefined,
     correct: parsed.processedCorrect,
     numericTolerance: parsed.processedTolerance,
+    numericToleranceEnabled: parsed.processedToleranceEnabled,
+    useAiGrading: parsed.useAiGrading,
     correctKeywords: parsed.correctKeywords,
     timeLimitSeconds: req.body.timeLimitSeconds,
     type: parsed.qType
@@ -1485,15 +1594,56 @@ app.post('/api/admin/sessions/:id/send-message', requireAdmin, async (req, res) 
   res.json({ success: true, delivered });
 });
 
-app.post('/api/admin/ai-parse-import', requireAdmin, async (req, res) => {
+app.get('/api/admin/ai-status', requireAdmin, (req, res) => {
+  res.json({ enabled: !!getGeminiApiKey() });
+});
+
+app.post('/api/admin/ai-parse-import', requireAdmin, aiLimiter, async (req, res) => {
   try {
     const { rawText } = req.body;
-    if (!rawText || !rawText.trim()) {
+    if (!rawText || typeof rawText !== 'string' || !rawText.trim()) {
       return res.status(400).json({ error: 'Введіть текст тесту для розпізнавання' });
+    }
+    const cleanText = rawText.trim().slice(0, 20000);
+
+    if (getGeminiApiKey()) {
+      const promptText = `Ти — експертний методист і парсер тестів українською мовою.
+Твоє завдання — перетворити сирий текст тесту (з підручника, Word, сайту чи ЗНО) у структурований JSON.
+Підтримуй типи питань:
+1. "single": одна правильна відповідь. options: масив рядків, correct: індекс правильної відповіді (0, 1, 2...).
+2. "multiple": кілька правильних відповідей. options: масив рядків, correct: масив індексів (наприклад [0, 2]).
+3. "true_false": options: ["Неправда", "Правда"], correct: 0 або 1.
+4. "matching": matchingPairs: [{"left": "...", "right": "..."}].
+5. "ordering": orderingItems: масив елементів у правильному порядку.
+6. "numeric": correct: число, numericTolerance: допустима похибка (число >= 0).
+
+Якщо варіант позначено +, *, "вірно" чи вказано ключ відповідей в кінці, визнач правильну відповідь.
+Час на питання timeLimitSeconds: 60.
+
+Ось текст:
+${cleanText}
+
+Поверни результат ТІЛЬКИ як валідний JSON:
+{
+  "questions": [
+    {
+      "text": "Текст питання",
+      "type": "single",
+      "options": ["Варіант 1", "Варіант 2", "Варіант 3", "Варіант 4"],
+      "correct": 0,
+      "timeLimitSeconds": 60
+    }
+  ]
+}`;
+
+      const aiRes = await callGeminiServer(promptText, { expectJson: true, temperature: 0.2 });
+      if (aiRes.ok && aiRes.result && Array.isArray(aiRes.result.questions) && aiRes.result.questions.length > 0) {
+        return res.json({ success: true, source: 'gemini', questions: aiRes.result.questions });
+      }
     }
 
     const fallbackQuestions = [];
-    const blocks = rawText.split(/(?=(?:^|\n)\s*(?:\d+[\.\)]|Питання\s*\d+[\.:]?))/i).map(b => b.trim()).filter(Boolean);
+    const blocks = cleanText.split(/(?=(?:^|\n)\s*(?:\d+[\.\)]|Питання\s*\d+[\.:]?))/i).map(b => b.trim()).filter(Boolean);
 
     for (const block of blocks) {
       const lines = block.split(/\r?\n/).map(l => l.trim()).filter(Boolean);
@@ -1533,9 +1683,9 @@ app.post('/api/admin/ai-parse-import', requireAdmin, async (req, res) => {
       return res.json({ success: true, source: 'local_parser', questions: fallbackQuestions });
     }
 
-    res.status(400).json({ error: 'Не вдалося розпізнати питання. Перевірте, що кожне питання має окремий рядок із варіантами відповіді.' });
+    res.status(400).json({ error: 'Не вдалося розпізнати питання з тексту. Перевірте формат.' });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    res.status(500).json({ error: sanitizeGeminiMessage(err.message, getGeminiApiKey()) });
   }
 });
 
@@ -1558,12 +1708,137 @@ app.delete('/api/admin/tests/:id/questions', requireAdmin, async (req, res) => {
   res.json({ success: true, removed });
 });
 
-app.post('/api/admin/generate-test', requireAdmin, (req, res) => {
-  res.status(410).json({ error: AI_DISABLED_MESSAGE });
+app.post('/api/admin/generate-test', requireAdmin, aiLimiter, async (req, res) => {
+  try {
+    const {
+      topic,
+      count = 5,
+      difficulty = 'medium',
+      timeLimitSeconds = 60,
+      customInstructions = '',
+      testId = 'demo-test-1',
+      applyToTest = false,
+      replaceExisting = false
+    } = req.body;
+
+    if (!topic || typeof topic !== 'string' || !topic.trim()) {
+      return res.status(400).json({ error: 'Вкажіть тему тесту' });
+    }
+    if (!getGeminiApiKey()) {
+      return res.status(503).json({ error: 'GEMINI_API_KEY не налаштований на сервері' });
+    }
+
+    const questionCount = Math.max(1, Math.min(50, parseInt(count, 10) || 5));
+    const timeLimit = Math.max(10, Math.min(600, parseInt(timeLimitSeconds, 10) || 60));
+
+    const difficultyMap = {
+      easy: 'початковий / легкий (базові поняття та терміни)',
+      medium: 'середній (розуміння принципів та практичне застосування)',
+      hard: 'складний (глибокий аналіз, неочевидні ситуації та винятки)',
+      olympiad: 'олімпіадний / експертний (комплексні задачі та нестандартне мислення)'
+    };
+    const difficultyText = difficultyMap[difficulty] || difficultyMap.medium;
+
+    const promptText = `Ти — досвідчений викладач та методист.
+Створи навчальний тест українською мовою на тему: "${topic.trim().slice(0, 300)}".
+Рівень складності: ${difficultyText}.
+Кількість питань: ${questionCount}.
+Час на відповідь на одне питання: ${timeLimit} секунд.
+${customInstructions ? `Додаткові вимоги: ${String(customInstructions).trim().slice(0, 1000)}` : ''}
+
+Вимоги до тесту:
+1. Питання мають бути грамотними, точними та однозначними.
+2. Для кожного питання сформулюй рівно 4 реалістичні та змістовні варіанти відповіді.
+3. Лише один варіант відповіді є правильним.
+4. Поле "correct" повинно містити цілочисельний індекс правильного варіанта (0, 1, 2 або 3).
+5. Поле "timeLimitSeconds" встанови рівним ${timeLimit}.
+
+Поверни результат ВИКЛЮЧНО у форматі валідного JSON наступної структури:
+{
+  "title": "Назва тесту відповідно до теми",
+  "questions": [
+    {
+      "text": "Текст питання",
+      "options": ["Варіант 1", "Варіант 2", "Варіант 3", "Варіант 4"],
+      "correct": 0,
+      "timeLimitSeconds": ${timeLimit}
+    }
+  ]
+}`;
+
+    const aiRes = await callGeminiServer(promptText, { expectJson: true, temperature: 0.7 });
+    if (!aiRes.ok) {
+      return res.status(aiRes.status || 502).json({ error: `Помилка запиту до Gemini API: ${aiRes.error}` });
+    }
+
+    const parsed = typeof aiRes.result === 'string' ? parseAiJsonResponse(aiRes.result) : aiRes.result;
+    const rawQuestions = parsed && Array.isArray(parsed.questions) ? parsed.questions : [];
+    if (rawQuestions.length === 0) {
+      return res.status(502).json({ error: 'ШІ не сформував жодного питання' });
+    }
+
+    const validatedQuestions = rawQuestions.map((q) => {
+      const opts = Array.isArray(q.options) ? q.options.map(o => String(o).trim()).filter(Boolean) : [];
+      let c = parseInt(q.correct, 10);
+      if (isNaN(c) || c < 0 || c >= opts.length) c = 0;
+      return {
+        id: generateSecureId('q_ai_', 6),
+        text: String(q.text || '').trim(),
+        options: opts,
+        correct: c,
+        timeLimitSeconds: parseInt(q.timeLimitSeconds, 10) || timeLimit,
+        type: 'single'
+      };
+    }).filter(q => q.text && q.options.length >= 2);
+
+    if (validatedQuestions.length === 0) {
+      return res.status(502).json({ error: 'Питання від ШІ не пройшли валідацію' });
+    }
+
+    let applied = false;
+    let savedTest = null;
+    if (applyToTest && testId) {
+      const test = await db.getTest(testId);
+      if (test) {
+        if (parsed.title && typeof parsed.title === 'string' && parsed.title.trim()) {
+          test.title = parsed.title.trim();
+        }
+        if (replaceExisting) {
+          test.questions = validatedQuestions;
+        } else {
+          test.questions = (test.questions || []).concat(validatedQuestions);
+        }
+        savedTest = await db.saveTest(test);
+        applied = true;
+      }
+    }
+
+    res.json({
+      success: true,
+      title: (parsed && parsed.title) || topic,
+      questions: validatedQuestions,
+      applied,
+      test: savedTest
+    });
+  } catch (err) {
+    res.status(500).json({ error: sanitizeGeminiMessage(err.message, getGeminiApiKey()) });
+  }
 });
 
-app.post('/api/admin/gemini/prompt', requireAdmin, (req, res) => {
-  res.status(410).json({ error: AI_DISABLED_MESSAGE });
+app.post('/api/admin/gemini/prompt', requireAdmin, aiLimiter, async (req, res) => {
+  try {
+    const { prompt, expectJson } = req.body;
+    if (!prompt || typeof prompt !== 'string' || !prompt.trim()) {
+      return res.status(400).json({ error: 'Порожній запит' });
+    }
+    const aiRes = await callGeminiServer(prompt, { expectJson: !!expectJson, maxOutputTokens: 8192 });
+    if (!aiRes.ok) {
+      return res.status(aiRes.status || 502).json({ error: aiRes.error });
+    }
+    res.json({ success: true, result: aiRes.result });
+  } catch (err) {
+    res.status(500).json({ error: sanitizeGeminiMessage(err.message, getGeminiApiKey()) });
+  }
 });
 
 app.post('/api/admin/sessions/:id/override-unlock', requireAdmin, async (req, res) => {
@@ -2059,6 +2334,71 @@ app.post('/api/admin/update/apply', requireAdmin, async (req, res) => {
     res.status(500).json({ error: 'Помилка оновлення: ' + err.message });
   }
 });
+
+async function runAiGradingForSession(session, database) {
+  if (!getGeminiApiKey()) return;
+  const questions = session.questions || [];
+  const answers = session.answers || {};
+
+  let changed = false;
+  let gradedCount = 0;
+
+  for (const [qId, answerRecord] of Object.entries(answers)) {
+    if (!answerRecord || !answerRecord.needsAiGrading) continue;
+    if (gradedCount >= 25) break;
+    const question = questions.find(q => q.id === qId);
+    if (!question) continue;
+    const userText = String(answerRecord.userAnswer || '').trim();
+    if (!userText) {
+      answerRecord.needsAiGrading = false;
+      answerRecord.aiFeedback = 'Відповідь не надана';
+      changed = true;
+      continue;
+    }
+
+    gradedCount++;
+    const prompt = `Ти — шкільний вчитель. Оціни відповідь учня.
+
+Питання: ${String(question.text || '').slice(0, 1500)}
+Відповідь учня: ${userText.slice(0, 1500)}
+${question.correct ? `Еталонна відповідь (якщо є): ${String(question.correct).slice(0, 800)}` : ''}
+
+Оціни відповідь від 0 до 1 (1 = повністю правильна, 0.5 = частково, 0 = неправильна).
+Поверни ТІЛЬКИ JSON: {"score": 0.8, "feedback": "Коротке пояснення"}`;
+
+    const aiRes = await callGeminiServer(prompt, { expectJson: true, temperature: 0.1, timeoutMs: 12000 });
+    if (aiRes.ok) {
+      const parsed = typeof aiRes.result === 'string' ? parseAiJsonResponse(aiRes.result) : aiRes.result;
+      if (parsed && typeof parsed.score === 'number') {
+        answerRecord.earnedPoints = Math.min(1, Math.max(0, parsed.score));
+        answerRecord.isCorrect = answerRecord.earnedPoints >= 0.7;
+        answerRecord.aiFeedback = String(parsed.feedback || '').slice(0, 500);
+        answerRecord.needsAiGrading = false;
+        changed = true;
+      }
+    }
+  }
+
+  if (changed) {
+    let correctCount = 0;
+    Object.values(answers).forEach(a => { correctCount += (a && a.earnedPoints ? a.earnedPoints : 0); });
+    const totalQ = session.totalQuestions || 1;
+    const scorePercentage = totalQ > 0 ? Math.round((correctCount / totalQ) * 100) : 0;
+    const updated = await database.updateAiGradedSession(session.id, {
+      answers,
+      rawScore: correctCount,
+      scorePercentage
+    });
+    const out = updated || session;
+    broadcastToAdmins({
+      type: 'session_ai_graded',
+      sessionId: out.id,
+      studentName: out.studentName,
+      scorePercentage: out.scorePercentage,
+      score12: out.score12
+    });
+  }
+}
 
 async function getTunnelUrl() {
   try {

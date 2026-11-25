@@ -1304,7 +1304,7 @@ function renderSessionsTable() {
       </td>
       <td>${verdictBadge}</td>
       <td style="white-space: nowrap;">
-        <button class="btn-secondary" style="font-size: 11px; padding: 5px 10px;" onclick="window.inspectSession('${s.id}')">
+        <button class="btn-secondary" style="font-size: 11px; padding: 5px 10px;" onclick="window.inspectSession('${s.id}', true)">
           Аналіз
         </button>
         ${s.status === 'in_progress' ? `<button class="btn-secondary" style="font-size: 11px; padding: 5px 8px; border-color: #3b82f6; color: #3b82f6; margin-left: 4px;" onclick="window.addSessionTime('${s.id}', 5)" title="Додати +5 хвилин"><img src="/img/icons/timer.svg" class="pixel-icon inline" alt=""> +5 хв</button>` : ''}
@@ -1320,6 +1320,27 @@ function renderSessionsTable() {
 
 let sessionStatusFilter = 'all';
 let sessionViewMode = 'table';
+let sessionViewModeExplicit = false;
+
+function applySessionViewMode(mode) {
+  const tableBtn = document.getElementById('viewModeTable');
+  const tilesBtn = document.getElementById('viewModeTiles');
+  const tableWrap = document.getElementById('sessionsTableWrap');
+  const tilesWrap = document.getElementById('sessionsTilesWrap');
+  sessionViewMode = mode === 'tiles' ? 'tiles' : 'table';
+  if (sessionViewMode === 'tiles') {
+    if (tilesBtn) { tilesBtn.style.background = 'var(--accent)'; tilesBtn.style.color = '#fff'; }
+    if (tableBtn) { tableBtn.style.background = 'transparent'; tableBtn.style.color = 'var(--text-muted)'; }
+    if (tilesWrap) tilesWrap.classList.remove('hidden');
+    if (tableWrap) tableWrap.classList.add('hidden');
+    renderSessionsTiles();
+  } else {
+    if (tableBtn) { tableBtn.style.background = 'var(--accent)'; tableBtn.style.color = '#fff'; }
+    if (tilesBtn) { tilesBtn.style.background = 'transparent'; tilesBtn.style.color = 'var(--text-muted)'; }
+    if (tableWrap) tableWrap.classList.remove('hidden');
+    if (tilesWrap) tilesWrap.classList.add('hidden');
+  }
+}
 
 function initSessionFiltersAndViewMode() {
   const chips = document.querySelectorAll('.session-filter-pill, .session-filter-chip');
@@ -1339,30 +1360,29 @@ function initSessionFiltersAndViewMode() {
 
   const tableBtn = document.getElementById('viewModeTable');
   const tilesBtn = document.getElementById('viewModeTiles');
-  const tableWrap = document.getElementById('sessionsTableWrap');
-  const tilesWrap = document.getElementById('sessionsTilesWrap');
 
   if (tableBtn) {
     tableBtn.addEventListener('click', () => {
-      sessionViewMode = 'table';
-      tableBtn.style.background = 'var(--accent)';
-      tableBtn.style.color = '#fff';
-      if (tilesBtn) { tilesBtn.style.background = 'transparent'; tilesBtn.style.color = 'var(--text-muted)'; }
-      if (tableWrap) tableWrap.classList.remove('hidden');
-      if (tilesWrap) tilesWrap.classList.add('hidden');
+      sessionViewModeExplicit = true;
+      applySessionViewMode('table');
     });
   }
   if (tilesBtn) {
     tilesBtn.addEventListener('click', () => {
-      sessionViewMode = 'tiles';
-      tilesBtn.style.background = 'var(--accent)';
-      tilesBtn.style.color = '#fff';
-      if (tableBtn) { tableBtn.style.background = 'transparent'; tableBtn.style.color = 'var(--text-muted)'; }
-      if (tilesWrap) tilesWrap.classList.remove('hidden');
-      if (tableWrap) tableWrap.classList.add('hidden');
-      renderSessionsTiles();
+      sessionViewModeExplicit = true;
+      applySessionViewMode('tiles');
     });
   }
+
+  const mqTiles = window.matchMedia('(max-width: 768px)');
+  if (mqTiles.matches && !sessionViewModeExplicit) {
+    applySessionViewMode('tiles');
+  }
+  mqTiles.addEventListener('change', (e) => {
+    if (!sessionViewModeExplicit) {
+      applySessionViewMode(e.matches ? 'tiles' : 'table');
+    }
+  });
 
   const sessionClassFilter = document.getElementById('sessionClassFilter');
   const sessionSortEl = document.getElementById('sessionSortSelect');
@@ -1440,7 +1460,7 @@ function renderSessionsTiles() {
     tile.style.cssText = `background: ${bgColor}; border: 2px solid ${borderColor}; border-radius: 10px; padding: 12px; cursor: pointer; transition: transform 0.15s ease, box-shadow 0.15s ease;`;
     tile.onmouseover = () => { tile.style.transform = 'translateY(-2px)'; tile.style.boxShadow = `0 4px 16px ${borderColor}`; };
     tile.onmouseout = () => { tile.style.transform = ''; tile.style.boxShadow = ''; };
-    tile.onclick = () => { switchTabTo('sessions'); setTimeout(() => inspectSession(s.id), 100); };
+    tile.onclick = () => { switchTabTo('sessions'); setTimeout(() => inspectSession(s.id, true), 100); };
 
     tile.innerHTML = `
       <div style="font-size: 13px; font-weight: 700; color: var(--text); margin-bottom: 4px; display: flex; align-items: center; gap: 6px;">
@@ -1456,7 +1476,7 @@ function renderSessionsTiles() {
   });
 }
 
-window.inspectSession = async function(sessionId) {
+window.inspectSession = async function(sessionId, scrollOnMobile = false) {
   selectedSessionId = sessionId;
   try {
     const res = await adminFetch(`/api/admin/sessions/${sessionId}`);
@@ -1466,6 +1486,12 @@ window.inspectSession = async function(sessionId) {
 
     sessionDetailPlaceholder.classList.add('hidden');
     sessionDetailContent.classList.remove('hidden');
+    if (scrollOnMobile && window.innerWidth <= 900) {
+      const detailCard = document.getElementById('sessionDetailCard');
+      if (detailCard) {
+        setTimeout(() => detailCard.scrollIntoView({ behavior: 'smooth', block: 'start' }), 60);
+      }
+    }
 
     detailStudentName.innerHTML = `${renderAvatarHtml(data.session.avatar, data.session.studentName, 32)} <span style="vertical-align: middle;">${escapeHtml(data.session.studentName)}</span>`;
     const attemptInfo = (data.session.attemptNumber || 1) > 1 ? ` | Спроба #${data.session.attemptNumber}` : '';
@@ -1844,6 +1870,11 @@ function switchTabTo(tabName) {
     if (t.btn) t.btn.classList.toggle('active', k === tabName);
     if (t.view) t.view.classList.toggle('hidden', k !== tabName);
   });
+  if (window.innerWidth <= 900 && tabs[tabName] && tabs[tabName].btn) {
+    try {
+      tabs[tabName].btn.scrollIntoView({ behavior: 'smooth', inline: 'center', block: 'nearest' });
+    } catch {}
+  }
 
   if (tabName === 'sessions') {
     loadSessions();
@@ -2667,8 +2698,16 @@ function initMultiTestControls() {
         if (fillMethod === 'ai') {
           switchTabTo('testEditor');
           setTimeout(() => {
-            const aiBtn = document.getElementById('openAiGenerateModalBtn');
-            if (aiBtn) aiBtn.click();
+            const aiBtn = document.getElementById('openAiGenModalBtn') || document.getElementById('openAiGenerateBtn');
+            if (aiBtn) {
+              aiBtn.click();
+            } else if (aiGenerateModal) {
+              aiModalError.textContent = '';
+              if (aiGeneratingIndicator) aiGeneratingIndicator.classList.add('hidden');
+              if (aiSuccessIndicator) aiSuccessIndicator.classList.add('hidden');
+              aiTopicInput.value = topic || title || '';
+              aiGenerateModal.classList.remove('hidden');
+            }
           }, 400);
         } else if (fillMethod === 'import') {
           switchTabTo('testEditor');
@@ -2837,7 +2876,7 @@ function renderLiveRadarGrid() {
 
     card.onclick = () => {
       switchTabTo('sessions');
-      inspectSession(student.sessionId);
+      inspectSession(student.sessionId, true);
     };
 
     grid.appendChild(card);
@@ -2946,7 +2985,7 @@ async function loadTestAnalytics(testId = selectedAdminTestId, classId = null) {
 
       card.innerHTML = `
         <div style="display: flex; justify-content: space-between; align-items: flex-start; gap: 10px; flex-wrap: wrap;">
-          <div style="flex: 1; min-width: 240px;">
+          <div style="flex: 1; min-width: min(100%, 240px);">
             <div style="font-size: 11px; text-transform: uppercase; letter-spacing: 0.05em; color: var(--accent); font-weight: 700; margin-bottom: 2px;">Питання #${q.index}</div>
             <div style="font-size: 14px; font-weight: 700; color: var(--text);">${escapeHtml(q.text)}</div>
           </div>
@@ -3451,6 +3490,56 @@ function updateBlanksDetectedList() {
   });
 }
 
+function parseAdminNumericVal(raw) {
+  if (raw === undefined || raw === null) return null;
+  const s = String(raw).trim().replace(/\s+/g, '').replace(',', '.');
+  if (!s || !/^[+-]?(?:\d+\.?\d*|\.\d+)$/.test(s)) return null;
+  const n = Number(s);
+  return Number.isFinite(n) ? n : null;
+}
+
+function formatAdminNumericVal(n) {
+  return String(Number(n.toFixed(6)));
+}
+
+function syncModalNumericToleranceUI() {
+  const targetInput = document.getElementById('numericTargetInput');
+  const tolToggle = document.getElementById('numericToleranceEnabledToggle');
+  const tolControls = document.getElementById('numericToleranceControls');
+  const tolInput = document.getElementById('numericToleranceInput');
+  const chipsWrap = document.getElementById('modalNumericTolChips');
+  const previewEl = document.getElementById('modalNumericRangePreview');
+  const statePill = document.getElementById('modalNumericTolStatePill');
+
+  const enabled = !!(tolToggle && tolToggle.checked);
+  if (statePill) {
+    statePill.textContent = enabled ? 'Увімкнено' : 'Вимкнено';
+    statePill.classList.toggle('is-on', enabled);
+  }
+  if (tolControls) tolControls.classList.toggle('hidden', !enabled);
+  const tolVal = enabled ? Math.max(0, Math.abs(parseAdminNumericVal(tolInput ? tolInput.value : 0) ?? 0)) : 0;
+
+  if (chipsWrap) {
+    chipsWrap.querySelectorAll('.tol-chip').forEach(ch => {
+      const chipVal = Number(ch.dataset.tol);
+      ch.classList.toggle('active', enabled && Math.abs(chipVal - tolVal) < 1e-9);
+    });
+  }
+
+  if (previewEl) {
+    const targetNum = parseAdminNumericVal(targetInput ? targetInput.value : '');
+    if (targetNum === null) {
+      previewEl.textContent = enabled
+        ? `Вкажіть правильне число (похибка ± ${formatAdminNumericVal(tolVal)}). Підтримуються крапка й кома.`
+        : 'Вкажіть правильне число. Похибка вимкнена (вимагатиметься точний збіг).';
+    } else if (!enabled || tolVal === 0) {
+      previewEl.textContent = `Приймається лише точне число: ${formatAdminNumericVal(targetNum)} (крапка й кома однакові).`;
+    } else {
+      previewEl.textContent = `Зарахуються числа від ${formatAdminNumericVal(targetNum - tolVal)} до ${formatAdminNumericVal(targetNum + tolVal)} (± ${formatAdminNumericVal(tolVal)}).`;
+    }
+  }
+}
+
 function updateQuestionFormVisibility(type) {
   const optionsSec = document.getElementById('optionsFormSection');
   const matchingSec = document.getElementById('matchingFormSection');
@@ -3525,8 +3614,11 @@ function openAddQuestionModal() {
   if (shortAnswerKeywordsInput) shortAnswerKeywordsInput.value = '';
   const numericTargetInput = document.getElementById('numericTargetInput');
   const numericToleranceInput = document.getElementById('numericToleranceInput');
+  const numericTolToggle = document.getElementById('numericToleranceEnabledToggle');
   if (numericTargetInput) numericTargetInput.value = '';
-  if (numericToleranceInput) numericToleranceInput.value = '0';
+  if (numericToleranceInput) numericToleranceInput.value = numericToleranceInput.dataset.lastTol || '0.2';
+  if (numericTolToggle) numericTolToggle.checked = false;
+  syncModalNumericToleranceUI();
 
   updateQuestionFormVisibility('single');
   renderOptionInputs(['', '', '', ''], 0, false);
@@ -3562,12 +3654,20 @@ function openEditQuestionModal(q) {
   }
   const numericTargetInput = document.getElementById('numericTargetInput');
   const numericToleranceInput = document.getElementById('numericToleranceInput');
+  const numericTolToggle = document.getElementById('numericToleranceEnabledToggle');
   if (numericTargetInput) {
     numericTargetInput.value = type === 'numeric' && q.correct !== undefined && q.correct !== null ? String(q.correct) : '';
   }
+  const existingTol = type === 'numeric' && q.numericTolerance !== undefined ? Math.abs(Number(q.numericTolerance) || 0) : 0;
+  const tolEnabled = type === 'numeric'
+    ? (q.numericToleranceEnabled !== undefined ? !!q.numericToleranceEnabled : existingTol > 0)
+    : false;
   if (numericToleranceInput) {
-    numericToleranceInput.value = type === 'numeric' && q.numericTolerance !== undefined ? String(q.numericTolerance) : '0';
+    if (existingTol > 0) numericToleranceInput.dataset.lastTol = String(existingTol);
+    numericToleranceInput.value = existingTol > 0 ? String(existingTol) : (numericToleranceInput.dataset.lastTol || '0.2');
   }
+  if (numericTolToggle) numericTolToggle.checked = tolEnabled;
+  syncModalNumericToleranceUI();
 
   updateQuestionFormVisibility(type);
 
@@ -3838,11 +3938,20 @@ function initTestEditor() {
     });
   }
 
-  if (openAiGenerateBtn) openAiGenerateBtn.classList.add('hidden');
-  if (aiGenerateModal) aiGenerateModal.classList.add('hidden');
+  if (openAiGenerateBtn) {
+    openAiGenerateBtn.classList.remove('hidden');
+    openAiGenerateBtn.addEventListener('click', () => {
+      aiModalError.textContent = '';
+      if (aiGeneratingIndicator) aiGeneratingIndicator.classList.add('hidden');
+      if (aiSuccessIndicator) aiSuccessIndicator.classList.add('hidden');
+      aiTopicInput.value = '';
+      aiGenerateModal.classList.remove('hidden');
+      setTimeout(() => aiTopicInput.focus(), 50);
+    });
+  }
   if (startAiGenerateBtn) {
-    startAiGenerateBtn.disabled = true;
-    startAiGenerateBtn.title = 'Функції ШІ вимкнені у цій версії.';
+    startAiGenerateBtn.disabled = false;
+    startAiGenerateBtn.removeAttribute('title');
   }
 
   if (closeAiModalBtn) closeAiModalBtn.addEventListener('click', () => aiGenerateModal.classList.add('hidden'));
@@ -3958,7 +4067,50 @@ function initTestEditor() {
         renderMatchingInputs([{ left: '', right: '' }, { left: '', right: '' }]);
       } else if (selectedType === 'ordering') {
         renderOrderingInputs(['', '', '']);
+      } else if (selectedType === 'numeric') {
+        syncModalNumericToleranceUI();
       }
+    });
+  }
+
+  const numericTargetEl = document.getElementById('numericTargetInput');
+  const numericTolEl = document.getElementById('numericToleranceInput');
+  const numericTolToggleEl = document.getElementById('numericToleranceEnabledToggle');
+  const modalNumericChipsEl = document.getElementById('modalNumericTolChips');
+  if (numericTargetEl) numericTargetEl.addEventListener('input', syncModalNumericToleranceUI);
+  if (numericTolToggleEl) {
+    numericTolToggleEl.addEventListener('change', () => {
+      if (numericTolToggleEl.checked && numericTolEl) {
+        const cur = parseAdminNumericVal(numericTolEl.value);
+        if (cur === null || cur <= 0) {
+          numericTolEl.value = numericTolEl.dataset.lastTol || '0.2';
+        }
+      } else if (numericTolEl) {
+        const cur = parseAdminNumericVal(numericTolEl.value);
+        if (cur !== null && cur > 0) numericTolEl.dataset.lastTol = String(cur);
+      }
+      syncModalNumericToleranceUI();
+    });
+  }
+  if (numericTolEl) {
+    numericTolEl.addEventListener('input', () => {
+      const cur = parseAdminNumericVal(numericTolEl.value);
+      if (cur !== null && cur > 0) numericTolEl.dataset.lastTol = String(cur);
+      syncModalNumericToleranceUI();
+    });
+  }
+  if (modalNumericChipsEl) {
+    modalNumericChipsEl.addEventListener('click', (e) => {
+      const btn = e.target.closest('.tol-chip');
+      if (!btn) return;
+      const val = parseAdminNumericVal(btn.dataset.tol);
+      if (val === null) return;
+      if (numericTolToggleEl) numericTolToggleEl.checked = true;
+      if (numericTolEl) {
+        numericTolEl.value = String(val);
+        numericTolEl.dataset.lastTol = String(val);
+      }
+      syncModalNumericToleranceUI();
     });
   }
 
@@ -4060,20 +4212,20 @@ function initTestEditor() {
         payload.correct = keywords.join(', ');
         payload.correctKeywords = keywords;
       } else if (qType === 'numeric') {
-        const targetRaw = (document.getElementById('numericTargetInput')?.value || '').trim().replace(',', '.');
-        const tolRaw = (document.getElementById('numericToleranceInput')?.value || '0').trim().replace(',', '.');
-        const targetNum = Number(targetRaw);
-        const tolNum = tolRaw === '' ? 0 : Number(tolRaw);
-        if (!targetRaw || !Number.isFinite(targetNum)) {
+        const targetNum = parseAdminNumericVal(document.getElementById('numericTargetInput')?.value || '');
+        const tolEnabled = !!document.getElementById('numericToleranceEnabledToggle')?.checked;
+        const tolNum = tolEnabled ? parseAdminNumericVal(document.getElementById('numericToleranceInput')?.value || '0') : 0;
+        if (targetNum === null) {
           qModalError.textContent = 'Вкажіть коректне числове значення правильної відповіді!';
           return;
         }
-        if (!Number.isFinite(tolNum) || tolNum < 0) {
+        if (tolNum === null || tolNum < 0) {
           qModalError.textContent = 'Допустима похибка має бути невід’ємним числом!';
           return;
         }
         payload.correct = targetNum;
-        payload.numericTolerance = Math.abs(tolNum);
+        payload.numericToleranceEnabled = tolEnabled && Math.abs(tolNum) > 0;
+        payload.numericTolerance = tolEnabled ? Math.abs(tolNum) : 0;
       } else if (qType === 'true_false') {
         const checkedRadio = optionsFormContainer.querySelector('input[name="optCorrectRadio"]:checked');
         if (!checkedRadio) {
@@ -4398,7 +4550,7 @@ function initImportQuestionsControls() {
       }
       try {
         parseImportWithAiBtn.disabled = true;
-        if (importParsingStatus) importParsingStatus.textContent = 'Локальний парсер розпізнає форматований текст...';
+        if (importParsingStatus) importParsingStatus.textContent = 'ШІ аналізує текст та витягує питання...';
 
         const res = await adminFetch('/api/admin/ai-parse-import', {
           method: 'POST',
@@ -4413,7 +4565,7 @@ function initImportQuestionsControls() {
         }
 
         if (importParsingStatus) {
-          importParsingStatus.innerHTML = `<img src="/img/icons/check.svg" class="pixel-icon inline" alt=""> Локально розпізнано ${parsedQuestions.length} питань`;
+          importParsingStatus.innerHTML = `<img src="/img/icons/check.svg" class="pixel-icon inline" alt=""> Успішно розпізнано ${parsedQuestions.length} питань (${data.source === 'gemini' ? 'Gemini AI' : 'Локальний парсер'})`;
         }
 
         renderImportPreview(parsedQuestions);

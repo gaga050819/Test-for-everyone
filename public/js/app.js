@@ -904,11 +904,30 @@ if (deviceTypePill) {
   deviceTypePill.innerHTML = isMobile ? '<img src="/img/icons/mobile.svg" class="pixel-icon inline" alt=""> Мобільний пристрій' : '<img src="/img/icons/desktop.svg" class="pixel-icon inline" alt=""> Персональний комп\'ютер';
 }
 
-[studentNameInput, studentIdInput].forEach(inp => {
-  if (inp) {
-    inp.addEventListener('focus', () => { if (proctor) proctor.isInputFocused = true; });
-    inp.addEventListener('blur',  () => { if (proctor) proctor.isInputFocused = false; });
+document.addEventListener('focusin', (e) => {
+  const el = e.target;
+  if (!el || !el.tagName) return;
+  const tag = el.tagName.toUpperCase();
+  if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') {
+    if (proctor) proctor.isInputFocused = true;
+    if (isMobile && el.closest && el.closest('#testScreen')) {
+      setTimeout(() => {
+        try {
+          el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        } catch {}
+      }, 220);
+    }
   }
+});
+
+document.addEventListener('focusout', () => {
+  setTimeout(() => {
+    const active = document.activeElement;
+    const tag = active && active.tagName ? active.tagName.toUpperCase() : '';
+    if (proctor) {
+      proctor.isInputFocused = (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT');
+    }
+  }, 280);
 });
 
 startTestBtn.addEventListener('click', async () => {
@@ -1471,55 +1490,61 @@ function renderQuestion(index, direction = 'right') {
         currentDraggedEl = null;
       });
 
+      const dragHandle = card.querySelector('.ordering-drag-handle');
       let touchStartY = 0;
       let touchMoved = false;
 
-      card.addEventListener('touchstart', (e) => {
-        touchStartY = e.touches[0].clientY;
-        touchMoved = false;
-        draggedIndex = itIdx;
-        currentDraggedEl = card;
-      }, { passive: true });
+      if (dragHandle) {
+        dragHandle.addEventListener('touchstart', (e) => {
+          if (!e.touches || !e.touches[0]) return;
+          touchStartY = e.touches[0].clientY;
+          touchMoved = false;
+          draggedIndex = itIdx;
+          currentDraggedEl = card;
+        }, { passive: true });
 
-      card.addEventListener('touchmove', (e) => {
-        const currentY = e.touches[0].clientY;
-        if (Math.abs(currentY - touchStartY) > 8) {
-          touchMoved = true;
-          card.classList.add('dragging');
-          const targetEl = document.elementFromPoint(e.touches[0].clientX, currentY);
-          const hoverCard = targetEl ? targetEl.closest('.ordering-card-item') : null;
-          layout.querySelectorAll('.ordering-card-item').forEach(c => {
-            if (c === hoverCard && c !== card) {
-              c.classList.add('drag-over');
-            } else {
-              c.classList.remove('drag-over');
-            }
-          });
-        }
-      }, { passive: true });
+        dragHandle.addEventListener('touchmove', (e) => {
+          if (!e.touches || !e.touches[0]) return;
+          const currentY = e.touches[0].clientY;
+          if (Math.abs(currentY - touchStartY) > 6) {
+            e.preventDefault();
+            touchMoved = true;
+            card.classList.add('dragging');
+            const targetEl = document.elementFromPoint(e.touches[0].clientX, currentY);
+            const hoverCard = targetEl ? targetEl.closest('.ordering-card-item') : null;
+            layout.querySelectorAll('.ordering-card-item').forEach(c => {
+              if (c === hoverCard && c !== card) {
+                c.classList.add('drag-over');
+              } else {
+                c.classList.remove('drag-over');
+              }
+            });
+          }
+        }, { passive: false });
 
-      card.addEventListener('touchend', (e) => {
-        if (touchMoved && draggedIndex !== null) {
-          const endY = e.changedTouches[0].clientY;
-          const targetEl = document.elementFromPoint(e.changedTouches[0].clientX, endY);
-          const targetCard = targetEl ? targetEl.closest('.ordering-card-item') : null;
-          if (targetCard && targetCard !== card) {
-            const targetIndex = parseInt(targetCard.dataset.index, 10);
-            if (!isNaN(targetIndex) && targetIndex !== draggedIndex) {
-              const item = currentOrder.splice(draggedIndex, 1)[0];
-              currentOrder.splice(targetIndex, 0, item);
-              userAnswers[question.id] = [...currentOrder];
-              persistLocalSession();
-              renderQuestion(currentQuestionIndex);
-              renderNavPills();
+        dragHandle.addEventListener('touchend', (e) => {
+          if (touchMoved && draggedIndex !== null && e.changedTouches && e.changedTouches[0]) {
+            const endY = e.changedTouches[0].clientY;
+            const targetEl = document.elementFromPoint(e.changedTouches[0].clientX, endY);
+            const targetCard = targetEl ? targetEl.closest('.ordering-card-item') : null;
+            if (targetCard && targetCard !== card) {
+              const targetIndex = parseInt(targetCard.dataset.index, 10);
+              if (!isNaN(targetIndex) && targetIndex !== draggedIndex) {
+                const item = currentOrder.splice(draggedIndex, 1)[0];
+                currentOrder.splice(targetIndex, 0, item);
+                userAnswers[question.id] = [...currentOrder];
+                persistLocalSession();
+                renderQuestion(currentQuestionIndex);
+                renderNavPills();
+              }
             }
           }
-        }
-        layout.querySelectorAll('.ordering-card-item').forEach(c => c.classList.remove('drag-over', 'dragging'));
-        draggedIndex = null;
-        currentDraggedEl = null;
-        touchMoved = false;
-      });
+          layout.querySelectorAll('.ordering-card-item').forEach(c => c.classList.remove('drag-over', 'dragging'));
+          draggedIndex = null;
+          currentDraggedEl = null;
+          touchMoved = false;
+        });
+      }
 
       const upBtn = card.querySelector('[data-dir="up"]');
       const downBtn = card.querySelector('[data-dir="down"]');
@@ -1666,8 +1691,8 @@ function renderQuestion(index, direction = 'right') {
       if (sIdx < blanksCount) {
         const inp = document.createElement('input');
         inp.type = 'text';
-        inp.className = 'form-input';
-        inp.style.cssText = 'display: inline-block; width: 130px; padding: 4px 10px; margin: 0 4px; font-size: 14px; text-align: center; font-weight: 700; border-bottom: 2px solid var(--accent); vertical-align: middle; background: var(--bg-elevated); color: var(--text);';
+        inp.className = 'form-input fill-blank-input';
+        inp.style.cssText = 'display: inline-block; width: 130px; max-width: 100%; padding: 4px 10px; margin: 2px 4px; text-align: center; font-weight: 700; border-bottom: 2px solid var(--accent); vertical-align: middle; background: var(--bg-elevated); color: var(--text);';
         inp.placeholder = `[Пропуск ${sIdx + 1}]`;
         inp.autocomplete = 'off';
         inp.spellcheck = false;
@@ -1777,13 +1802,25 @@ function renderQuestion(index, direction = 'right') {
   renderNavPills();
 }
 
+let lastQuestionCanvasWidth = 0;
+
+function getQuestionCanvasAvailableWidth() {
+  if (!questionCanvas) return 320;
+  const parent = questionCanvas.parentElement;
+  if (parent && parent.clientWidth > 0) {
+    const cs = getComputedStyle(parent);
+    const padX = (parseFloat(cs.paddingLeft) || 0) + (parseFloat(cs.paddingRight) || 0);
+    return Math.min(820, Math.max(200, Math.floor(parent.clientWidth - padX)));
+  }
+  return Math.min(820, Math.max(200, (window.innerWidth || 360) - 64));
+}
+
 function drawQuestionCanvas(text) {
   if (!questionCanvas || !text) return;
   try {
     const dpr = window.devicePixelRatio || 1;
-    const parent = questionCanvas.parentElement;
-    const parentW = parent ? parent.clientWidth : 0;
-    const containerWidth = Math.max(280, parentW || window.innerWidth - 64 || 320);
+    const containerWidth = getQuestionCanvasAvailableWidth();
+    lastQuestionCanvasWidth = containerWidth;
 
     const fontSize = isMobile ? 15 : 17;
     const lineHeight = Math.round(fontSize * 1.45);
@@ -1880,7 +1917,10 @@ function drawQuestionCanvas(text) {
 
 window.addEventListener('resize', () => {
   if (currentTest && currentTest.questions && currentTest.questions[currentQuestionIndex]) {
-    drawQuestionCanvas(currentTest.questions[currentQuestionIndex].text);
+    const nextWidth = getQuestionCanvasAvailableWidth();
+    if (Math.abs(nextWidth - lastQuestionCanvasWidth) > 8) {
+      drawQuestionCanvas(currentTest.questions[currentQuestionIndex].text);
+    }
   }
 });
 
@@ -1899,17 +1939,23 @@ nextQuestionBtn.addEventListener('click', () => {
 (function initSwipe() {
   let touchStartX = 0;
   let touchStartY = 0;
+  let ignoreSwipe = false;
   const swipeArea = document.getElementById('testScreen');
   if (!swipeArea) return;
   swipeArea.addEventListener('touchstart', e => {
+    if (!e.touches || e.touches.length !== 1 || (e.target && e.target.closest && e.target.closest('input, textarea, select, button, a, .ordering-card-item, .matching-pair-row, .question-nav-pills, .question-image-wrap, #imageLightboxModal'))) {
+      ignoreSwipe = true;
+      return;
+    }
+    ignoreSwipe = false;
     touchStartX = e.touches[0].clientX;
     touchStartY = e.touches[0].clientY;
   }, { passive: true });
   swipeArea.addEventListener('touchend', e => {
-    if (!currentTest || !currentTest.questions) return;
+    if (ignoreSwipe || !currentTest || !currentTest.questions || !e.changedTouches || !e.changedTouches[0]) return;
     const dx = e.changedTouches[0].clientX - touchStartX;
     const dy = e.changedTouches[0].clientY - touchStartY;
-    if (Math.abs(dx) < 50 || Math.abs(dy) > Math.abs(dx) * 0.8) return;
+    if (Math.abs(dx) < 55 || Math.abs(dy) > Math.abs(dx) * 0.75) return;
     if (dx < 0 && currentQuestionIndex < currentTest.questions.length - 1) {
       renderQuestion(currentQuestionIndex + 1, 'right');
     } else if (dx > 0 && currentQuestionIndex > 0) {
@@ -2796,19 +2842,56 @@ function initImageLightbox() {
 
   window.addEventListener('mouseup', onEnd);
 
+  let pinchStartDist = 0;
+  let pinchStartScale = 1;
+  let lastTapAt = 0;
+
+  function getTouchDist(t1, t2) {
+    return Math.hypot(t2.clientX - t1.clientX, t2.clientY - t1.clientY);
+  }
+
   canvas.addEventListener('touchstart', (e) => {
+    if (e.touches && e.touches.length === 2) {
+      isDragging = false;
+      pinchStartDist = getTouchDist(e.touches[0], e.touches[1]);
+      pinchStartScale = scale;
+      return;
+    }
     if (e.touches && e.touches.length === 1) {
+      const now = Date.now();
+      if (now - lastTapAt < 280) {
+        lastTapAt = 0;
+        if (scale !== 1) {
+          resetState();
+        } else {
+          scale = 2;
+          updateTransform();
+        }
+        return;
+      }
+      lastTapAt = now;
       onStart(e.touches[0].clientX, e.touches[0].clientY);
     }
   }, { passive: true });
 
   canvas.addEventListener('touchmove', (e) => {
+    if (e.touches && e.touches.length === 2 && pinchStartDist > 0) {
+      e.preventDefault();
+      const ratio = getTouchDist(e.touches[0], e.touches[1]) / pinchStartDist;
+      scale = Math.min(4, Math.max(0.5, Number((pinchStartScale * ratio).toFixed(2))));
+      updateTransform();
+      return;
+    }
     if (e.touches && e.touches.length === 1 && isDragging) {
+      e.preventDefault();
       onMove(e.touches[0].clientX, e.touches[0].clientY);
     }
-  }, { passive: true });
+  }, { passive: false });
 
-  canvas.addEventListener('touchend', onEnd);
+  canvas.addEventListener('touchend', (e) => {
+    if (!e.touches || e.touches.length < 2) pinchStartDist = 0;
+    onEnd();
+  });
 
   window.addEventListener('keydown', (e) => {
     if (modal.classList.contains('hidden')) return;

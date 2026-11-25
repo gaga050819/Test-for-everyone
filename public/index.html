@@ -12,7 +12,7 @@
   <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.js" crossorigin="anonymous"></script>
   <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/contrib/auto-render.min.js" crossorigin="anonymous"
     onload="if(window._katexReady) window._katexReady(); else window._katexPending=true;"></script>
-  <link rel="stylesheet" href="/css/style.css">
+  <link rel="stylesheet" href="/css/style.css?v=1.2.3_11">
   <script>
     (function(){
       const t = localStorage.getItem('theme') || 'light';
@@ -213,7 +213,7 @@
 
       <div class="test-controls-row">
         <div class="question-nav-pills" id="questionNavPills"></div>
-        <div style="display: flex; gap: 8px;">
+        <div class="test-nav-actions" style="display: flex; gap: 8px;">
           <button id="prevQuestionBtn" class="btn-secondary" type="button">Назад</button>
           <button id="nextQuestionBtn" class="btn-primary" style="width: auto; padding: 8px 20px; font-size: 14px;" type="button">Далі →</button>
           <button id="submitTestBtn" class="btn-primary hidden" style="width: auto; padding: 8px 20px; font-size: 14px; background: linear-gradient(135deg, #10b981, #059669);" type="button">Завершити тест</button>
@@ -228,7 +228,7 @@
         <p style="color: var(--text-muted); font-size: 13px;">Студент: <strong id="resultStudentName">-</strong></p>
       </div>
 
-      <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 10px; margin-bottom: 20px;">
+      <div class="result-summary-grid" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 10px; margin-bottom: 20px;">
         <div style="background: var(--bg-elevated); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 14px; text-align: center;">
           <div style="font-size: 10px; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 4px;">Оцінка (12 балів)</div>
           <div id="resultScore12" style="font-size: 28px; font-weight: 800; color: var(--accent-blue);">0 / 12</div>
@@ -316,7 +316,7 @@
         <button id="retakeStartNowBtn" type="button" class="btn-primary success" style="width: auto; padding: 7px 16px; font-size: 12px;">Перескласти зараз →</button>
       </div>
 
-      <div style="margin-top: 24px; text-align: center; display: flex; justify-content: center; gap: 10px; flex-wrap: wrap;">
+      <div class="result-bottom-actions" style="margin-top: 24px; text-align: center; display: flex; justify-content: center; gap: 10px; flex-wrap: wrap;">
         <a href="/" id="resultRetryLinkBtn" class="btn-primary" style="text-decoration: none; width: auto; padding: 9px 24px;">Пройти ще раз</a>
         <a href="/" class="btn-secondary" style="text-decoration: none; width: auto; padding: 9px 20px;">Вийти</a>
       </div>
@@ -392,18 +392,18 @@
       <img id="lightboxImg" class="lightbox-img" src="" alt="Перегляд зображення">
     </div>
     <div class="lightbox-hint">
-      <span>Коліщатко — зум • Перетягування — огляд • Esc — вихід</span>
+      <span>Зум: +/−, коліщатко або два пальці • Перетягування — огляд</span>
     </div>
   </div>
 
-  <div id="examPauseOverlay" style="display:none; position:fixed; inset:0; z-index:99999; background:rgba(0,0,0,0.85); align-items:center; justify-content:center; flex-direction:column; gap:20px;">
-    <div style="background:var(--card-bg,#1a1a2e); border:1px solid rgba(99,102,241,0.4); border-radius:16px; padding:40px 48px; text-align:center; max-width:420px; width:90%;">
+  <div id="examPauseOverlay" style="display:none; position:fixed; inset:0; z-index:99999; background:rgba(0,0,0,0.85); align-items:center; justify-content:center; flex-direction:column; gap:20px; padding:16px;">
+    <div class="exam-pause-card" style="background:var(--card-bg,#1a1a2e); border:1px solid rgba(99,102,241,0.4); border-radius:16px; padding:40px 48px; text-align:center; max-width:420px; width:100%;">
       <div style="font-size:48px; margin-bottom:16px;"><img src="/img/icons/hourglass.svg" class="pixel-icon" style="width:48px;height:48px;" alt=""></div>
       <h2 style="font-size:22px; font-weight:700; margin:0 0 10px;">Пауза</h2>
       <p id="examPauseMessage" style="color:var(--text-muted,#aaa); font-size:14px; margin:0;">Екзамен тимчасово зупинений викладачем. Зачекайте...</p>
     </div>
   </div>
 
-  <script type="module" src="/js/app.js?v=1.2.3_10"></script>
+  <script type="module" src="/js/app.js?v=1.2.3_11"></script>
 </body>
 </html>

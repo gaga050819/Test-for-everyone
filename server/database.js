@@ -50,6 +50,7 @@ export class DatabaseAdapter {
   async logIncident(sessionId, incident) {}
   async recordPing(sessionId, pingData) {}
   async submitTest(sessionId, submission) {}
+  async updateAiGradedSession(sessionId, payload) {}
   async adminOverrideUnlock(sessionId) {}
   async adminOverrideBypass(sessionId) {}
   async savePartialAnswers(sessionId, answers) {}
@@ -203,9 +204,14 @@ export function normalizeQuestionData(questionData, fallbackId) {
   };
   if (type === 'numeric') {
     const targetNum = parseNumericInput(questionData.correct);
-    const tolNum = Math.max(0, Math.abs(parseNumericInput(questionData.numericTolerance) ?? 0));
+    const rawTol = Math.max(0, Math.abs(parseNumericInput(questionData.numericTolerance) ?? 0));
+    const tolEnabled = questionData.numericToleranceEnabled !== undefined ? !!questionData.numericToleranceEnabled : rawTol > 0;
+    const tolNum = tolEnabled ? rawTol : 0;
     base.correct = targetNum !== null ? targetNum : 0;
+    base.numericToleranceEnabled = tolEnabled && tolNum > 0;
     base.numericTolerance = tolNum;
+  } else if (type === 'short_answer') {
+    base.useAiGrading = !!questionData.useAiGrading;
   }
   return base;
 }
@@ -227,12 +233,15 @@ export function buildSessionQuestions(originalTest) {
         options: [],
         correct: q.correct !== undefined ? q.correct : '',
         correctKeywords: Array.isArray(q.correctKeywords) ? q.correctKeywords : [],
-        useAiGrading: false,
+        useAiGrading: !!q.useAiGrading,
         timeLimitSeconds: q.timeLimitSeconds
       };
     }
 
     if (type === 'numeric') {
+      const rawTol = Math.max(0, Math.abs(parseNumericInput(q.numericTolerance) ?? 0));
+      const tolEnabled = q.numericToleranceEnabled !== undefined ? !!q.numericToleranceEnabled : rawTol > 0;
+      const effectiveTol = tolEnabled ? rawTol : 0;
       return {
         id: q.id,
         text: q.text,
@@ -240,7 +249,8 @@ export function buildSessionQuestions(originalTest) {
         imageUrl,
         images,
         correct: parseNumericInput(q.correct) ?? 0,
-        numericTolerance: Math.max(0, Math.abs(parseNumericInput(q.numericTolerance) ?? 0)),
+        numericToleranceEnabled: tolEnabled && effectiveTol > 0,
+        numericTolerance: effectiveTol,
         timeLimitSeconds: q.timeLimitSeconds
       };
     }
@@ -513,17 +523,24 @@ export function evaluateTestSubmission(session, test, submission, sessionInciden
         }
       }
     } else if (q.type === 'short_answer') {
-      const userText = String(userAnswer || '').trim().toLowerCase();
-      const validList = Array.isArray(q.correctKeywords) && q.correctKeywords.length > 0
-        ? q.correctKeywords.map(k => String(k).trim().toLowerCase())
-        : String(q.correct || '').split(',').map(s => s.trim().toLowerCase()).filter(Boolean);
-      if (userText && validList.includes(userText)) {
-        isCorrect = true;
-        earnedPoints = 1;
+      if (q.useAiGrading) {
+        earnedPoints = 0;
+        isCorrect = false;
+      } else {
+        const userText = String(userAnswer || '').trim().toLowerCase();
+        const validList = Array.isArray(q.correctKeywords) && q.correctKeywords.length > 0
+          ? q.correctKeywords.map(k => String(k).trim().toLowerCase())
+          : String(q.correct || '').split(',').map(s => s.trim().toLowerCase()).filter(Boolean);
+        if (userText && validList.includes(userText)) {
+          isCorrect = true;
+          earnedPoints = 1;
+        }
       }
     } else if (q.type === 'numeric') {
       const targetVal = parseNumericInput(q.correct);
-      const tolerance = Math.max(0, Math.abs(parseNumericInput(q.numericTolerance) ?? 0));
+      const tolerance = q.numericToleranceEnabled === false
+        ? 0
+        : Math.max(0, Math.abs(parseNumericInput(q.numericTolerance) ?? 0));
       const studentVal = parseNumericInput(userAnswer);
       if (studentVal !== null && targetVal !== null && Math.abs(studentVal - targetVal) <= tolerance + 1e-9) {
         isCorrect = true;
@@ -572,10 +589,14 @@ export function evaluateTestSubmission(session, test, submission, sessionInciden
       isCorrect,
       earnedPoints: Math.round(earnedPoints * 100) / 100,
       timeSpent,
-      needsAiGrading: false
+      needsAiGrading: !!(q.type === 'short_answer' && q.useAiGrading)
     };
     if (q.type === 'numeric') {
-      entry.numericTolerance = Math.max(0, Math.abs(parseNumericInput(q.numericTolerance) ?? 0));
+      const tolVal = q.numericToleranceEnabled === false
+        ? 0
+        : Math.max(0, Math.abs(parseNumericInput(q.numericTolerance) ?? 0));
+      entry.numericToleranceEnabled = tolVal > 0;
+      entry.numericTolerance = tolVal;
     }
     gradedAnswers[q.id] = entry;
   });
@@ -1076,6 +1097,19 @@ export class JsonFileDatabaseAdapter extends DatabaseAdapter {
     session.trustScore = result.trustScore;
     session.finalVerdict = result.finalVerdict;
 
+    await this.persist();
+    return session;
+  }
+
+  async updateAiGradedSession(sessionId, payload) {
+    const session = this.data.sessions[sessionId];
+    if (!session) return null;
+    if (payload.answers) session.answers = payload.answers;
+    if (payload.rawScore !== undefined) session.rawScore = payload.rawScore;
+    if (payload.scorePercentage !== undefined) session.scorePercentage = payload.scorePercentage;
+    if (!session.score12ManualOverride) {
+      session.score12 = calculate12Scale(session.rawScore || 0, session.totalQuestions || 0);
+    }
     await this.persist();
     return session;
   }

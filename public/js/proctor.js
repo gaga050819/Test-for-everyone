@@ -563,6 +563,9 @@ export class ProctorEngine {
 
     window.addEventListener('touchmove', (e) => {
       if (e.touches && e.touches.length > 1) {
+        if (e.target && e.target.closest && e.target.closest('#imageLightboxModal')) {
+          return;
+        }
         e.preventDefault();
       }
     }, { passive: false });
@@ -588,8 +591,33 @@ export class ProctorEngine {
     } catch (_) {}
   }
 
+  isFormField(el) {
+    if (!el || !el.tagName) return false;
+    const tag = el.tagName.toUpperCase();
+    return tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || !!el.isContentEditable;
+  }
+
   initSplitScreenMonitor() {
     if (this.isIOS) return;
+    if (!this._focusListenersBound) {
+      this._focusListenersBound = true;
+      document.addEventListener('focusin', (e) => {
+        if (this.isFormField(e.target)) {
+          if (this._blurGraceTimer) {
+            clearTimeout(this._blurGraceTimer);
+            this._blurGraceTimer = null;
+          }
+          this.isInputFocused = true;
+        }
+      });
+      document.addEventListener('focusout', () => {
+        if (this._blurGraceTimer) clearTimeout(this._blurGraceTimer);
+        this._blurGraceTimer = setTimeout(() => {
+          this._blurGraceTimer = null;
+          this.isInputFocused = this.isFormField(document.activeElement);
+        }, 300);
+      });
+    }
     if (this.splitScreenCheckTimer) clearInterval(this.splitScreenCheckTimer);
     this.splitScreenCheckTimer = setInterval(() => {
       this.checkSplitScreen();
@@ -665,7 +693,7 @@ export class ProctorEngine {
   checkSplitScreen(isImmediate = false) {
     if (!this.isRunning || this.isCompleted || this.isBypassed) return;
     if (this.isExamPaused) return;
-    if (this.isInputFocused) return;
+    if (this.isInputFocused || this.isFormField(document.activeElement)) return;
     if (this.isIOS) return;
 
     const isLandscape = window.innerWidth > window.innerHeight;

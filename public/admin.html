@@ -8,7 +8,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="/css/style.css">
+  <link rel="stylesheet" href="/css/style.css?v=1.2.3_14">
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.css" crossorigin="anonymous">
   <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.js" crossorigin="anonymous"></script>
   <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/contrib/auto-render.min.js" crossorigin="anonymous"></script>
@@ -182,8 +182,8 @@
     .splash-logo{display:flex;align-items:center;gap:14px}
     .splash-logo-icon{width:56px;height:56px;background:linear-gradient(135deg,#3b82f6,#8b5cf6);border-radius:16px;display:flex;align-items:center;justify-content:center;box-shadow:0 0 30px rgba(99,102,241,.5)}
     .splash-logo-icon svg{width:30px;height:30px;fill:#fff}
-    .splash-title{font-size:2rem;font-weight:800;background:linear-gradient(135deg,#60a5fa,#a78bfa);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;letter-spacing:-.5px}
-    .splash-subtitle{font-size:.95rem;color:#94a3b8;text-align:center;max-width:380px;line-height:1.6}
+    .splash-title{font-size:clamp(1.45rem,6vw,2rem);font-weight:800;background:linear-gradient(135deg,#60a5fa,#a78bfa);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;letter-spacing:-.5px}
+    .splash-subtitle{font-size:clamp(.82rem,3.4vw,.95rem);color:#94a3b8;text-align:center;max-width:380px;padding:0 16px;line-height:1.6}
     .splash-credit{position:absolute;bottom:28px;font-size:.8rem;color:#475569;letter-spacing:.5px}
     .splash-credit span{color:#64748b;font-weight:600}
     .splash-bar{width:220px;height:3px;background:#1e293b;border-radius:4px;overflow:hidden;margin-top:8px}
@@ -369,8 +369,8 @@
               <div id="tunnelStatusText" style="font-size: 11px; color: var(--text-muted);">Перевірка...</div>
             </div>
           </div>
-          <div style="display: flex; align-items: center; gap: 8px;">
-            <input type="text" id="tunnelUrlInput" class="form-input" style="padding: 7px 12px; font-size: 11px; width: 240px;" readonly placeholder="—">
+          <div class="admin-tunnel-controls" style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap; max-width: 100%;">
+            <input type="text" id="tunnelUrlInput" class="form-input admin-tunnel-input" style="padding: 7px 12px; font-size: 11px; width: 240px; min-width: 0;" readonly placeholder="—">
             <button id="copyTunnelUrlBtn" class="btn-primary" style="width: auto; padding: 7px 14px; font-size: 11px;" type="button">Копіювати</button>
             <button id="showQrBtn" class="btn-secondary" style="width: auto; padding: 7px 12px; font-size: 11px;" type="button" title="Показати QR-код">
               <img src="/img/icons/qrcode.svg" class="pixel-icon" alt=""> QR
@@ -477,7 +477,7 @@
               </table>
             </div>
 
-            <div id="sessionsTilesWrap" class="hidden" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 12px; padding: 4px;">
+            <div id="sessionsTilesWrap" class="hidden" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 200px), 1fr)); gap: 12px; padding: 4px;">
             </div>
           </div>
 
@@ -614,7 +614,7 @@
               <span class="status-dot danger" style="margin-left: 8px;"></span> Відключено
             </div>
           </div>
-          <div id="liveRadarGrid" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 14px;">
+          <div id="liveRadarGrid" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 250px), 1fr)); gap: 14px;">
             <div style="grid-column: 1 / -1; text-align: center; padding: 40px; color: var(--text-dim); font-size: 13px;">
               Зараз немає активних онлайн-студентів. Студенти з'являться тут у реальному часі, коли відкриють сторінку тесту.
             </div>
@@ -773,7 +773,7 @@
           <div id="catalogSubjectPills" style="display: flex; align-items: center; gap: 6px; flex-wrap: wrap;"></div>
         </div>
 
-        <div id="catalogGridContainer" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 16px;"></div>
+        <div id="catalogGridContainer" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 280px), 1fr)); gap: 16px;"></div>
       </div>
 
       <div id="viewTestEditorTab" class="hidden">
@@ -889,6 +889,9 @@
         </button>
         <button id="printTestModalBtn" class="btn-secondary" style="width: auto; padding: 8px 14px; font-size: 12px; display: inline-flex; align-items: center; gap: 6px;" type="button" title="Друк на А4 / Експорт у Word та PDF">
           <img src="/img/icons/report.svg" class="pixel-icon inline" alt=""> Друк / Word
+        </button>
+        <button id="openAiGenModalBtn" class="btn-secondary" style="width: auto; padding: 8px 14px; font-size: 12px; display: inline-flex; align-items: center; gap: 6px; border-color: rgba(99, 102, 241, 0.45); color: var(--accent);" type="button">
+          <img src="/img/icons/star.svg" class="pixel-icon inline" alt=""> ШІ-генератор
         </button>
         <button id="openImportModalBtn" class="btn-secondary" style="width: auto; padding: 8px 14px; font-size: 12px; display: inline-flex; align-items: center; gap: 6px;" type="button">
           <img src="/img/icons/folder.svg" class="pixel-icon inline" alt=""> Масовий імпорт (Word / PDF)
@@ -1056,36 +1059,78 @@
             <label for="editorShortKeywords" class="form-label">Правильні варіанти відповіді (через кому)</label>
             <input type="text" id="editorShortKeywords" class="form-input" style="font-size: 13px;" placeholder="Київ, київ, Kyiv">
             <div style="font-size: 11px; color: var(--text-muted); margin-top: 5px;">Відповідь зараховується при збігу з будь-яким словом зі списку (регістр ігнорується).</div>
-            <div style="font-size: 11px; color: var(--text-muted); margin-top: 8px;">У цій версії відповіді перевіряються локально за вказаними варіантами.</div>
+            <div style="display: flex; align-items: center; gap: 10px; margin-top: 10px; padding: 8px 12px; background: rgba(99,102,241,0.07); border-radius: 8px; border: 1px solid rgba(99,102,241,0.2);">
+              <label class="toggle-mini" title="Увімкнути ШІ-оцінювання через Gemini замість точного збігу">
+                <input type="checkbox" id="editorAiGradingToggle">
+                <span class="toggle-mini-slider"></span>
+              </label>
+              <div>
+                <div style="font-size: 12px; font-weight: 600;">ШІ-оцінювання (Gemini)</div>
+                <div style="font-size: 11px; color: var(--text-muted);">Gemini перевірить відповідь за змістом, а не точним словом. Поле «варіанти» стане підказкою для ШІ.</div>
+              </div>
+            </div>
           </div>
 
           <div id="numericBuilderSection" class="form-row-block hidden">
-            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
+            <div class="numeric-tol-panel">
               <div>
-                <label for="editorNumericTarget" class="form-label">Правильне число</label>
-                <input type="text" id="editorNumericTarget" class="form-input" style="font-size: 13px;" placeholder="Наприклад: 9.8">
+                <label for="editorNumericTarget" class="form-label">Правильне число *</label>
+                <input type="text" inputmode="decimal" id="editorNumericTarget" class="form-input" style="font-size: 13px;" placeholder="Наприклад: 9.8 або 9,8">
               </div>
-              <div>
-                <label for="editorNumericTolerance" class="form-label">Допустима похибка (±)</label>
-                <input type="text" id="editorNumericTolerance" class="form-input" style="font-size: 13px;" placeholder="Наприклад: 0.2" value="0">
+
+              <label class="numeric-tol-toggle-row" for="editorNumericToleranceToggle" title="Включити або виключити допустиму похибку (±)">
+                <span class="toggle-mini">
+                  <input type="checkbox" id="editorNumericToleranceToggle">
+                  <span class="toggle-mini-slider"></span>
+                </span>
+                <div style="flex: 1; min-width: 0;">
+                  <div style="font-size: 12px; font-weight: 600; color: var(--text);">Дозволити похибку (±)</div>
+                  <div style="font-size: 11px; color: var(--text-muted);">Учень отримає бал, якщо число потрапить у заданий діапазон</div>
+                </div>
+                <span id="editorNumericTolStatePill" class="numeric-tol-state-pill">Вимкнено</span>
+              </label>
+
+              <div id="editorNumericToleranceControls" class="numeric-tol-controls hidden">
+                <div class="admin-numeric-grid" style="display: grid; grid-template-columns: 160px 1fr; gap: 10px; align-items: end;">
+                  <div>
+                    <label for="editorNumericTolerance" class="form-label">Розмір похибки (±)</label>
+                    <input type="text" inputmode="decimal" id="editorNumericTolerance" class="form-input" style="font-size: 13px;" placeholder="0.2" value="0.2">
+                  </div>
+                  <div>
+                    <div class="form-label">Швидкий вибір похибки</div>
+                    <div id="editorNumericTolChips" class="numeric-tol-chips">
+                      <button type="button" class="tol-chip" data-tol="0.01">± 0.01</button>
+                      <button type="button" class="tol-chip" data-tol="0.05">± 0.05</button>
+                      <button type="button" class="tol-chip" data-tol="0.1">± 0.1</button>
+                      <button type="button" class="tol-chip" data-tol="0.2">± 0.2</button>
+                      <button type="button" class="tol-chip" data-tol="0.5">± 0.5</button>
+                      <button type="button" class="tol-chip" data-tol="1">± 1</button>
+                      <button type="button" class="tol-chip" data-tol="5">± 5</button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div class="numeric-range-footer">
+                <div id="editorNumericRangePreview" class="numeric-range-preview">Підтримуються крапка й кома. Зараз потрібне точне число.</div>
+                <button type="button" id="applyNumericTolAllBtn" class="btn-secondary hidden" style="padding: 4px 10px; font-size: 11px; white-space: nowrap;">Застосувати до всіх числових</button>
               </div>
             </div>
-            <div style="font-size: 11px; color: var(--text-muted); margin-top: 6px;">Підтримуються крапка й кома. Наприклад, 9.8 ± 0.2 зарахує будь-яке число від 9.6 до 10.0.</div>
           </div>
         </div>
       </section>
 
       <aside class="studio-sidebar-right card-panel">
         <div class="sidebar-right-nav">
-          <button type="button" id="rightTabChatBtn" class="right-nav-pill hidden">
+          <button type="button" id="rightTabChatBtn" class="right-nav-pill active">
             <img src="/img/icons/star.svg" class="pixel-icon inline" alt=""> Gemini ШІ-Чат
           </button>
-          <button type="button" id="rightTabPreviewBtn" class="right-nav-pill active">
+          <button type="button" id="rightTabPreviewBtn" class="right-nav-pill">
             <img src="/img/icons/mobile.svg" class="pixel-icon inline" alt=""> Прев'ю учня
           </button>
         </div>
 
-        <div id="rightAiChatPanel" class="right-panel-view hidden">
+        <div id="rightAiChatPanel" class="right-panel-view">
           <div class="chat-header-bar">
             <div class="chat-header-left">
               <span class="chat-online-dot"></span>
@@ -1124,7 +1169,7 @@
           </div>
         </div>
 
-        <div id="rightPreviewPanel" class="right-panel-view">
+        <div id="rightPreviewPanel" class="right-panel-view hidden">
           <div class="preview-header-bar">
             <div class="preview-heading">
               <span style="font-size: 13px; font-weight: 700;">Живий перегляд учня</span>
@@ -1207,7 +1252,7 @@
           <button id="closeQModalBtn" style="background: none; border: none; cursor: pointer; display: flex; align-items: center; padding: 4px;" type="button"><img src="/img/icons/cross.svg" class="pixel-icon" alt=""></button>
         </div>
 
-        <div style="display: grid; grid-template-columns: 1fr 150px; gap: 12px; margin-bottom: 14px;">
+        <div class="admin-modal-grid-qhead" style="display: grid; grid-template-columns: 1fr 150px; gap: 12px; margin-bottom: 14px;">
           <div>
             <label class="form-label" for="qTypeSelect">Тип завдання</label>
             <select id="qTypeSelect" class="form-input" style="font-size: 13px; font-weight: 600; cursor: pointer;">
@@ -1267,17 +1312,47 @@
         </div>
 
         <div id="numericFormSection" class="hidden" style="margin-bottom: 16px;">
-          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
+          <div class="numeric-tol-panel">
             <div>
               <label class="form-label" for="numericTargetInput">Правильне число *</label>
-              <input type="text" id="numericTargetInput" class="form-input" placeholder="Наприклад: 9.8" style="font-size:13px;">
+              <input type="text" inputmode="decimal" id="numericTargetInput" class="form-input" placeholder="Наприклад: 9.8 або 9,8" style="font-size:13px;">
             </div>
-            <div>
-              <label class="form-label" for="numericToleranceInput">Допустима похибка (±)</label>
-              <input type="text" id="numericToleranceInput" class="form-input" placeholder="0.2" value="0" style="font-size:13px;">
+
+            <label class="numeric-tol-toggle-row" for="numericToleranceEnabledToggle" title="Включити або виключити допустиму похибку (±)">
+              <span class="toggle-mini">
+                <input type="checkbox" id="numericToleranceEnabledToggle">
+                <span class="toggle-mini-slider"></span>
+              </span>
+              <div style="flex: 1; min-width: 0;">
+                <div style="font-size: 12px; font-weight: 600; color: var(--text);">Дозволити похибку (±)</div>
+                <div style="font-size: 11px; color: var(--text-muted);">Якщо вимкнено — вимагається точний збіг (крапка і кома однакові)</div>
+              </div>
+              <span id="modalNumericTolStatePill" class="numeric-tol-state-pill">Вимкнено</span>
+            </label>
+
+            <div id="numericToleranceControls" class="numeric-tol-controls hidden">
+              <div class="admin-numeric-grid" style="display: grid; grid-template-columns: 160px 1fr; gap: 10px; align-items: end;">
+                <div>
+                  <label class="form-label" for="numericToleranceInput">Розмір похибки (±)</label>
+                  <input type="text" inputmode="decimal" id="numericToleranceInput" class="form-input" placeholder="0.2" value="0.2" style="font-size:13px;">
+                </div>
+                <div>
+                  <div class="form-label">Швидкий вибір похибки</div>
+                  <div id="modalNumericTolChips" class="numeric-tol-chips">
+                    <button type="button" class="tol-chip" data-tol="0.01">± 0.01</button>
+                    <button type="button" class="tol-chip" data-tol="0.05">± 0.05</button>
+                    <button type="button" class="tol-chip" data-tol="0.1">± 0.1</button>
+                    <button type="button" class="tol-chip" data-tol="0.2">± 0.2</button>
+                    <button type="button" class="tol-chip" data-tol="0.5">± 0.5</button>
+                    <button type="button" class="tol-chip" data-tol="1">± 1</button>
+                    <button type="button" class="tol-chip" data-tol="5">± 5</button>
+                  </div>
+                </div>
+              </div>
             </div>
+
+            <div id="modalNumericRangePreview" class="numeric-range-preview">Підтримуються крапка й кома. Зараз потрібне точне число.</div>
           </div>
-          <div style="font-size:11px; color:var(--text-muted); margin-top:5px;">Наприклад: <code>9.8</code> із похибкою <code>0.2</code> зарахує відповіді від 9.6 до 10.0 (приймає і крапку, і кому).</div>
         </div>
 
         <div id="fillBlanksFormSection" class="hidden" style="margin-bottom: 16px;">
@@ -1432,7 +1507,7 @@
 
         <div style="display: flex; gap: 10px; margin-bottom: 14px; flex-wrap: wrap; align-items: center; justify-content: space-between;">
           <button id="parseImportWithAiBtn" class="btn-primary" style="width: auto; padding: 8px 18px; font-size: 12px; background: linear-gradient(135deg, #6366f1, #8b5cf6); border: none;" type="button">
-            <img src="/img/icons/star.svg" class="pixel-icon inline" alt="" style="filter: brightness(0) invert(1);"> Розпізнати локально
+            <img src="/img/icons/star.svg" class="pixel-icon inline" alt="" style="filter: brightness(0) invert(1);"> Розпізнати через Gemini AI
           </button>
           <div id="importParsingStatus" style="font-size: 12px; color: var(--accent); font-weight: 600;"></div>
         </div>
@@ -1466,7 +1541,7 @@
               <img src="/img/icons/star.svg" class="pixel-icon" alt="" style="filter: brightness(0) invert(1);">
             </div>
             <div>
-              <h3 style="font-size: 16px; font-weight: 700; margin: 0;">Генерація тесту недоступна у цій версії</h3>
+              <h3 style="font-size: 16px; font-weight: 700; margin: 0;">Генерація тесту через Gemini AI</h3>
               <div style="font-size: 11px; color: var(--text-muted); margin-top: 2px;">Автоматичне створення запитань із варіантами відповідей</div>
             </div>
           </div>
@@ -1478,7 +1553,7 @@
           <input type="text" id="aiTopicInput" class="form-input" style="font-size: 13px;" placeholder="Наприклад: Основи комп'ютерних мереж, модель OSI, протокол TCP/IP">
         </div>
 
-        <div style="display: grid; grid-template-columns: 1.2fr 1fr 1fr; gap: 12px; margin-bottom: 14px;">
+        <div class="admin-modal-grid-3" style="display: grid; grid-template-columns: 1.2fr 1fr 1fr; gap: 12px; margin-bottom: 14px;">
           <div>
             <label class="form-label" for="aiCountInput">Кількість питань</label>
             <input type="number" id="aiCountInput" class="form-input" value="5" min="1" max="50" style="font-size: 13px; padding: 7px 10px;" placeholder="Введіть число...">
@@ -1528,7 +1603,7 @@
         <div id="aiModalError" style="color: var(--accent-red); font-size: 12px; margin-bottom: 14px; min-height: 16px;"></div>
 
         <div id="aiGeneratingIndicator" class="hidden" style="padding: 16px; margin-bottom: 14px; text-align: center; background: rgba(99,102,241,0.08); border: 1px dashed #6366f1; border-radius: var(--radius-sm);">
-          <div style="font-size: 13px; font-weight: 600; color: #6366f1; margin-bottom: 4px;">Функції ШІ вимкнені у цій версії.</div>
+          <div style="font-size: 13px; font-weight: 600; color: #6366f1; margin-bottom: 4px;">Gemini AI аналізує тему та генерує варіанти...</div>
           <div style="font-size: 11px; color: var(--text-muted);">Зазвичай це триває кілька секунд. Будь ласка, зачекайте.</div>
         </div>
 
@@ -1568,7 +1643,7 @@
             <label class="form-label" for="newTestTitleInput">Назва тесту *</label>
             <input type="text" id="newTestTitleInput" class="form-input" placeholder="Наприклад: Країни Європи: Німеччина" style="font-size: 13px;">
           </div>
-          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 14px;">
+          <div class="admin-modal-grid-2" style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 14px;">
             <div>
               <label class="form-label" for="newTestTopicInput">Тема підручника</label>
               <input type="text" id="newTestTopicInput" class="form-input" placeholder="Наприклад: Європа" style="font-size: 13px;">
@@ -1599,11 +1674,11 @@
                 <div style="font-size: 11px; color: var(--text-muted); margin-top: 2px;">Додавайте питання по одному або обирайте готові типи</div>
               </div>
             </label>
-            <label class="hidden" style="display: flex; align-items: center; gap: 10px; padding: 10px 14px; border: 1px solid var(--border); border-radius: var(--radius-sm); background: var(--bg-surface); cursor: pointer;">
-              <input type="radio" name="wizardFillMethod" value="ai" disabled style="accent-color: var(--accent);">
+            <label style="display: flex; align-items: center; gap: 10px; padding: 10px 14px; border: 1px solid var(--border); border-radius: var(--radius-sm); background: var(--bg-surface); cursor: pointer;">
+              <input type="radio" name="wizardFillMethod" value="ai" style="accent-color: var(--accent);">
               <div>
-                <div style="font-size: 13px; font-weight: 700; display: inline-flex; align-items: center; gap: 6px;"><img src="/img/icons/bulb.svg" class="pixel-icon inline" alt=""> Генерація ШІ вимкнена</div>
-                <div style="font-size: 11px; color: var(--text-muted); margin-top: 2px;">Створіть питання вручну або скористайтеся локальним імпортом</div>
+                <div style="font-size: 13px; font-weight: 700; display: inline-flex; align-items: center; gap: 6px;"><img src="/img/icons/bulb.svg" class="pixel-icon inline" alt=""> Згенерувати за допомогою ШІ (Gemini)</div>
+                <div style="font-size: 11px; color: var(--text-muted); margin-top: 2px;">Миттєве автостворення 5-20 запитань за вказаною темою</div>
               </div>
             </label>
             <label style="display: flex; align-items: center; gap: 10px; padding: 10px 14px; border: 1px solid var(--border); border-radius: var(--radius-sm); background: var(--bg-surface); cursor: pointer;">
@@ -1623,7 +1698,7 @@
         <div id="wizardStep3" class="hidden">
           <div style="background: var(--bg-surface); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 14px; margin-bottom: 18px;">
             <div style="font-size: 11px; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-muted); margin-bottom: 8px; font-weight: 700;">Підсумок параметрів тесту:</div>
-            <div style="display: grid; grid-template-columns: 120px 1fr; gap: 6px; font-size: 12px; line-height: 1.5;">
+            <div class="admin-wizard-summary-grid" style="display: grid; grid-template-columns: 120px 1fr; gap: 6px; font-size: 12px; line-height: 1.5;">
               <span style="color: var(--text-muted);">Назва:</span>
               <strong id="wizardSummaryTitle" style="color: var(--text);">—</strong>
               <span style="color: var(--text-muted);">Предмет / Тема:</span>
@@ -1648,7 +1723,7 @@
           <h3 id="classModalTitle" style="font-size: 16px; font-weight: 700; margin: 0;">Створити клас</h3>
           <button id="closeClassModalBtn" style="background: none; border: none; cursor: pointer; padding: 4px;" type="button"><img src="/img/icons/cross.svg" class="pixel-icon" alt=""></button>
         </div>
-        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 14px;">
+        <div class="admin-modal-grid-2" style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 14px;">
           <div>
             <label class="form-label" for="classFormName">Назва класу *</label>
             <input type="text" id="classFormName" class="form-input" placeholder="Наприклад: 10-А" style="font-size: 13px;">
@@ -1687,7 +1762,7 @@
           <button id="closeClassDetailModalBtn" style="background: none; border: none; cursor: pointer; padding: 4px;" type="button"><img src="/img/icons/cross.svg" class="pixel-icon" alt=""></button>
         </div>
 
-        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px;">
+        <div class="admin-modal-grid-2" style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px;">
           <div style="background: var(--bg-surface); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 16px;">
             <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
               <h4 style="font-size: 14px; font-weight: 700; margin: 0;"><img src="/img/icons/group.svg" class="pixel-icon inline" alt=""> Учні класу (<span id="classDetailStudentsCount">0</span>)</h4>
@@ -2197,7 +2272,7 @@
       </div>
     </div>
 
-  <script type="module" src="/js/admin.js?v=1.2.3_10"></script>
+  <script type="module" src="/js/admin.js?v=1.2.3_14"></script>
   <div id="massImportModal" class="modal-backdrop hidden">
     <div class="modal-window">
       <div class="modal-window-head">
@@ -2430,11 +2505,11 @@
       <img id="lightboxImg" class="lightbox-img" src="" alt="Перегляд зображення">
     </div>
     <div class="lightbox-hint">
-      <span>Коліщатко — зум • Перетягування — огляд • Esc — вихід</span>
+      <span>Зум: +/−, коліщатко або два пальці • Перетягування — огляд</span>
     </div>
   </div>
 
-<script src="/js/test-editor.js?v=1.2.3_5"></script>
+<script src="/js/test-editor.js?v=1.2.3_14"></script>
 <script>
 (function(){
   var s=document.getElementById('adminSplash');

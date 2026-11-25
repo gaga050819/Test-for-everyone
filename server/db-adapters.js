@@ -2,6 +2,7 @@ import {
   DatabaseAdapter,
   generateSecureId,
   parseNumericInput,
+  calculate12Scale,
   generateDefaultAvatar,
   buildDefaultDemoTest,
   normalizeQuestionData,
@@ -619,6 +620,22 @@ export class PostgresDatabaseAdapter extends DatabaseAdapter {
       ]
     );
 
+    return this.getSession(sessionId);
+  }
+
+  async updateAiGradedSession(sessionId, payload) {
+    const session = await this.getSession(sessionId);
+    if (!session) return null;
+    const answers = payload.answers || session.answers || {};
+    const rawScore = payload.rawScore !== undefined ? payload.rawScore : session.rawScore;
+    const scorePercentage = payload.scorePercentage !== undefined ? payload.scorePercentage : session.scorePercentage;
+    const nextScore12 = session.score12ManualOverride
+      ? session.score12
+      : calculate12Scale(rawScore || 0, session.totalQuestions || 0);
+    await this.pool.query(
+      `UPDATE sessions SET answers = $1, raw_score = $2, score_percentage = $3, score12 = $4 WHERE id = $5`,
+      [JSON.stringify(answers), rawScore, scorePercentage, nextScore12, sessionId]
+    );
     return this.getSession(sessionId);
   }
 
