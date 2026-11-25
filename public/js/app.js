@@ -78,43 +78,49 @@ function attachDebug5Clicks(el) {
       const key = prompt('Введіть ключ доступу для режиму розробника (Debug Mode):');
       if (key === null) return;
       const cleanKey = key.trim();
-      if (cleanKey !== 'Honda2020!05081988') {
-        showToast('Невірний ключ доступу.', 'error');
-        return;
-      }
+      if (!cleanKey) return;
 
       toggleDebugMode(cleanKey);
     }
   });
 }
 
-function toggleDebugMode(cleanKey) {
-  isDebugMode = !isDebugMode;
-  sessionStorage.setItem('dev_debug_mode', isDebugMode ? '1' : '0');
+async function toggleDebugMode(cleanKey) {
+  try {
+    const res = await fetch('/api/dev/debug-mode', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ key: cleanKey })
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      showToast(data.error || 'Невірний ключ доступу.', 'error');
+      return;
+    }
 
-  if (proctor) {
-    proctor.isBypassed = isDebugMode;
+    isDebugMode = !!data.debugMode;
+    sessionStorage.setItem('dev_debug_mode', isDebugMode ? '1' : '0');
+
+    if (proctor) {
+      proctor.isBypassed = isDebugMode;
+    }
+    if (currentSession) {
+      currentSession.proctorBypassed = isDebugMode;
+    }
+
+    if (isDebugMode) {
+      closeWarningModal();
+      hideFatalOverlay();
+      updateTrustScore(100);
+      showToast('Debug Mode УВІМКНЕНО! Усі перевірки відключено.', 'warning');
+    } else {
+      showToast('Debug Mode ВИМКНЕНО! Захист відновлено.', 'success');
+    }
+
+    updateDebugBadge();
+  } catch {
+    showToast('Помилка перевірки ключа.', 'error');
   }
-  if (currentSession) {
-    currentSession.proctorBypassed = isDebugMode;
-  }
-
-  if (isDebugMode) {
-    closeWarningModal();
-    hideFatalOverlay();
-    updateTrustScore(100);
-    showToast('Debug Mode УВІМКНЕНО! Усі перевірки відключено.', 'warning');
-  } else {
-    showToast('Debug Mode ВИМКНЕНО! Захист відновлено.', 'success');
-  }
-
-  updateDebugBadge();
-
-  fetch('/api/dev/debug-mode', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ key: cleanKey })
-  }).catch(() => {});
 }
 
 function setupDebugModeListener() {
@@ -390,6 +396,7 @@ function persistLocalSession() {
   if (!currentSession || !currentTest) return;
   const data = {
     sessionId: currentSession.id,
+    studentToken: currentSession.studentToken || '',
     studentName: currentSession.studentName,
     studentId: currentSession.studentId,
     testId: currentTest.id,
@@ -404,8 +411,14 @@ function persistLocalSession() {
   } catch {}
   fetch(`/api/sessions/${currentSession.id}/answers`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ answers: userAnswers })
+    headers: {
+      'Content-Type': 'application/json',
+      'x-session-token': currentSession.studentToken || ''
+    },
+    body: JSON.stringify({
+      answers: userAnswers,
+      studentToken: currentSession.studentToken || ''
+    })
   }).catch(() => {});
 }
 
@@ -456,7 +469,11 @@ async function resumeSession(cached) {
       resumeBtn.textContent = 'Відновлення...';
     }
 
-    const res = await fetch(`/api/sessions/${cached.sessionId}/state`);
+    const res = await fetch(`/api/sessions/${cached.sessionId}/state?studentToken=${encodeURIComponent(cached.studentToken || '')}`, {
+      headers: {
+        'x-session-token': cached.studentToken || ''
+      }
+    });
     if (!res.ok) {
       localStorage.removeItem('secure_exam_active_session');
       showToast('Сесію на сервері не знайдено або вже завершено.', 'warning');
@@ -473,7 +490,7 @@ async function resumeSession(cached) {
       return;
     }
 
-    currentSession = state;
+    currentSession = { ...state, studentToken: cached.studentToken || '' };
     currentTest = {
       id: state.testId,
       title: state.title || cached.title || 'Підсумковий екзамен',
@@ -488,7 +505,8 @@ async function resumeSession(cached) {
     trustScore = state.trustScore !== undefined ? state.trustScore : 100;
     updateTrustScore(trustScore);
 
-    const elapsedSeconds = Math.floor((Date.now() - state.startedAt) / 1000);
+    const pausedMs = Number(state.totalPausedMs || 0);
+    const elapsedSeconds = Math.max(0, Math.floor((Date.now() - state.startedAt - pausedMs) / 1000));
     const totalSeconds = (currentTest.durationMinutes || 15) * 60;
     const remainingSecs = totalSeconds - elapsedSeconds;
     if (remainingSecs <= 0) {
@@ -502,6 +520,7 @@ async function resumeSession(cached) {
 
     proctor = new ProctorEngine({
       sessionId: currentSession.id,
+      studentToken: currentSession.studentToken || '',
       studentName: currentSession.studentName,
       studentId: currentSession.studentId,
       clientIp: currentSession.clientIp || '127.0.0.1',
@@ -552,6 +571,10 @@ async function resumeSession(cached) {
     await proctor.start();
 
     initTestUI(true);
+    if (state.isPaused) {
+      proctor.isExamPaused = true;
+      window.showExamPause(state.pauseMessage || 'Екзамен тимчасово зупинений викладачем');
+    }
   } catch (err) {
     console.error(err);
     showToast('Помилка відновлення сесії: ' + err.message, 'error');
@@ -906,12 +929,14 @@ startTestBtn.addEventListener('click', async () => {
   localStorage.setItem('saved_student_id', studentId);
 
   let resumeSessionId = null;
+  let resumeSessionToken = '';
   try {
     const raw = localStorage.getItem('secure_exam_active_session');
     if (raw) {
       const cached = JSON.parse(raw);
       if (cached && cached.sessionId && cached.studentName.toLowerCase() === name.toLowerCase()) {
         resumeSessionId = cached.sessionId;
+        resumeSessionToken = cached.studentToken || '';
       }
     }
   } catch {}
@@ -929,13 +954,17 @@ startTestBtn.addEventListener('click', async () => {
 
     const sessionRes = await fetch('/api/sessions/start', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: {
+        'Content-Type': 'application/json',
+        'x-session-token': resumeSessionToken
+      },
       body: JSON.stringify({
         studentName: name,
         studentId: studentId,
         testId: currentTest.id,
         avatar: getStudentAvatar(),
         resumeSessionId,
+        studentToken: resumeSessionToken,
         proctorBypassed: isDebugMode,
         clientInfo: {
           isMobile,
@@ -946,7 +975,10 @@ startTestBtn.addEventListener('click', async () => {
       })
     });
 
-    if (!sessionRes.ok) throw new Error('Помилка реєстрації сесії');
+    if (!sessionRes.ok) {
+      const errBody = await sessionRes.json().catch(() => ({}));
+      throw new Error(errBody.error || 'Помилка реєстрації сесії');
+    }
     currentSession = await sessionRes.json();
     if (currentSession.questions && currentSession.questions.length > 0) {
       currentTest.questions = currentSession.questions;
@@ -961,8 +993,16 @@ startTestBtn.addEventListener('click', async () => {
       updateTrustScore(trustScore);
     }
 
+    if (currentSession.isResumed && currentSession.startedAt) {
+      const pausedMs = Number(currentSession.totalPausedMs || 0);
+      const elapsedSeconds = Math.max(0, Math.floor((Date.now() - currentSession.startedAt - pausedMs) / 1000));
+      const totalSeconds = (currentTest.durationMinutes || 15) * 60;
+      testSecondsRemaining = Math.max(1, totalSeconds - elapsedSeconds);
+    }
+
     proctor = new ProctorEngine({
       sessionId: currentSession.id,
+      studentToken: currentSession.studentToken || '',
       studentName: name,
       studentId: studentId,
       clientIp: currentSession.clientIp || '127.0.0.1',
@@ -1014,9 +1054,13 @@ startTestBtn.addEventListener('click', async () => {
 
     persistLocalSession();
     initTestUI(currentSession.isResumed);
+    if (currentSession.isPaused) {
+      proctor.isExamPaused = true;
+      window.showExamPause(currentSession.pauseMessage || 'Екзамен тимчасово зупинений викладачем');
+    }
   } catch (err) {
     console.error(err);
-    showToast('Помилка запуску: ' + err.message, 'error');
+    showToast(err.message || 'Помилка запуску', 'error', 5500);
     startTestBtn.disabled = false;
     startTestBtn.textContent = 'Розпочати тестування';
   }
@@ -1156,8 +1200,8 @@ function isQuestionAnswered(q) {
   if (q.type === 'true_false') {
     return ans === 0 || ans === 1;
   }
-  if (q.type === 'short_answer') {
-    return typeof ans === 'string' && ans.trim().length > 0;
+  if (q.type === 'short_answer' || q.type === 'numeric') {
+    return ans !== undefined && ans !== null && String(ans).trim().length > 0;
   }
   if (q.type === 'fill_blanks') {
     return !!(ans && typeof ans === 'object' && Object.values(ans).some(v => String(v).trim().length > 0));
@@ -1567,6 +1611,40 @@ function renderQuestion(index, direction = 'right') {
     const hint = document.createElement('div');
     hint.className = 'short-answer-hint';
     hint.textContent = 'Введіть точну відповідь (реєстр не важливий)';
+    wrap.appendChild(hint);
+    optionsList.appendChild(wrap);
+  } else if (question.type === 'numeric') {
+    const wrap = document.createElement('div');
+    wrap.className = 'short-answer-wrap';
+    const inp = document.createElement('input');
+    inp.type = 'text';
+    inp.inputMode = 'decimal';
+    inp.className = 'form-input short-answer-input';
+    inp.placeholder = 'Введіть число (наприклад: 9.8 або 9,8)…';
+    inp.autocomplete = 'off';
+    inp.autocorrect = 'off';
+    inp.autocapitalize = 'none';
+    inp.spellcheck = false;
+    inp.value = userAnswers[question.id] !== undefined ? String(userAnswers[question.id]) : '';
+    inp.addEventListener('input', () => {
+      userAnswers[question.id] = inp.value;
+      persistLocalSession();
+      renderNavPills();
+    });
+    inp.addEventListener('paste', (e) => {
+      e.preventDefault();
+      const toast = document.createElement('div');
+      toast.className = 'cam-copy-toast';
+      toast.style.background = 'rgba(239, 68, 68, 0.95)';
+      toast.innerHTML = '<img src="/img/icons/blocked.svg" class="pixel-icon inline" alt=""> Вставка заборонена! Вводьте відповідь власноруч.';
+      document.body.appendChild(toast);
+      setTimeout(() => toast.remove(), 3000);
+    });
+    inp.addEventListener('drop', (e) => e.preventDefault());
+    wrap.appendChild(inp);
+    const hint = document.createElement('div');
+    hint.className = 'short-answer-hint';
+    hint.textContent = 'Допускається крапка або кома (наприклад, 9.8 чи -12,5)';
     wrap.appendChild(hint);
     optionsList.appendChild(wrap);
   } else if (question.type === 'fill_blanks') {
@@ -1995,9 +2073,13 @@ async function submitTest() {
   try {
     const response = await fetch('/api/sessions/submit', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: {
+        'Content-Type': 'application/json',
+        'x-session-token': currentSession.studentToken || ''
+      },
       body: JSON.stringify({
         sessionId: currentSession.id,
+        studentToken: currentSession.studentToken || '',
         answers: answersToSend,
         questionTimings: timingsToSend
       })
@@ -2240,6 +2322,37 @@ function showResults(result, questionsSnapshot = [], timings = {}) {
         if (cArr.length > 0) {
           correctChoiceText = cArr.join(' → ');
         }
+      } else if (q.type === 'numeric') {
+        if (ansInfo?.userAnswer !== undefined && ansInfo?.userAnswer !== '') {
+          userChoiceText = String(ansInfo.userAnswer);
+        }
+        if (ansInfo?.correctAnswer !== undefined && ansInfo?.correctAnswer !== '') {
+          const tol = Number(ansInfo.numericTolerance || 0);
+          correctChoiceText = tol > 0 ? `${ansInfo.correctAnswer} (± ${tol})` : String(ansInfo.correctAnswer);
+        }
+      } else if (q.type === 'short_answer') {
+        if (ansInfo?.userAnswer !== undefined && ansInfo?.userAnswer !== '') {
+          userChoiceText = String(ansInfo.userAnswer);
+        }
+        if (ansInfo?.correctAnswer !== undefined && ansInfo?.correctAnswer !== '') {
+          correctChoiceText = String(ansInfo.correctAnswer);
+        }
+      } else if (q.type === 'fill_blanks') {
+        const uMap = (ansInfo?.userAnswer && typeof ansInfo.userAnswer === 'object') ? ansInfo.userAnswer : {};
+        const uVals = Object.values(uMap).map(v => String(v || '').trim()).filter(Boolean);
+        if (uVals.length > 0) {
+          userChoiceText = uVals.join(' | ');
+        }
+      } else if (q.type === 'true_false') {
+        const tfLabels = ['Неправда', 'Правда'];
+        const uIdx = ansInfo ? ansInfo.userAnswer : undefined;
+        if (uIdx !== undefined && tfLabels[uIdx] !== undefined) {
+          userChoiceText = tfLabels[uIdx];
+        }
+        const cIdx = ansInfo?.correctAnswer !== undefined ? ansInfo.correctAnswer : q.correct;
+        if (tfLabels[cIdx] !== undefined) {
+          correctChoiceText = tfLabels[cIdx];
+        }
       } else {
         const userChoiceIdx = ansInfo ? ansInfo.userAnswer : undefined;
         if (userChoiceIdx !== undefined && q.options && q.options[userChoiceIdx] !== undefined) {
@@ -2275,6 +2388,33 @@ function showResults(result, questionsSnapshot = [], timings = {}) {
   }
 
   loadLeaderboardUI(currentSession.testId || selectedTestId, currentSession.id);
+
+  const retakeBanner = document.getElementById('retakeStatusBanner');
+  const retakeStartBtn = document.getElementById('retakeStartNowBtn');
+  if (retakeBanner) retakeBanner.classList.add('hidden');
+  if (retakeStartBtn) {
+    retakeStartBtn.onclick = () => {
+      const targetTestId = currentSession.testId || selectedTestId || '';
+      window.location.href = targetTestId ? `/?test=${encodeURIComponent(targetTestId)}` : '/';
+    };
+  }
+  if (window._retakePollTimer) clearInterval(window._retakePollTimer);
+  if (currentSession && currentSession.id) {
+    const checkRetake = async () => {
+      try {
+        const r = await fetch(`/api/sessions/${encodeURIComponent(currentSession.id)}/retake-status?studentToken=${encodeURIComponent(currentSession.studentToken || '')}`, {
+          headers: { 'x-session-token': currentSession.studentToken || '' }
+        });
+        if (r.ok) {
+          const st = await r.json();
+          if (st.retakeAllowed && retakeBanner) {
+            retakeBanner.classList.remove('hidden');
+          }
+        }
+      } catch {}
+    };
+    window._retakePollTimer = setInterval(checkRetake, 4000);
+  }
 
   const incidentsListEl = document.getElementById('resultIncidentsList');
   incidentsListEl.innerHTML = '';

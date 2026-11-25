@@ -2,6 +2,7 @@ export class ProctorEngine {
   constructor(options = {}) {
     this.options = {
       sessionId: options.sessionId || '',
+      studentToken: options.studentToken || '',
       studentName: options.studentName || 'Student',
       studentId: options.studentId || 'ID-000',
       clientIp: options.clientIp || '127.0.0.1',
@@ -82,6 +83,7 @@ export class ProctorEngine {
         this.ws.send(JSON.stringify({
           type: 'register',
           sessionId: this.options.sessionId,
+          studentToken: this.options.studentToken || '',
           role: 'student',
           deviceType: this.deviceType
         }));
@@ -91,6 +93,10 @@ export class ProctorEngine {
       this.ws.onmessage = (event) => {
         try {
           const data = JSON.parse(event.data);
+          if (data.type === 'auth_error') {
+            this.isRunning = false;
+            return;
+          }
           if (data.type === 'pong') {
             const now = Date.now();
             const latency = Math.max(1, now - data.clientTimestamp);
@@ -1425,9 +1431,13 @@ export class ProctorEngine {
       this.offlineQueue.push(enrichedIncident);
       fetch('/api/incidents', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          'x-session-token': this.options.studentToken || ''
+        },
         body: JSON.stringify({
           sessionId: this.options.sessionId,
+          studentToken: this.options.studentToken || '',
           incident: enrichedIncident
         })
       }).catch(() => {});
@@ -1443,9 +1453,13 @@ export class ProctorEngine {
       try {
         await fetch('/api/incidents', {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: {
+            'Content-Type': 'application/json',
+            'x-session-token': this.options.studentToken || ''
+          },
           body: JSON.stringify({
             sessionId: this.options.sessionId,
+            studentToken: this.options.studentToken || '',
             incident: item
           })
         });

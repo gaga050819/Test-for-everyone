@@ -199,9 +199,8 @@ if (adminToken) {
       if (adminContent) adminContent.style.display = 'none';
     }
   }).catch(() => {
-    if (passwordGate) passwordGate.style.display = 'none';
-    if (adminContent) adminContent.style.display = '';
-    init();
+    if (passwordGate) passwordGate.style.display = 'flex';
+    if (adminContent) adminContent.style.display = 'none';
   });
 }
 
@@ -801,6 +800,17 @@ function renderPreviewQuestion(index) {
         </div>
       `;
       optionsContainer.appendChild(wrap);
+    } else if (q.type === 'numeric') {
+      const tol = Number(q.numericTolerance || 0);
+      const wrap = document.createElement('div');
+      wrap.style.cssText = 'display: flex; flex-direction: column; gap: 8px;';
+      wrap.innerHTML = `
+        <input type="text" class="form-input" placeholder="Числове поле вводу для учня..." disabled style="font-size: 13px;">
+        <div style="font-size: 11px; color: var(--accent-green); display: flex; align-items: center; gap: 6px;">
+          <img src="/img/icons/check.svg" class="pixel-icon inline" alt=""> Правильна відповідь: <strong>${escapeHtml(String(q.correct ?? ''))}${tol > 0 ? ` (± ${tol})` : ''}</strong>
+        </div>
+      `;
+      optionsContainer.appendChild(wrap);
     } else if (q.type === 'fill_blanks') {
       const wrap = document.createElement('div');
       wrap.style.cssText = 'background: var(--bg-surface); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 14px; font-size: 14px; line-height: 2; color: var(--text);';
@@ -930,7 +940,11 @@ async function checkTunnelStatus() {
 }
 
 function initWebSocket() {
+  if (!adminToken) return;
   try {
+    if (ws && (ws.readyState === WebSocket.OPEN || ws.readyState === WebSocket.CONNECTING)) {
+      try { ws.close(); } catch {}
+    }
     const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
     const wsUrl = `${protocol}//${window.location.host}/ws`;
     ws = new WebSocket(wsUrl);
@@ -940,7 +954,7 @@ function initWebSocket() {
       adminWsStatusText.textContent = 'Зв\'язок онлайн';
       ws.send(JSON.stringify({
         type: 'register',
-        sessionId: 'admin_' + Date.now(),
+        adminToken: adminToken,
         role: 'admin'
       }));
     };
@@ -948,6 +962,13 @@ function initWebSocket() {
     ws.onmessage = (event) => {
       try {
         const data = JSON.parse(event.data);
+        if (data.type === 'auth_error') {
+          localStorage.removeItem('admin_token');
+          adminToken = '';
+          if (passwordGate) passwordGate.style.display = 'flex';
+          if (adminContent) adminContent.style.display = 'none';
+          return;
+        }
         handleWsMessage(data);
       } catch (err) {
         console.error(err);
@@ -957,7 +978,7 @@ function initWebSocket() {
     ws.onclose = () => {
       adminWsStatusDot.className = 'status-dot danger';
       adminWsStatusText.textContent = 'Перепідключення...';
-      setTimeout(initWebSocket, 3000);
+      if (adminToken) setTimeout(initWebSocket, 3000);
     };
   } catch (err) {
     console.error(err);
@@ -1080,6 +1101,26 @@ function handleWsMessage(data) {
     renderLiveRadarGrid();
   } else if (data.type === 'exam_pause_changed') {
     updatePauseExamButtonUI(data.paused);
+  } else if (data.type === 'session_pause_updated') {
+    const sess = sessions.find(s => s.id === data.sessionId);
+    if (sess) {
+      sess.isPaused = !!data.isPaused;
+      sess.pauseMessage = data.pauseMessage || '';
+    }
+    const onlineSt = onlineStudentsMap.get(data.sessionId);
+    if (onlineSt) {
+      onlineSt.isPaused = !!data.isPaused;
+    }
+    renderSessionsTable();
+    renderLiveRadarGrid();
+    if (selectedSessionId === data.sessionId) {
+      inspectSession(selectedSessionId);
+    }
+  } else if (data.type === 'session_retake_allowed') {
+    loadSessions();
+    if (selectedSessionId === data.sessionId) {
+      inspectSession(selectedSessionId);
+    }
   } else if (data.type === 'session_ai_graded') {
     showAdminToast(`ШІ перевірив відповідь ${data.studentName || 'студента'}: ${data.scorePercentage}%`);
     loadSessions();
@@ -1194,6 +1235,9 @@ function renderSessionsTable() {
     else if (s.trustScore < 80) trustBadgeClass = 'warning';
 
     let verdictBadge = '<span class="tag-badge warning">У процесі</span>';
+    if (s.status === 'in_progress' && s.isPaused) {
+      verdictBadge = '<span class="tag-badge danger" style="background:rgba(245,158,11,0.16);color:#f59e0b;border-color:rgba(245,158,11,0.4);">На паузі</span>';
+    }
     if ((s.status === 'completed' || s.status === 'disqualified') && s.finalVerdict) {
       if (s.finalVerdict.decision === 'PERFECT_INTEGRITY' || s.finalVerdict.decision === 'APPROVED_WITH_NETWORK_NOTICES') {
         verdictBadge = '<span class="tag-badge approved">Схвалено</span>';
@@ -1206,6 +1250,9 @@ function renderSessionsTable() {
       }
     } else if (s.status === 'disqualified') {
       verdictBadge = '<span class="tag-badge danger">Дискваліфіковано</span>';
+    }
+    if (s.retakeAllowed && !s.retakeUsed) {
+      verdictBadge += ' <span class="tag-badge" style="font-size:9px;background:rgba(99,102,241,0.15);color:var(--accent);">Перескладання дозволено</span>';
     }
 
     let scoreDisplay = '<span style="color: var(--text-dim); font-size: 11px;">В процесі...</span>';
@@ -1240,7 +1287,7 @@ function renderSessionsTable() {
         <div style="display: flex; align-items: center;">
           ${renderAvatarHtml(s.avatar, s.studentName, 32)}
           <div>
-            <strong>${escapeHtml(s.studentName)}</strong>
+            <strong>${escapeHtml(s.studentName)}</strong>${(s.attemptNumber || 1) > 1 ? ` <span class="tag-badge" style="font-size:9px;padding:1px 6px;background:rgba(99,102,241,0.15);color:var(--accent);">Спроба #${s.attemptNumber}</span>` : ''}
             <div style="font-size: 11px; color: var(--text-dim);">${s.id} • ${deviceBadge}</div>
             ${finishInfo}
           </div>
@@ -1421,7 +1468,9 @@ window.inspectSession = async function(sessionId) {
     sessionDetailContent.classList.remove('hidden');
 
     detailStudentName.innerHTML = `${renderAvatarHtml(data.session.avatar, data.session.studentName, 32)} <span style="vertical-align: middle;">${escapeHtml(data.session.studentName)}</span>`;
-    detailStudentMeta.textContent = `ID: ${data.session.studentId} | IP: ${data.session.clientIp || '127.0.0.1'} | Сесія: ${data.session.id}`;
+    const attemptInfo = (data.session.attemptNumber || 1) > 1 ? ` | Спроба #${data.session.attemptNumber}` : '';
+    const pauseInfo = data.session.isPaused ? ' | НА ПАУЗІ' : '';
+    detailStudentMeta.textContent = `ID: ${data.session.studentId} | IP: ${data.session.clientIp || '127.0.0.1'} | Сесія: ${data.session.id}${attemptInfo}${pauseInfo}`;
 
     const sess = data.session;
     const score12Box = document.getElementById('detailScore12Display');
@@ -1506,10 +1555,52 @@ window.inspectSession = async function(sessionId) {
 
     const unlockBtn = document.getElementById('overrideUnlockBtn');
     const bypassBtn = document.getElementById('overrideBypassBtn');
+    const toggleStudentPauseBtn = document.getElementById('toggleStudentPauseBtn');
+    const allowRetakeBtn = document.getElementById('allowRetakeBtn');
     const addTime5Btn = document.getElementById('addTime5Btn');
     const addTime10Btn = document.getElementById('addTime10Btn');
     const overrideMsg = document.getElementById('overrideStatusMsg');
     const deleteBtn = document.getElementById('deleteSessionBtn');
+
+    if (toggleStudentPauseBtn) {
+      if (sess.status === 'in_progress') {
+        toggleStudentPauseBtn.classList.remove('hidden');
+        toggleStudentPauseBtn.disabled = false;
+        if (sess.isPaused) {
+          toggleStudentPauseBtn.innerHTML = '<img src="/img/icons/check.svg" class="pixel-icon inline" alt=""> Зняти паузу для учня';
+          toggleStudentPauseBtn.style.background = 'rgba(16,185,129,0.12)';
+          toggleStudentPauseBtn.style.borderColor = '#10b981';
+          toggleStudentPauseBtn.style.color = '#10b981';
+        } else {
+          toggleStudentPauseBtn.innerHTML = '<img src="/img/icons/hourglass.svg" class="pixel-icon inline" alt=""> Пауза для цього учня';
+          toggleStudentPauseBtn.style.background = 'rgba(245,158,11,0.12)';
+          toggleStudentPauseBtn.style.borderColor = '#f59e0b';
+          toggleStudentPauseBtn.style.color = '#f59e0b';
+        }
+        toggleStudentPauseBtn.onclick = () => window.toggleStudentPause(sessionId, !sess.isPaused);
+      } else {
+        toggleStudentPauseBtn.classList.add('hidden');
+      }
+    }
+
+    if (allowRetakeBtn) {
+      if (sess.status === 'completed' || sess.status === 'disqualified') {
+        allowRetakeBtn.classList.remove('hidden');
+        if (sess.retakeAllowed && !sess.retakeUsed) {
+          allowRetakeBtn.disabled = true;
+          allowRetakeBtn.innerHTML = '<img src="/img/icons/check.svg" class="pixel-icon inline" alt=""> Перескладання вже дозволено';
+        } else if (sess.retakeUsed) {
+          allowRetakeBtn.disabled = false;
+          allowRetakeBtn.innerHTML = '<img src="/img/icons/refresh.svg" class="pixel-icon inline" alt=""> Дозволити ще одну спробу';
+        } else {
+          allowRetakeBtn.disabled = false;
+          allowRetakeBtn.innerHTML = '<img src="/img/icons/refresh.svg" class="pixel-icon inline" alt=""> Дозволити перескласти';
+        }
+        allowRetakeBtn.onclick = () => window.allowSessionRetake(sessionId);
+      } else {
+        allowRetakeBtn.classList.add('hidden');
+      }
+    }
 
     if (addTime5Btn) {
       addTime5Btn.onclick = () => window.addSessionTime(sessionId, 5);
@@ -1603,6 +1694,48 @@ window.deleteSession = async function(sessionId) {
     }
   } catch (e) {
     adminAlert('Помилка: ' + e.message);
+  }
+};
+
+window.toggleStudentPause = async function(sessionId, pause) {
+  try {
+    const endpoint = pause
+      ? `/api/admin/sessions/${encodeURIComponent(sessionId)}/pause`
+      : `/api/admin/sessions/${encodeURIComponent(sessionId)}/resume`;
+    const res = await adminFetch(endpoint, {
+      method: 'POST',
+      body: JSON.stringify(pause ? { message: 'Ваш тест тимчасово поставлено на паузу викладачем.' } : {})
+    });
+    const data = await res.json().catch(() => ({}));
+    if (res.ok && data.success) {
+      showAdminToast(pause ? 'Учня поставлено на індивідуальну паузу' : 'Паузу для учня знято');
+      await loadSessions();
+      renderLiveRadarGrid();
+      if (selectedSessionId === sessionId) inspectSession(sessionId);
+    } else {
+      showAdminToast(data.error || 'Помилка зміни паузи', false);
+    }
+  } catch {
+    showAdminToast('Мережева помилка', false);
+  }
+};
+
+window.allowSessionRetake = async function(sessionId) {
+  if (!await adminConfirm('Дозволити цьому учню повторно скласти тест?\nПопередній результат і історія залишаться збереженими.')) return;
+  try {
+    const res = await adminFetch(`/api/admin/sessions/${encodeURIComponent(sessionId)}/allow-retake`, {
+      method: 'POST'
+    });
+    const data = await res.json().catch(() => ({}));
+    if (res.ok && data.success) {
+      showAdminToast('Повторну спробу дозволено (попередню історію збережено)');
+      await loadSessions();
+      if (selectedSessionId === sessionId) inspectSession(sessionId);
+    } else {
+      showAdminToast(data.error || 'Помилка надання дозволу', false);
+    }
+  } catch {
+    showAdminToast('Мережева помилка', false);
   }
 };
 
@@ -2639,6 +2772,7 @@ function renderLiveRadarGrid() {
     const isHighPing = latency > 250;
     const isOffline = (Date.now() - (student.lastSeen || 0)) > 15000;
 
+    const isPaused = !!(student.isPaused || (sess && sess.isPaused));
     const card = document.createElement('div');
     const isCritical = trust < 50 || (sess && sess.status === 'disqualified');
     if (isCritical) {
@@ -2657,7 +2791,7 @@ function renderLiveRadarGrid() {
               <span class="status-dot ${isOffline ? 'danger' : (isHighPing ? 'warning' : '')}"></span>
               <strong style="font-size: 14px; color: var(--text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">${escapeHtml(name)}</strong>
             </div>
-            ${studentClass ? `<div style="font-size: 11px; color: var(--text-muted); margin-top: 2px;">Клас: ${escapeHtml(studentClass)}</div>` : ''}
+            ${studentClass ? `<div style="font-size: 11px; color: var(--text-muted); margin-top: 2px;">Клас: ${escapeHtml(studentClass)}${isPaused ? ' • <strong style="color:#f59e0b;">На паузі</strong>' : ''}</div>` : (isPaused ? '<div style="font-size: 11px; color: #f59e0b; font-weight: 700; margin-top: 2px;">На паузі</div>' : '')}
           </div>
         </div>
         <span class="tag-badge ${trust >= 70 ? 'approved' : 'warning'}" style="font-size: 10px; flex-shrink: 0;">${trust}% довіри</span>
@@ -2673,16 +2807,25 @@ function renderLiveRadarGrid() {
         </div>
       </div>
 
-      <div style="display: flex; justify-content: space-between; align-items: center; font-size: 11px; color: var(--text-muted);">
+      <div style="display: flex; justify-content: space-between; align-items: center; font-size: 11px; color: var(--text-muted); gap: 6px; flex-wrap: wrap;">
         <span style="display: inline-flex; align-items: center; gap: 4px;">
           <img src="/img/icons/signal.svg" class="pixel-icon inline" alt=""> ${latency > 0 ? `${latency} ms` : 'Онлайн'}
         </span>
-        <div style="display: flex; gap: 6px;">
+        <div style="display: flex; gap: 6px; flex-wrap: wrap;">
+          <button type="button" class="btn-secondary live-radar-pause-btn" style="font-size: 10px; padding: 3px 8px; color: ${isPaused ? '#10b981' : '#f59e0b'}; border-color: ${isPaused ? 'rgba(16,185,129,0.4)' : 'rgba(245,158,11,0.4)'}; display: inline-flex; align-items: center; gap: 4px;" title="${isPaused ? 'Зняти паузу' : 'Поставити на паузу'}"><img src="/img/icons/hourglass.svg" class="pixel-icon inline" alt=""> ${isPaused ? 'Зняти' : 'Пауза'}</button>
           <button type="button" class="btn-secondary live-radar-warn-btn" style="font-size: 10px; padding: 3px 8px; color: var(--accent-amber); border-color: rgba(245,158,11,0.4); display: inline-flex; align-items: center; gap: 4px;" title="Надіслати попередження"><img src="/img/icons/warning.svg" class="pixel-icon inline" alt=""> Попередити</button>
           <button type="button" class="btn-secondary" style="font-size: 10px; padding: 3px 8px;">Сесія →</button>
         </div>
       </div>
     `;
+
+    const pauseBtn = card.querySelector('.live-radar-pause-btn');
+    if (pauseBtn) {
+      pauseBtn.onclick = (e) => {
+        e.stopPropagation();
+        window.toggleStudentPause(student.sessionId, !isPaused);
+      };
+    }
 
     const warnBtn = card.querySelector('.live-radar-warn-btn');
     if (warnBtn) {
@@ -2791,6 +2934,15 @@ async function loadTestAnalytics(testId = selectedAdminTestId, classId = null) {
           </div>
         `;
       });
+
+      if (!optionsBarsHtml) {
+        if (q.type === 'numeric') {
+          const tol = Number(q.numericTolerance || 0);
+          optionsBarsHtml = `<div style="font-size:12px;color:var(--text-muted);">Очікувана числова відповідь: <strong style="color:var(--accent-green);">${escapeHtml(String(q.correct ?? ''))}${tol > 0 ? ` (± ${tol})` : ''}</strong> • Правильно: <strong>${q.correctCount} з ${q.answeredCount}</strong></div>`;
+        } else {
+          optionsBarsHtml = `<div style="font-size:12px;color:var(--text-muted);">Правильно відповіли: <strong>${q.correctCount} з ${q.answeredCount}</strong></div>`;
+        }
+      }
 
       card.innerHTML = `
         <div style="display: flex; justify-content: space-between; align-items: flex-start; gap: 10px; flex-wrap: wrap;">
@@ -3070,6 +3222,7 @@ function renderQuestionsList() {
       ordering: '<span class="tag-badge" style="font-size:10px; background:rgba(99,102,241,0.15); color:var(--accent);"><img src="/img/icons/numbered-list.svg" class="pixel-icon inline" alt=""> Послідовність</span>',
       true_false: '<span class="tag-badge" style="font-size:10px; background:rgba(16,185,129,0.15); color:#10b981;"><img src="/img/icons/check.svg" class="pixel-icon inline" alt=""> Правда / Неправда</span>',
       short_answer: '<span class="tag-badge" style="font-size:10px; background:rgba(245,158,11,0.15); color:#f59e0b;"><img src="/img/icons/edit.svg" class="pixel-icon inline" alt=""> Коротка відповідь</span>',
+      numeric: '<span class="tag-badge" style="font-size:10px; background:rgba(59,130,246,0.15); color:#3b82f6;"><img src="/img/icons/edit.svg" class="pixel-icon inline" alt=""> Числова ±</span>',
       fill_blanks: '<span class="tag-badge" style="font-size:10px; background:rgba(16,185,129,0.15); color:#10b981;"><img src="/img/icons/edit.svg" class="pixel-icon inline" alt=""> Пропуски</span>',
       hotspot: '<span class="tag-badge" style="font-size:10px; background:rgba(239,68,68,0.15); color:#ef4444;"><img src="/img/icons/camera.svg" class="pixel-icon inline" alt=""> Hotspot</span>'
     };
@@ -3168,6 +3321,13 @@ function renderQuestionsList() {
       pill.className = 'q-option-pill correct';
       pill.style.gridColumn = '1 / -1';
       pill.innerHTML = `<span><img src="/img/icons/check.svg" class="pixel-icon inline" alt=""></span> <span style="flex:1;">Правильні варіанти: <strong>${escapeHtml(kws.join(' | '))}</strong></span>`;
+      optGrid.appendChild(pill);
+    } else if (q.type === 'numeric') {
+      const tol = Number(q.numericTolerance || 0);
+      const pill = document.createElement('div');
+      pill.className = 'q-option-pill correct';
+      pill.style.gridColumn = '1 / -1';
+      pill.innerHTML = `<span><img src="/img/icons/check.svg" class="pixel-icon inline" alt=""></span> <span style="flex:1;">Правильне число: <strong>${escapeHtml(String(q.correct ?? ''))}</strong>${tol > 0 ? ` (± ${tol})` : ''}</span>`;
       optGrid.appendChild(pill);
     } else if (q.type === 'fill_blanks') {
       const blanks = Array.isArray(q.blanks) && q.blanks.length > 0 ? q.blanks : [];
@@ -3296,6 +3456,7 @@ function updateQuestionFormVisibility(type) {
   const matchingSec = document.getElementById('matchingFormSection');
   const orderingSec = document.getElementById('orderingFormSection');
   const shortAnswerSec = document.getElementById('shortAnswerFormSection');
+  const numericSec = document.getElementById('numericFormSection');
   const fillBlanksSec = document.getElementById('fillBlanksFormSection');
   const hotspotSec = document.getElementById('hotspotFormSection');
   const optionsTitle = document.getElementById('optionsSectionTitle');
@@ -3305,6 +3466,7 @@ function updateQuestionFormVisibility(type) {
   if (matchingSec) matchingSec.classList.add('hidden');
   if (orderingSec) orderingSec.classList.add('hidden');
   if (shortAnswerSec) shortAnswerSec.classList.add('hidden');
+  if (numericSec) numericSec.classList.add('hidden');
   if (fillBlanksSec) fillBlanksSec.classList.add('hidden');
   if (hotspotSec) hotspotSec.classList.add('hidden');
   if (addOptionFieldBtn) addOptionFieldBtn.style.display = '';
@@ -3315,6 +3477,8 @@ function updateQuestionFormVisibility(type) {
     if (orderingSec) orderingSec.classList.remove('hidden');
   } else if (type === 'short_answer') {
     if (shortAnswerSec) shortAnswerSec.classList.remove('hidden');
+  } else if (type === 'numeric') {
+    if (numericSec) numericSec.classList.remove('hidden');
   } else if (type === 'fill_blanks') {
     if (fillBlanksSec) fillBlanksSec.classList.remove('hidden');
     updateBlanksDetectedList();
@@ -3359,6 +3523,10 @@ function openAddQuestionModal() {
   if (qImageUrlInput) qImageUrlInput.value = '';
   const shortAnswerKeywordsInput = document.getElementById('shortAnswerKeywordsInput');
   if (shortAnswerKeywordsInput) shortAnswerKeywordsInput.value = '';
+  const numericTargetInput = document.getElementById('numericTargetInput');
+  const numericToleranceInput = document.getElementById('numericToleranceInput');
+  if (numericTargetInput) numericTargetInput.value = '';
+  if (numericToleranceInput) numericToleranceInput.value = '0';
 
   updateQuestionFormVisibility('single');
   renderOptionInputs(['', '', '', ''], 0, false);
@@ -3391,6 +3559,14 @@ function openEditQuestionModal(q) {
   if (shortAnswerKeywordsInput) {
     const kws = Array.isArray(q.correctKeywords) && q.correctKeywords.length > 0 ? q.correctKeywords : (Array.isArray(q.keywords) ? q.keywords : [q.correct || '']);
     shortAnswerKeywordsInput.value = kws.filter(Boolean).join(', ');
+  }
+  const numericTargetInput = document.getElementById('numericTargetInput');
+  const numericToleranceInput = document.getElementById('numericToleranceInput');
+  if (numericTargetInput) {
+    numericTargetInput.value = type === 'numeric' && q.correct !== undefined && q.correct !== null ? String(q.correct) : '';
+  }
+  if (numericToleranceInput) {
+    numericToleranceInput.value = type === 'numeric' && q.numericTolerance !== undefined ? String(q.numericTolerance) : '0';
   }
 
   updateQuestionFormVisibility(type);
@@ -3883,6 +4059,21 @@ function initTestEditor() {
         }
         payload.correct = keywords.join(', ');
         payload.correctKeywords = keywords;
+      } else if (qType === 'numeric') {
+        const targetRaw = (document.getElementById('numericTargetInput')?.value || '').trim().replace(',', '.');
+        const tolRaw = (document.getElementById('numericToleranceInput')?.value || '0').trim().replace(',', '.');
+        const targetNum = Number(targetRaw);
+        const tolNum = tolRaw === '' ? 0 : Number(tolRaw);
+        if (!targetRaw || !Number.isFinite(targetNum)) {
+          qModalError.textContent = 'Вкажіть коректне числове значення правильної відповіді!';
+          return;
+        }
+        if (!Number.isFinite(tolNum) || tolNum < 0) {
+          qModalError.textContent = 'Допустима похибка має бути невід’ємним числом!';
+          return;
+        }
+        payload.correct = targetNum;
+        payload.numericTolerance = Math.abs(tolNum);
       } else if (qType === 'true_false') {
         const checkedRadio = optionsFormContainer.querySelector('input[name="optCorrectRadio"]:checked');
         if (!checkedRadio) {
@@ -4252,7 +4443,7 @@ function initImportQuestionsControls() {
       row.style.borderRadius = '4px';
       row.style.fontSize = '12px';
 
-      const typeLabelMap = { multiple: '<img src="/img/icons/check.svg" class="pixel-icon inline" alt=""> Чекбокси', matching: '<img src="/img/icons/link.svg" class="pixel-icon inline" alt=""> Відповідність', ordering: '<img src="/img/icons/numbered-list.svg" class="pixel-icon inline" alt=""> Послідовність', single: '<img src="/img/icons/circle.svg" class="pixel-icon inline" alt=""> 1 варіант' };
+      const typeLabelMap = { multiple: '<img src="/img/icons/check.svg" class="pixel-icon inline" alt=""> Чекбокси', matching: '<img src="/img/icons/link.svg" class="pixel-icon inline" alt=""> Відповідність', ordering: '<img src="/img/icons/numbered-list.svg" class="pixel-icon inline" alt=""> Послідовність', numeric: '<img src="/img/icons/edit.svg" class="pixel-icon inline" alt=""> Числова ±', single: '<img src="/img/icons/circle.svg" class="pixel-icon inline" alt=""> 1 варіант' };
       const typeLabel = typeLabelMap[q.type] || typeLabelMap.single;
 
       let samplePreview = '';
@@ -5210,9 +5401,9 @@ if (submitChangePasswordBtn) {
       }
       return;
     }
-    if (!np || np.length < 4) {
+    if (!np || np.length < 8) {
       if (changePasswordStatus) {
-        changePasswordStatus.textContent = 'Новий пароль має бути не менше 4 символів';
+        changePasswordStatus.textContent = 'Новий пароль має бути не менше 8 символів';
         changePasswordStatus.style.color = 'var(--accent-red)';
       }
       return;
@@ -5234,8 +5425,11 @@ if (submitChangePasswordBtn) {
       const data = await res.json();
       submitChangePasswordBtn.disabled = false;
       if (res.ok && data.success) {
-        adminToken = data.token || np;
-        localStorage.setItem('admin_token', adminToken);
+        if (data.token) {
+          adminToken = data.token;
+          localStorage.setItem('admin_token', adminToken);
+          initWebSocket();
+        }
         if (changePasswordStatus) {
           changePasswordStatus.innerHTML = '<img src="/img/icons/check.svg" class="pixel-icon inline" alt=""> Пароль успішно змінено!';
           changePasswordStatus.style.color = 'var(--accent-green)';

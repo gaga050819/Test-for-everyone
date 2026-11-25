@@ -535,6 +535,12 @@
                     <img src="/img/icons/key.svg" class="pixel-icon inline" alt=""> Втручання адміністратора
                   </div>
                   <div id="adminOverridePanel" style="display: flex; flex-direction: column; gap: 8px;">
+                    <button id="toggleStudentPauseBtn" class="btn-secondary" style="width: 100%; font-size: 11px; background: rgba(245,158,11,0.12); border-color: #f59e0b; color: #f59e0b;" type="button">
+                      <img src="/img/icons/hourglass.svg" class="pixel-icon inline" alt=""> Пауза для цього учня
+                    </button>
+                    <button id="allowRetakeBtn" class="btn-secondary hidden" style="width: 100%; font-size: 11px; background: rgba(99,102,241,0.12); border-color: #6366f1; color: #6366f1;" type="button">
+                      <img src="/img/icons/refresh.svg" class="pixel-icon inline" alt=""> Дозволити перескласти
+                    </button>
                     <button id="overrideUnlockBtn" class="btn-secondary" style="width: 100%; font-size: 11px; background: rgba(16,185,129,0.1); border-color: #10b981; color: #10b981;" type="button">
                       <img src="/img/icons/check.svg" class="pixel-icon inline" alt=""> Розблокувати сесію (довіра: 70%)
                     </button>
@@ -924,6 +930,7 @@
                 <option value="ordering">Хронологія / Послідовність</option>
                 <option value="fill_blanks">Заповнення пропусків [слово]</option>
                 <option value="short_answer">Коротка текстова відповідь</option>
+                <option value="numeric">Числова відповідь (± похибка)</option>
               </select>
             </div>
           </div>
@@ -1050,6 +1057,20 @@
             <input type="text" id="editorShortKeywords" class="form-input" style="font-size: 13px;" placeholder="Київ, київ, Kyiv">
             <div style="font-size: 11px; color: var(--text-muted); margin-top: 5px;">Відповідь зараховується при збігу з будь-яким словом зі списку (регістр ігнорується).</div>
             <div style="font-size: 11px; color: var(--text-muted); margin-top: 8px;">У цій версії відповіді перевіряються локально за вказаними варіантами.</div>
+          </div>
+
+          <div id="numericBuilderSection" class="form-row-block hidden">
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
+              <div>
+                <label for="editorNumericTarget" class="form-label">Правильне число</label>
+                <input type="text" id="editorNumericTarget" class="form-input" style="font-size: 13px;" placeholder="Наприклад: 9.8">
+              </div>
+              <div>
+                <label for="editorNumericTolerance" class="form-label">Допустима похибка (±)</label>
+                <input type="text" id="editorNumericTolerance" class="form-input" style="font-size: 13px;" placeholder="Наприклад: 0.2" value="0">
+              </div>
+            </div>
+            <div style="font-size: 11px; color: var(--text-muted); margin-top: 6px;">Підтримуються крапка й кома. Наприклад, 9.8 ± 0.2 зарахує будь-яке число від 9.6 до 10.0.</div>
           </div>
         </div>
       </section>
@@ -1196,6 +1217,7 @@
               <option value="matching">Встановлення відповідності (логічні пари)</option>
               <option value="ordering">Встановлення послідовності (хронологія)</option>
               <option value="short_answer">Коротка текстова відповідь</option>
+              <option value="numeric">Числова відповідь (з похибкою ±)</option>
               <option value="fill_blanks">Заповнення пропусків у тексті</option>
               <option value="hotspot">Вибір області на зображенні (Hotspot)</option>
             </select>
@@ -1242,6 +1264,20 @@
           <label class="form-label">Правильні відповіді (через кому, регістр ігнорується) *</label>
           <input type="text" id="shortAnswerKeywordsInput" class="form-input" placeholder="напр.: Київ, київ, kyiv" style="font-size:13px;">
           <div style="font-size:11px; color:var(--text-muted); margin-top:4px;">Відповідь студента вважається правильною, якщо збігається з будь-яким з цих варіантів.</div>
+        </div>
+
+        <div id="numericFormSection" class="hidden" style="margin-bottom: 16px;">
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
+            <div>
+              <label class="form-label" for="numericTargetInput">Правильне число *</label>
+              <input type="text" id="numericTargetInput" class="form-input" placeholder="Наприклад: 9.8" style="font-size:13px;">
+            </div>
+            <div>
+              <label class="form-label" for="numericToleranceInput">Допустима похибка (±)</label>
+              <input type="text" id="numericToleranceInput" class="form-input" placeholder="0.2" value="0" style="font-size:13px;">
+            </div>
+          </div>
+          <div style="font-size:11px; color:var(--text-muted); margin-top:5px;">Наприклад: <code>9.8</code> із похибкою <code>0.2</code> зарахує відповіді від 9.6 до 10.0 (приймає і крапку, і кому).</div>
         </div>
 
         <div id="fillBlanksFormSection" class="hidden" style="margin-bottom: 16px;">

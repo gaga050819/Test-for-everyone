@@ -334,7 +334,7 @@ function bindActionButtons() {
       };
       try {
         quickSave.disabled = true;
-        const token = localStorage.getItem('admin_token') || '05081988';
+        const token = localStorage.getItem('admin_token') || '';
         const res = await fetch(`/api/admin/tests/${encodeURIComponent(currentTest.id)}`, {
           method: 'PUT',
           headers: {
@@ -383,7 +383,7 @@ function updateTestAnalytics() {
 
   let totalScore = 0;
   let estSeconds = 0;
-  let typeCounts = { single: 0, multiple: 0, true_false: 0, matching: 0, ordering: 0, fill_blanks: 0, short_answer: 0 };
+  let typeCounts = { single: 0, multiple: 0, true_false: 0, matching: 0, ordering: 0, fill_blanks: 0, short_answer: 0, numeric: 0 };
   let issues = [];
 
   questions.forEach((q, i) => {
@@ -400,13 +400,16 @@ function updateTestAnalytics() {
     if (q.type === 'single' && (q.correct === undefined || q.correct === null)) {
       issues.push(`Питання #${i + 1} не має правильної відповіді`);
     }
+    if (q.type === 'numeric' && (q.correct === undefined || q.correct === null || q.correct === '' || isNaN(Number(String(q.correct).replace(',', '.'))))) {
+      issues.push(`Питання #${i + 1} потребує числової відповіді`);
+    }
   });
 
   if (totalScoreEl) totalScoreEl.textContent = `${totalScore} б.`;
   const estMinutes = (estSeconds / 60).toFixed(1);
   if (estTimeEl) estTimeEl.textContent = `${estMinutes} хв.`;
 
-  const complexCount = typeCounts.matching + typeCounts.ordering + typeCounts.fill_blanks;
+  const complexCount = typeCounts.matching + typeCounts.ordering + typeCounts.fill_blanks + typeCounts.numeric;
   if (diffBadgeEl) {
     if (count === 0) {
       diffBadgeEl.textContent = 'Немає питань';
@@ -431,6 +434,7 @@ function updateTestAnalytics() {
     if (typeCounts.true_false) parts.push(`${typeCounts.true_false} так/ні`);
     if (typeCounts.fill_blanks) parts.push(`${typeCounts.fill_blanks} пропуски`);
     if (typeCounts.short_answer) parts.push(`${typeCounts.short_answer} відкриті`);
+    if (typeCounts.numeric) parts.push(`${typeCounts.numeric} числові`);
     distEl.textContent = parts.length > 0 ? parts.join(' • ') : 'Немає питань';
   }
 
@@ -472,7 +476,8 @@ function renderQuestionsNav() {
       matching: 'Відповідність',
       ordering: 'Послідовність',
       fill_blanks: 'Пропуски',
-      short_answer: 'Коротка відповідь'
+      short_answer: 'Коротка відповідь',
+      numeric: 'Числова ±'
     };
 
     item.innerHTML = `
@@ -630,11 +635,13 @@ function renderTypeSpecificControls(q) {
   const matchingSection = document.getElementById('matchingBuilderSection');
   const blanksSection = document.getElementById('fillBlanksHelperSection');
   const shortSection = document.getElementById('shortAnswerSection');
+  const numericSection = document.getElementById('numericBuilderSection');
 
   if (optionsSection) optionsSection.classList.add('hidden');
   if (matchingSection) matchingSection.classList.add('hidden');
   if (blanksSection) blanksSection.classList.add('hidden');
   if (shortSection) shortSection.classList.add('hidden');
+  if (numericSection) numericSection.classList.add('hidden');
 
   if (q.type === 'single' || q.type === 'multiple' || q.type === 'true_false' || q.type === 'ordering') {
     if (optionsSection) optionsSection.classList.remove('hidden');
@@ -657,6 +664,12 @@ function renderTypeSpecificControls(q) {
       aiToggle.disabled = true;
       q.useAiGrading = false;
     }
+  } else if (q.type === 'numeric') {
+    if (numericSection) numericSection.classList.remove('hidden');
+    const targetInput = document.getElementById('editorNumericTarget');
+    const tolInput = document.getElementById('editorNumericTolerance');
+    if (targetInput) targetInput.value = q.correct !== undefined && q.correct !== null ? String(q.correct) : '';
+    if (tolInput) tolInput.value = q.numericTolerance !== undefined ? String(q.numericTolerance) : '0';
   }
 }
 
@@ -887,10 +900,52 @@ function bindEditorInputs() {
           { left: 'Елемент 2', right: 'Пара 2' }
         ];
       }
+      if (q.type === 'numeric') {
+        if (q.correct === undefined || typeof q.correct !== 'number') q.correct = '';
+        if (q.numericTolerance === undefined) q.numericTolerance = 0;
+      }
       renderTypeSpecificControls(q);
       renderQuestionsNav();
       updateTestAnalytics();
       updateLivePreview();
+    });
+  }
+
+  const editorShortKeywords = document.getElementById('editorShortKeywords');
+  if (editorShortKeywords) {
+    editorShortKeywords.addEventListener('input', e => {
+      const q = currentTest.questions[activeQuestionIndex];
+      if (q && q.type === 'short_answer') {
+        q.correct = e.target.value;
+        q.correctKeywords = e.target.value.split(',').map(s => s.trim()).filter(Boolean);
+        updateTestAnalytics();
+        updateLivePreview();
+      }
+    });
+  }
+
+  const editorNumericTarget = document.getElementById('editorNumericTarget');
+  const editorNumericTolerance = document.getElementById('editorNumericTolerance');
+  if (editorNumericTarget) {
+    editorNumericTarget.addEventListener('input', e => {
+      const q = currentTest.questions[activeQuestionIndex];
+      if (q && q.type === 'numeric') {
+        const parsed = Number(String(e.target.value).trim().replace(',', '.'));
+        q.correct = (!e.target.value.trim() || !Number.isFinite(parsed)) ? e.target.value : parsed;
+        updateTestAnalytics();
+        updateLivePreview();
+      }
+    });
+  }
+  if (editorNumericTolerance) {
+    editorNumericTolerance.addEventListener('input', e => {
+      const q = currentTest.questions[activeQuestionIndex];
+      if (q && q.type === 'numeric') {
+        const parsed = Number(String(e.target.value).trim().replace(',', '.'));
+        q.numericTolerance = Number.isFinite(parsed) ? Math.abs(parsed) : 0;
+        updateTestAnalytics();
+        updateLivePreview();
+      }
     });
   }
 
@@ -1184,6 +1239,24 @@ function saveCurrentEditorQuestion() {
   if (pointsInput) q.points = parseInt(pointsInput.value) || 1;
   if (timeLimitInput) q.timeLimit = parseInt(timeLimitInput.value) || 60;
   if (explanationText) q.explanation = explanationText.value;
+  if (q.type === 'numeric') {
+    const targetInput = document.getElementById('editorNumericTarget');
+    const tolInput = document.getElementById('editorNumericTolerance');
+    if (targetInput) {
+      const parsed = Number(String(targetInput.value).trim().replace(',', '.'));
+      if (targetInput.value.trim() && Number.isFinite(parsed)) q.correct = parsed;
+    }
+    if (tolInput) {
+      const parsedTol = Number(String(tolInput.value).trim().replace(',', '.'));
+      q.numericTolerance = Number.isFinite(parsedTol) ? Math.abs(parsedTol) : 0;
+    }
+  } else if (q.type === 'short_answer') {
+    const shortInput = document.getElementById('editorShortKeywords');
+    if (shortInput) {
+      q.correct = shortInput.value;
+      q.correctKeywords = shortInput.value.split(',').map(s => s.trim()).filter(Boolean);
+    }
+  }
 }
 
 async function callGeminiApi() {
@@ -1633,7 +1706,7 @@ function bindAiChatSidebar() {
       const testTitle = (parsedAction && (parsedAction.testTitle || parsedAction.topic)) || ((currentTest && currentTest.subject ? currentTest.subject : 'Тест') + ': Новий тест');
 
       try {
-        const token = localStorage.getItem('admin_token') || '05081988';
+        const token = localStorage.getItem('admin_token') || '';
         const res = await fetch('/api/admin/tests', {
           method: 'POST',
           headers: {
@@ -2087,10 +2160,10 @@ function renderOptionsListInto(container, q, isMobile) {
     note.style.fontStyle = 'italic';
     note.textContent = 'Учень вводитиме пропущені слова в інтерактивні поля.';
     container.appendChild(note);
-  } else if (q.type === 'short_answer') {
+  } else if (q.type === 'short_answer' || q.type === 'numeric') {
     const inputDemo = document.createElement('input');
     inputDemo.className = 'form-input';
-    inputDemo.placeholder = 'Поле для вводу учнем...';
+    inputDemo.placeholder = q.type === 'numeric' ? 'Числове поле для вводу (напр. 9.8)...' : 'Поле для вводу учнем...';
     inputDemo.disabled = true;
     inputDemo.style.fontSize = isMobile ? '11px' : '12px';
     container.appendChild(inputDemo);
@@ -2514,7 +2587,7 @@ function bindPrintExportModal() {
             `;
           }
         });
-      } else if (q.type === 'text') {
+      } else if (q.type === 'text' || q.type === 'short_answer' || q.type === 'numeric') {
         html += `
           <div style="margin: 6px 0 8px 12px; font-size: 11px; color: #374151;">
             Відповідь: __________________________________________________________________________________
@@ -2582,6 +2655,8 @@ function bindPrintExportModal() {
         single: 'Один правильний',
         multiple: 'Кілька правильних',
         text: 'Відкрита відповідь',
+        short_answer: 'Коротка відповідь',
+        numeric: 'Числова відповідь',
         ordering: 'Черговість',
         matching: 'Логічні пари',
         blanks: 'Пропуски'
@@ -2598,8 +2673,11 @@ function bindPrintExportModal() {
           const arr = Array.isArray(q.correct) ? q.correct : [0];
           const list = arr.map(i => letters[i] || String(i + 1)).join(', ');
           correctStr = `<strong>${list}</strong>`;
-        } else if (q.type === 'text') {
-          correctStr = escapeHtml(q.correctAnswer || (q.options && q.options[0]) || 'Еталон відповіді вчителя');
+        } else if (q.type === 'numeric') {
+          const tol = Number(q.numericTolerance || 0);
+          correctStr = `<strong>${escapeHtml(String(q.correct ?? ''))}</strong>${tol > 0 ? ` (± ${tol})` : ''}`;
+        } else if (q.type === 'text' || q.type === 'short_answer') {
+          correctStr = escapeHtml(q.correctAnswer || (Array.isArray(q.correct) ? q.correct.join(', ') : q.correct) || (q.options && q.options[0]) || 'Еталон відповіді вчителя');
         } else {
           correctStr = 'За інструкцією';
         }

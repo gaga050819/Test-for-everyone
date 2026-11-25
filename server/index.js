@@ -3,11 +3,11 @@ import express from 'express';
 import http from 'http';
 import https from 'https';
 import os from 'os';
+import crypto from 'crypto';
 import { WebSocketServer, WebSocket } from 'ws';
 import path from 'path';
 import { fileURLToPath } from 'url';
-import { db } from './database.js';
-
+import { db, generateSecureId, parseNumericInput } from './database.js';
 import fs from 'fs';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -15,7 +15,7 @@ const __dirname = path.dirname(__filename);
 
 function loadEnv() {
   try {
-    const files = [path.join(__dirname, '..', '.env'), path.join(__dirname, '.env')];
+    const files = [path.join(__dirname, '.env'), path.join(__dirname, '..', '.env')];
     for (const f of files) {
       if (fs.existsSync(f)) {
         const lines = fs.readFileSync(f, 'utf-8').split(/\r?\n/);
@@ -26,7 +26,9 @@ function loadEnv() {
             if (eq > 0) {
               const k = trimmed.slice(0, eq).trim();
               const v = trimmed.slice(eq + 1).trim();
-              process.env[k] = v;
+              if (process.env[k] === undefined) {
+                process.env[k] = v;
+              }
             }
           }
         }
@@ -51,6 +53,33 @@ const AI_DISABLED_MESSAGE = 'Функції ШІ вимкнені у цій ве
 const sslDir = path.join(__dirname, 'ssl');
 const certPath = path.join(sslDir, 'cert.pem');
 const keyPath = path.join(sslDir, 'key.pem');
+
+function constantTimeEqual(a, b) {
+  const bufA = Buffer.from(String(a || ''), 'utf8');
+  const bufB = Buffer.from(String(b || ''), 'utf8');
+  if (bufA.length !== bufB.length) {
+    crypto.timingSafeEqual(bufA, bufA);
+    return false;
+  }
+  return crypto.timingSafeEqual(bufA, bufB);
+}
+
+function hashPasswordScrypt(plain, salt = crypto.randomBytes(16).toString('hex')) {
+  const hash = crypto.scryptSync(String(plain), salt, 64).toString('hex');
+  return { salt, passwordHash: hash };
+}
+
+function verifyPasswordScrypt(plain, salt, expectedHash) {
+  if (!plain || !salt || !expectedHash) return false;
+  try {
+    const derived = crypto.scryptSync(String(plain), salt, 64);
+    const expected = Buffer.from(expectedHash, 'hex');
+    if (derived.length !== expected.length) return false;
+    return crypto.timingSafeEqual(derived, expected);
+  } catch {
+    return false;
+  }
+}
 
 async function getOrCreateSslCert() {
   try {
@@ -154,42 +183,214 @@ app.use((req, res, next) => {
 });
 app.use(express.static(path.join(__dirname, '..', 'public')));
 
-const connectedClients = new Map();
+const connectedStudents = new Map();
+const connectedAdmins = new Set();
 
-wss.on('connection', (ws, req) => {
+function broadcastToAdmins(payload) {
+  const json = JSON.stringify(payload);
+  for (const adminWs of connectedAdmins) {
+    if (adminWs.readyState === WebSocket.OPEN) {
+      adminWs.send(json);
+    } else {
+      connectedAdmins.delete(adminWs);
+    }
+  }
+}
+
+function sendToStudent(sessionId, payload) {
+  const client = connectedStudents.get(sessionId);
+  if (client && client.ws && client.ws.readyState === WebSocket.OPEN) {
+    client.ws.send(JSON.stringify(payload));
+    return true;
+  }
+  return false;
+}
+
+const secretPath = process.env.ADMIN_SECRET_FILE
+  ? path.resolve(process.env.ADMIN_SECRET_FILE)
+  : path.join(__dirname, 'admin_secret.json');
+const envPath = fs.existsSync(path.join(__dirname, '.env')) ? path.join(__dirname, '.env') : path.join(__dirname, '..', '.env');
+
+function persistAdminSecretState(state) {
+  try {
+    fs.writeFileSync(secretPath, JSON.stringify({
+      salt: state.salt,
+      passwordHash: state.passwordHash,
+      tokenSecret: state.tokenSecret,
+      tokenVersion: state.tokenVersion,
+      updatedAt: Date.now()
+    }, null, 2), 'utf-8');
+  } catch {}
+}
+
+function syncEnvAdminPasswordIfPresent(pwd) {
+  try {
+    if (fs.existsSync(envPath)) {
+      let content = fs.readFileSync(envPath, 'utf-8');
+      if (content.includes('ADMIN_PASSWORD=')) {
+        content = content.replace(/ADMIN_PASSWORD=.*(\r?\n|$)/, `ADMIN_PASSWORD=${pwd}$1`);
+        fs.writeFileSync(envPath, content, 'utf-8');
+      }
+    }
+  } catch {}
+}
+
+function generateInitialPassword() {
+  const alphabet = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz23456789';
+  const bytes = crypto.randomBytes(12);
+  let out = '';
+  for (let i = 0; i < 12; i++) {
+    out += alphabet[bytes[i] % alphabet.length];
+  }
+  return out;
+}
+
+let generatedOneTimePassword = null;
+
+function initAdminAuth() {
+  const envPwd = (process.env.ADMIN_PASSWORD || '').trim();
+  let fileState = null;
+  try {
+    if (fs.existsSync(secretPath)) {
+      fileState = JSON.parse(fs.readFileSync(secretPath, 'utf-8'));
+    }
+  } catch {}
+
+  if (envPwd) {
+    const hashed = hashPasswordScrypt(envPwd);
+    const derivedSecret = crypto.createHmac('sha256', 'secureexam-token-key-v1').update(envPwd).digest('hex');
+    const state = {
+      salt: hashed.salt,
+      passwordHash: hashed.passwordHash,
+      tokenSecret: derivedSecret,
+      tokenVersion: (fileState && Number(fileState.tokenVersion)) || 1
+    };
+    persistAdminSecretState(state);
+    return state;
+  }
+
+  if (process.env.NODE_ENV === 'production') {
+    throw new Error('Set ADMIN_PASSWORD in the hosting provider environment before starting SecureExam.');
+  }
+
+  if (fileState && fileState.passwordHash && fileState.salt) {
+    return {
+      salt: fileState.salt,
+      passwordHash: fileState.passwordHash,
+      tokenSecret: fileState.tokenSecret || crypto.randomBytes(32).toString('hex'),
+      tokenVersion: Number(fileState.tokenVersion) || 1
+    };
+  }
+
+  if (fileState && fileState.adminPassword) {
+    const hashed = hashPasswordScrypt(fileState.adminPassword);
+    const state = {
+      salt: hashed.salt,
+      passwordHash: hashed.passwordHash,
+      tokenSecret: crypto.randomBytes(32).toString('hex'),
+      tokenVersion: 1
+    };
+    persistAdminSecretState(state);
+    return state;
+  }
+
+  const freshPwd = generateInitialPassword();
+  generatedOneTimePassword = freshPwd;
+  const hashed = hashPasswordScrypt(freshPwd);
+  const state = {
+    salt: hashed.salt,
+    passwordHash: hashed.passwordHash,
+    tokenSecret: crypto.randomBytes(32).toString('hex'),
+    tokenVersion: 1
+  };
+  persistAdminSecretState(state);
+  return state;
+}
+
+const adminAuth = initAdminAuth();
+
+function issueAdminToken() {
+  const payload = {
+    role: 'admin',
+    v: adminAuth.tokenVersion,
+    iat: Date.now(),
+    exp: Date.now() + 24 * 60 * 60 * 1000,
+    jti: crypto.randomBytes(8).toString('hex')
+  };
+  const payloadB64 = Buffer.from(JSON.stringify(payload), 'utf8').toString('base64url');
+  const sigB64 = crypto.createHmac('sha256', adminAuth.tokenSecret).update(payloadB64).digest('base64url');
+  return `${payloadB64}.${sigB64}`;
+}
+
+function verifyAdminToken(rawToken) {
+  if (!rawToken || typeof rawToken !== 'string') return false;
+  const token = rawToken.startsWith('Bearer ') ? rawToken.slice(7).trim() : rawToken.trim();
+  const dotIdx = token.indexOf('.');
+  if (dotIdx <= 0) return false;
+  const payloadB64 = token.slice(0, dotIdx);
+  const sigB64 = token.slice(dotIdx + 1);
+  if (!payloadB64 || !sigB64) return false;
+  const expectedSig = crypto.createHmac('sha256', adminAuth.tokenSecret).update(payloadB64).digest('base64url');
+  if (!constantTimeEqual(sigB64, expectedSig)) return false;
+  try {
+    const payload = JSON.parse(Buffer.from(payloadB64, 'base64url').toString('utf8'));
+    if (!payload || payload.role !== 'admin') return false;
+    if (Number(payload.v) !== adminAuth.tokenVersion) return false;
+    if (!payload.exp || Date.now() > Number(payload.exp)) return false;
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+function extractStudentToken(req) {
+  return req.headers['x-session-token'] || req.query?.studentToken || req.body?.studentToken || '';
+}
+
+function verifyStudentSessionToken(session, rawToken) {
+  if (!session) return false;
+  if (!session.studentToken) return true;
+  return constantTimeEqual(String(rawToken || '').trim(), String(session.studentToken));
+}
+
+function sanitizeSessionForAdmin(session) {
+  if (!session) return null;
+  const { studentToken, ...rest } = session;
+  return rest;
+}
+
+wss.on('connection', (ws) => {
+  let boundRole = null;
   let boundSessionId = null;
+  let isAuthenticated = false;
 
   ws.on('message', async (rawMessage) => {
     try {
       const message = JSON.parse(rawMessage.toString());
 
       if (message.type === 'register') {
-        boundSessionId = message.sessionId;
-        connectedClients.set(boundSessionId, {
-          ws,
-          role: message.role || 'student',
-          lastSeen: Date.now()
-        });
-
-        broadcastToAdmins({
-          type: 'student_status_change',
-          sessionId: boundSessionId,
-          status: 'online',
-          timestamp: Date.now()
-        });
-
         if (message.role === 'admin') {
+          if (!verifyAdminToken(message.adminToken)) {
+            ws.send(JSON.stringify({ type: 'auth_error', error: 'Недійсний токен адміністратора' }));
+            ws.close(4001, 'Unauthorized');
+            return;
+          }
+          boundRole = 'admin';
+          boundSessionId = null;
+          isAuthenticated = true;
+          connectedAdmins.add(ws);
+
           const onlineList = [];
-          for (const [sId, c] of connectedClients.entries()) {
-            if (c.role === 'student') {
-              onlineList.push({
-                sessionId: sId,
-                lastSeen: c.lastSeen,
-                latency: c.latency || 0,
-                questionIndex: c.questionIndex || 1,
-                totalQuestions: c.totalQuestions || 1
-              });
-            }
+          for (const [sId, c] of connectedStudents.entries()) {
+            const sess = await db.getSession(sId);
+            onlineList.push({
+              sessionId: sId,
+              lastSeen: c.lastSeen,
+              latency: c.latency || 0,
+              questionIndex: c.questionIndex || 1,
+              totalQuestions: c.totalQuestions || 1,
+              isPaused: !!(sess && sess.isPaused)
+            });
           }
           ws.send(JSON.stringify({
             type: 'online_students_snapshot',
@@ -199,38 +400,105 @@ wss.on('connection', (ws, req) => {
             type: 'exam_pause_changed',
             paused: globalExamPaused
           }));
+          return;
         }
 
-        if (boundSessionId) {
-          const sess = await db.getSession(boundSessionId);
-          if (sess && sess.proctorBypassed) {
-            ws.send(JSON.stringify({
-              type: 'admin_override_bypass',
-              trustScore: sess.trustScore || 70
-            }));
-          }
+        const requestedSessionId = message.sessionId;
+        if (!requestedSessionId || typeof requestedSessionId !== 'string') {
+          ws.send(JSON.stringify({ type: 'auth_error', error: 'Не вказано ідентифікатор сесії' }));
+          ws.close(4001, 'Missing session');
+          return;
         }
-        if (globalExamPaused) {
-          ws.send(JSON.stringify({ type: 'exam_paused', message: 'Екзамен тимчасово зупинений викладачем' }));
+
+        const sess = await db.getSession(requestedSessionId);
+        if (!sess) {
+          ws.send(JSON.stringify({ type: 'auth_error', error: 'Сесію не знайдено' }));
+          ws.close(4001, 'Invalid session');
+          return;
+        }
+
+        if (!verifyStudentSessionToken(sess, message.studentToken)) {
+          ws.send(JSON.stringify({ type: 'auth_error', error: 'Невірний токен сесії' }));
+          ws.close(4001, 'Unauthorized');
+          return;
+        }
+
+        boundRole = 'student';
+        boundSessionId = sess.id;
+        isAuthenticated = true;
+
+        connectedStudents.set(boundSessionId, {
+          ws,
+          lastSeen: Date.now(),
+          latency: 0,
+          questionIndex: 1,
+          totalQuestions: (sess.questions || []).length || 1
+        });
+
+        broadcastToAdmins({
+          type: 'student_status_change',
+          sessionId: boundSessionId,
+          status: 'online',
+          timestamp: Date.now(),
+          isPaused: !!sess.isPaused
+        });
+
+        if (sess.proctorBypassed) {
+          ws.send(JSON.stringify({
+            type: 'admin_override_bypass',
+            trustScore: sess.trustScore || 70
+          }));
+        }
+
+        if (globalExamPaused || sess.isPaused) {
+          ws.send(JSON.stringify({
+            type: 'exam_paused',
+            scope: sess.isPaused ? 'individual' : 'global',
+            message: sess.isPaused
+              ? (sess.pauseMessage || 'Ваш екзамен тимчасово призупинено викладачем')
+              : 'Екзамен тимчасово зупинений викладачем'
+          }));
         }
         return;
       }
 
+      if (!isAuthenticated) {
+        ws.send(JSON.stringify({ type: 'auth_error', error: 'Спочатку виконайте автентифікацію' }));
+        return;
+      }
+
+      if (message.type === 'teacher_warning') {
+        if (boundRole !== 'admin') return;
+        const targetSessionId = message.sessionId;
+        sendToStudent(targetSessionId, {
+          type: 'teacher_warning',
+          message: message.message,
+          level: message.level || 'warning',
+          timestamp: Date.now()
+        });
+        await db.logIncident(targetSessionId, {
+          category: 'teacher_warning',
+          message: `Попередження від викладача: ${message.message}`,
+          severity: message.level || 'warning'
+        });
+        return;
+      }
+
+      if (boundRole !== 'student' || !boundSessionId) return;
+
       if (message.type === 'student_progress') {
-        if (boundSessionId) {
-          const clientData = connectedClients.get(boundSessionId);
-          if (clientData) {
-            clientData.questionIndex = message.questionIndex;
-            clientData.totalQuestions = message.totalQuestions;
-          }
-          broadcastToAdmins({
-            type: 'student_progress',
-            sessionId: boundSessionId,
-            questionIndex: message.questionIndex,
-            totalQuestions: message.totalQuestions,
-            timestamp: Date.now()
-          });
+        const clientData = connectedStudents.get(boundSessionId);
+        if (clientData) {
+          clientData.questionIndex = message.questionIndex;
+          clientData.totalQuestions = message.totalQuestions;
         }
+        broadcastToAdmins({
+          type: 'student_progress',
+          sessionId: boundSessionId,
+          questionIndex: message.questionIndex,
+          totalQuestions: message.totalQuestions,
+          timestamp: Date.now()
+        });
         return;
       }
 
@@ -239,24 +507,22 @@ wss.on('connection', (ws, req) => {
         const serverNow = Date.now();
         const latency = message.latency || 0;
 
-        if (boundSessionId) {
-          const clientData = connectedClients.get(boundSessionId);
-          if (clientData) {
-            clientData.lastSeen = serverNow;
-            clientData.latency = latency;
-          }
-          await db.recordPing(boundSessionId, {
-            latency,
-            status: 'ok'
-          });
-
-          broadcastToAdmins({
-            type: 'student_ping',
-            sessionId: boundSessionId,
-            latency,
-            timestamp: serverNow
-          });
+        const clientData = connectedStudents.get(boundSessionId);
+        if (clientData) {
+          clientData.lastSeen = serverNow;
+          clientData.latency = latency;
         }
+        await db.recordPing(boundSessionId, {
+          latency,
+          status: 'ok'
+        });
+
+        broadcastToAdmins({
+          type: 'student_ping',
+          sessionId: boundSessionId,
+          latency,
+          timestamp: serverNow
+        });
 
         ws.send(JSON.stringify({
           type: 'pong',
@@ -267,32 +533,11 @@ wss.on('connection', (ws, req) => {
       }
 
       if (message.type === 'incident') {
-        if (boundSessionId) {
-          const recorded = await db.logIncident(boundSessionId, message.incident);
-          broadcastToAdmins({
-            type: 'new_incident',
-            sessionId: boundSessionId,
-            incident: recorded
-          });
-        }
-        return;
-      }
-
-      if (message.type === 'teacher_warning') {
-        const targetSessionId = message.sessionId;
-        const targetClient = connectedClients.get(targetSessionId);
-        if (targetClient && targetClient.ws && targetClient.ws.readyState === WebSocket.OPEN) {
-          targetClient.ws.send(JSON.stringify({
-            type: 'teacher_warning',
-            message: message.message,
-            level: message.level || 'warning',
-            timestamp: Date.now()
-          }));
-        }
-        await db.logIncident(targetSessionId, {
-          category: 'teacher_warning',
-          message: `Попередження від викладача: ${message.message}`,
-          severity: message.level || 'warning'
+        const recorded = await db.logIncident(boundSessionId, message.incident);
+        broadcastToAdmins({
+          type: 'new_incident',
+          sessionId: boundSessionId,
+          incident: recorded
         });
         return;
       }
@@ -310,76 +555,27 @@ wss.on('connection', (ws, req) => {
     }
   });
 
-  ws.on('close', async () => {
-    if (boundSessionId) {
-      connectedClients.delete(boundSessionId);
-      broadcastToAdmins({
-        type: 'student_status_change',
-        sessionId: boundSessionId,
-        status: 'disconnected',
-        timestamp: Date.now()
-      });
+  ws.on('close', () => {
+    if (boundRole === 'admin') {
+      connectedAdmins.delete(ws);
+    } else if (boundRole === 'student' && boundSessionId) {
+      const current = connectedStudents.get(boundSessionId);
+      if (current && current.ws === ws) {
+        connectedStudents.delete(boundSessionId);
+        broadcastToAdmins({
+          type: 'student_status_change',
+          sessionId: boundSessionId,
+          status: 'disconnected',
+          timestamp: Date.now()
+        });
+      }
     }
   });
 });
 
-function broadcastToAdmins(payload) {
-  const json = JSON.stringify(payload);
-  for (const [, client] of connectedClients.entries()) {
-    if (client.role === 'admin' && client.ws.readyState === WebSocket.OPEN) {
-      client.ws.send(json);
-    }
-  }
-}
-
-const secretPath = path.join(__dirname, 'admin_secret.json');
-const envPath = fs.existsSync(path.join(__dirname, '.env')) ? path.join(__dirname, '.env') : path.join(__dirname, '..', '.env');
-
-function saveAdminPasswordToFile(pwd) {
-  try {
-    fs.writeFileSync(secretPath, JSON.stringify({ adminPassword: pwd, updatedAt: Date.now() }, null, 2), 'utf-8');
-  } catch {}
-  try {
-    if (fs.existsSync(envPath)) {
-      let content = fs.readFileSync(envPath, 'utf-8');
-      if (content.includes('ADMIN_PASSWORD=')) {
-        content = content.replace(/ADMIN_PASSWORD=.*(\r?\n|$)/, `ADMIN_PASSWORD=${pwd}$1`);
-      } else {
-        content = content.trim() + `\r\nADMIN_PASSWORD=${pwd}\r\n`;
-      }
-      fs.writeFileSync(envPath, content, 'utf-8');
-    }
-  } catch {}
-}
-
-function getInitialAdminPassword() {
-  if (process.env.ADMIN_PASSWORD && process.env.ADMIN_PASSWORD.trim()) {
-    saveAdminPasswordToFile(process.env.ADMIN_PASSWORD.trim());
-    return process.env.ADMIN_PASSWORD.trim();
-  }
-  if (process.env.NODE_ENV === 'production') {
-    throw new Error('Set ADMIN_PASSWORD in the hosting provider environment before starting SecureExam.');
-  }
-  try {
-    if (fs.existsSync(secretPath)) {
-      const parsed = JSON.parse(fs.readFileSync(secretPath, 'utf-8'));
-      if (parsed && parsed.adminPassword) {
-        process.env.ADMIN_PASSWORD = parsed.adminPassword;
-        return parsed.adminPassword;
-      }
-    }
-  } catch {}
-  const generated = Math.floor(10000000 + Math.random() * 90000000).toString();
-  saveAdminPasswordToFile(generated);
-  process.env.ADMIN_PASSWORD = generated;
-  return generated;
-}
-
-let ADMIN_PASSWORD = getInitialAdminPassword();
-
 function requireAdmin(req, res, next) {
   const token = req.headers['x-admin-token'] || req.headers['authorization'];
-  if (token === ADMIN_PASSWORD || token === `Bearer ${ADMIN_PASSWORD}`) {
+  if (verifyAdminToken(token)) {
     return next();
   }
   return res.status(401).json({ error: 'Несанкціонований доступ' });
@@ -387,8 +583,8 @@ function requireAdmin(req, res, next) {
 
 app.post('/api/admin/login', loginLimiter, (req, res) => {
   const { password } = req.body || {};
-  if (typeof password === 'string' && password.trim() === ADMIN_PASSWORD) {
-    return res.json({ success: true, token: ADMIN_PASSWORD });
+  if (typeof password === 'string' && verifyPasswordScrypt(password.trim(), adminAuth.salt, adminAuth.passwordHash)) {
+    return res.json({ success: true, token: issueAdminToken() });
   }
   return res.status(401).json({ error: 'Невірний пароль' });
 });
@@ -399,24 +595,33 @@ app.get('/api/admin/verify-token', requireAdmin, (req, res) => {
 
 app.post('/api/admin/change-password', requireAdmin, (req, res) => {
   const { currentPassword, newPassword } = req.body || {};
-  if (!currentPassword || currentPassword.trim() !== ADMIN_PASSWORD) {
+  if (!currentPassword || !verifyPasswordScrypt(currentPassword.trim(), adminAuth.salt, adminAuth.passwordHash)) {
     return res.status(400).json({ error: 'Поточний пароль введено невірно' });
   }
-  if (!newPassword || typeof newPassword !== 'string' || newPassword.trim().length < 4) {
-    return res.status(400).json({ error: 'Новий пароль має містити щонайменше 4 символи' });
+  if (!newPassword || typeof newPassword !== 'string' || newPassword.trim().length < 8) {
+    return res.status(400).json({ error: 'Новий пароль має містити щонайменше 8 символів' });
   }
   const cleanNew = newPassword.trim();
-  ADMIN_PASSWORD = cleanNew;
-  process.env.ADMIN_PASSWORD = cleanNew;
-  saveAdminPasswordToFile(cleanNew);
-  res.json({ success: true, message: 'Пароль успішно змінено', token: cleanNew });
+  const hashed = hashPasswordScrypt(cleanNew);
+  adminAuth.salt = hashed.salt;
+  adminAuth.passwordHash = hashed.passwordHash;
+  adminAuth.tokenVersion += 1;
+  adminAuth.tokenSecret = process.env.ADMIN_PASSWORD
+    ? crypto.createHmac('sha256', 'secureexam-token-key-v1').update(cleanNew).digest('hex')
+    : crypto.randomBytes(32).toString('hex');
+  if (process.env.ADMIN_PASSWORD) {
+    process.env.ADMIN_PASSWORD = cleanNew;
+  }
+  persistAdminSecretState(adminAuth);
+  syncEnvAdminPasswordIfPresent(cleanNew);
+  res.json({ success: true, message: 'Пароль успішно змінено', token: issueAdminToken() });
 });
 
 app.post('/api/support/submit', supportLimiter, async (req, res) => {
   const { type, title, description, name, contact } = req.body || {};
   if (!type || !title || !description) return res.status(400).json({ error: 'Заповніть усі поля' });
   const ticket = {
-    id: 'ticket_' + Date.now() + '_' + Math.random().toString(36).slice(2, 6),
+    id: generateSecureId('ticket_', 6),
     type,
     title: title.trim(),
     description: description.trim(),
@@ -586,48 +791,70 @@ app.get('/api/tests/:id', async (req, res) => {
 
 let globalDebugBypass = false;
 let globalExamPaused = false;
+let globalPauseStartedAt = null;
 
-app.post('/api/dev/debug-mode', (req, res) => {
-  const key = (req.body && req.body.key ? req.body.key : '').trim();
-  if (key !== 'Honda2020!05081988') {
-    return res.status(403).json({ error: 'Невірний ключ доступу' });
+function getConfiguredDebugKey() {
+  if (process.env.NODE_ENV === 'production') return '';
+  return (process.env.DEV_DEBUG_KEY || '').trim();
+}
+
+app.post('/api/dev/debug-mode', loginLimiter, (req, res) => {
+  const configuredKey = getConfiguredDebugKey();
+  const key = (req.body && req.body.key ? String(req.body.key) : '').trim();
+  if (!configuredKey || !constantTimeEqual(key, configuredKey)) {
+    return res.status(403).json({ error: 'Режим розробника вимкнено або ключ доступу невірний' });
   }
   globalDebugBypass = !globalDebugBypass;
   if (globalDebugBypass) {
-    connectedClients.forEach(client => {
+    for (const [, client] of connectedStudents.entries()) {
       if (client.ws && client.ws.readyState === WebSocket.OPEN) {
         client.ws.send(JSON.stringify({ type: 'admin_override_bypass', trustScore: 100 }));
       }
-    });
+    }
   }
   res.json({ success: true, debugMode: globalDebugBypass });
 });
 
 app.get('/api/dev/debug-mode', (req, res) => {
-  res.json({ debugMode: globalDebugBypass });
+  res.json({ debugMode: globalDebugBypass, enabled: Boolean(getConfiguredDebugKey()) });
 });
 
 app.post('/api/admin/pause-exam', requireAdmin, (req, res) => {
-  globalExamPaused = true;
-  connectedClients.forEach((client) => {
-    if (client.role === 'student' && client.ws && client.ws.readyState === WebSocket.OPEN) {
+  if (!globalExamPaused) {
+    globalExamPaused = true;
+    globalPauseStartedAt = Date.now();
+  }
+  const msg = req.body.message || 'Екзамен тимчасово зупинений викладачем';
+  for (const [, client] of connectedStudents.entries()) {
+    if (client.ws && client.ws.readyState === WebSocket.OPEN) {
       client.ws.send(JSON.stringify({
         type: 'exam_paused',
-        message: req.body.message || 'Екзамен тимчасово зупинений викладачем'
+        scope: 'global',
+        message: msg
       }));
     }
-  });
+  }
   broadcastToAdmins({ type: 'exam_pause_changed', paused: true });
   res.json({ success: true, paused: true });
 });
 
-app.post('/api/admin/resume-exam', requireAdmin, (req, res) => {
+app.post('/api/admin/resume-exam', requireAdmin, async (req, res) => {
   globalExamPaused = false;
-  connectedClients.forEach((client) => {
-    if (client.role === 'student' && client.ws && client.ws.readyState === WebSocket.OPEN) {
-      client.ws.send(JSON.stringify({ type: 'exam_resumed' }));
+  globalPauseStartedAt = null;
+  for (const [sId, client] of connectedStudents.entries()) {
+    if (client.ws && client.ws.readyState === WebSocket.OPEN) {
+      const sess = await db.getSession(sId);
+      if (sess && sess.isPaused) {
+        client.ws.send(JSON.stringify({
+          type: 'exam_paused',
+          scope: 'individual',
+          message: sess.pauseMessage || 'Ваш екзамен досі призупинено викладачем'
+        }));
+      } else {
+        client.ws.send(JSON.stringify({ type: 'exam_resumed', scope: 'global' }));
+      }
     }
-  });
+  }
   broadcastToAdmins({ type: 'exam_pause_changed', paused: false });
   res.json({ success: true, paused: false });
 });
@@ -636,20 +863,85 @@ app.get('/api/admin/pause-state', requireAdmin, (req, res) => {
   res.json({ paused: globalExamPaused });
 });
 
+app.post('/api/admin/sessions/:id/pause', requireAdmin, async (req, res) => {
+  const session = await db.setSessionPaused(req.params.id, true, req.body?.message);
+  if (!session) {
+    return res.status(404).json({ error: 'Сесію не знайдено' });
+  }
+  sendToStudent(session.id, {
+    type: 'exam_paused',
+    scope: 'individual',
+    message: session.pauseMessage || 'Ваш екзамен тимчасово призупинено викладачем'
+  });
+  broadcastToAdmins({
+    type: 'session_pause_updated',
+    sessionId: session.id,
+    isPaused: true,
+    pauseMessage: session.pauseMessage
+  });
+  res.json({ success: true, session: sanitizeSessionForAdmin(session) });
+});
+
+app.post('/api/admin/sessions/:id/resume', requireAdmin, async (req, res) => {
+  const session = await db.setSessionPaused(req.params.id, false);
+  if (!session) {
+    return res.status(404).json({ error: 'Сесію не знайдено' });
+  }
+  if (!globalExamPaused) {
+    sendToStudent(session.id, {
+      type: 'exam_resumed',
+      scope: 'individual'
+    });
+  } else {
+    sendToStudent(session.id, {
+      type: 'exam_paused',
+      scope: 'global',
+      message: 'Індивідуальну паузу знято, але триває загальна пауза для всього класу'
+    });
+  }
+  broadcastToAdmins({
+    type: 'session_pause_updated',
+    sessionId: session.id,
+    isPaused: false
+  });
+  res.json({ success: true, session: sanitizeSessionForAdmin(session) });
+});
+
+app.post('/api/admin/sessions/:id/allow-retake', requireAdmin, async (req, res) => {
+  const session = await db.allowSessionRetake(req.params.id);
+  if (!session) {
+    return res.status(404).json({ error: 'Сесію не знайдено' });
+  }
+  broadcastToAdmins({
+    type: 'session_retake_allowed',
+    sessionId: session.id,
+    testId: session.testId
+  });
+  res.json({ success: true, session: sanitizeSessionForAdmin(session) });
+});
+
 app.post('/api/sessions/start', sessionStartLimiter, async (req, res) => {
   const { studentName, studentId, testId, clientInfo, resumeSessionId, avatar } = req.body;
 
   if (resumeSessionId) {
     const existing = await db.getSession(resumeSessionId);
     if (existing && existing.status === 'in_progress') {
+      if (!verifyStudentSessionToken(existing, extractStudentToken(req))) {
+        return res.status(401).json({ error: 'Недійсний токен відновлення сесії' });
+      }
       const sanitizedQuestions = (existing.questions || []).map(sanitizeQuestionForStudent);
       return res.json({
         id: existing.id,
+        studentToken: existing.studentToken,
         testId: existing.testId,
         studentName: existing.studentName,
         studentId: existing.studentId,
         avatar: existing.avatar || null,
         startedAt: existing.startedAt,
+        totalPausedMs: (existing.totalPausedMs || 0) + (existing.isPaused && existing.pausedAt ? Math.max(0, Date.now() - existing.pausedAt) : 0),
+        isPaused: globalExamPaused || !!existing.isPaused,
+        pauseMessage: existing.pauseMessage || '',
+        attemptNumber: existing.attemptNumber || 1,
         clientIp: existing.clientIp,
         questions: sanitizedQuestions,
         partialAnswers: existing.partialAnswers || {},
@@ -669,13 +961,39 @@ app.post('/api/sessions/start', sessionStartLimiter, async (req, res) => {
     return res.status(404).json({ error: 'Тест не знайдено' });
   }
 
-  const sessionId = 'ses_' + Math.random().toString(36).substring(2, 10);
+  const cleanName = String(studentName).trim();
+  const cleanStudentId = String(studentId || '').trim() || ('ID-' + Math.floor(100000 + Math.random() * 900000));
+  const prevFinished = await db.findLatestFinishedSessionForStudent(testId, cleanName, cleanStudentId);
+
+  let attemptNumber = 1;
+  let previousSessionId = null;
+
+  if (prevFinished) {
+    if (!prevFinished.retakeAllowed && !globalDebugBypass && !req.body.proctorBypassed) {
+      return res.status(409).json({
+        error: 'Ви вже завершили цей тест. Повторне складання можливе лише після дозволу викладача («Дозволити перескласти»).',
+        code: 'RETAKE_NOT_ALLOWED',
+        previousSessionId: prevFinished.id
+      });
+    }
+    if (prevFinished.retakeAllowed) {
+      await db.consumeRetakePermission(prevFinished.id);
+    }
+    attemptNumber = (prevFinished.attemptNumber || 1) + 1;
+    previousSessionId = prevFinished.id;
+  }
+
+  const sessionId = generateSecureId('ses_', 12);
+  const studentToken = crypto.randomBytes(24).toString('hex');
   const session = await db.createSession({
     id: sessionId,
+    studentToken,
     testId,
-    studentName,
-    studentId: studentId || ('ID-' + Math.floor(100000 + Math.random() * 900000)),
+    studentName: cleanName,
+    studentId: cleanStudentId,
     avatar: avatar || null,
+    attemptNumber,
+    previousSessionId,
     clientIp: req.headers['x-forwarded-for'] || req.socket.remoteAddress || '127.0.0.1',
     clientInfo: clientInfo || {},
     proctorBypassed: globalDebugBypass || !!req.body.proctorBypassed
@@ -686,11 +1004,15 @@ app.post('/api/sessions/start', sessionStartLimiter, async (req, res) => {
 
   res.json({
     id: session.id,
+    studentToken: session.studentToken,
     testId: session.testId,
     studentName: session.studentName,
     studentId: session.studentId,
     avatar: session.avatar || null,
     startedAt: session.startedAt,
+    totalPausedMs: 0,
+    isPaused: globalExamPaused,
+    attemptNumber: session.attemptNumber || 1,
     clientIp: session.clientIp,
     questions: sanitizedQuestions,
     partialAnswers: {},
@@ -705,16 +1027,26 @@ app.get('/api/sessions/:id/state', async (req, res) => {
   if (!session) {
     return res.status(404).json({ error: 'Сесію не знайдено' });
   }
+  if (!verifyStudentSessionToken(session, extractStudentToken(req))) {
+    return res.status(401).json({ error: 'Недійсний токен сесії' });
+  }
   const test = await db.getTest(session.testId);
   const rawQuestions = session.questions || (test ? test.questions : []) || [];
   const sanitizedQuestions = rawQuestions.map(sanitizeQuestionForStudent);
+  const activePauseExtra = (session.isPaused && session.pausedAt) ? Math.max(0, Date.now() - session.pausedAt) : 0;
+  const globalPauseExtra = (!session.isPaused && globalExamPaused && globalPauseStartedAt) ? Math.max(0, Date.now() - globalPauseStartedAt) : 0;
+
   res.json({
     id: session.id,
     testId: session.testId,
     studentName: session.studentName,
     studentId: session.studentId,
     startedAt: session.startedAt,
-    durationMinutes: (test && test.durationMinutes) || 15,
+    totalPausedMs: (session.totalPausedMs || 0) + activePauseExtra + globalPauseExtra,
+    isPaused: globalExamPaused || !!session.isPaused,
+    pauseMessage: session.isPaused ? (session.pauseMessage || 'Ваш екзамен тимчасово призупинено викладачем') : '',
+    attemptNumber: session.attemptNumber || 1,
+    durationMinutes: session.durationMinutes || (test && test.durationMinutes) || 15,
     status: session.status,
     trustScore: session.trustScore,
     proctorBypassed: globalDebugBypass || !!session.proctorBypassed,
@@ -723,7 +1055,29 @@ app.get('/api/sessions/:id/state', async (req, res) => {
   });
 });
 
+app.get('/api/sessions/:id/retake-status', async (req, res) => {
+  const session = await db.getSession(req.params.id);
+  if (!session) {
+    return res.status(404).json({ error: 'Сесію не знайдено' });
+  }
+  if (!verifyStudentSessionToken(session, extractStudentToken(req))) {
+    return res.status(401).json({ error: 'Недійсний токен сесії' });
+  }
+  res.json({
+    retakeAllowed: !!session.retakeAllowed && !session.retakeUsed,
+    retakeUsed: !!session.retakeUsed,
+    attemptNumber: session.attemptNumber || 1
+  });
+});
+
 app.post('/api/sessions/:id/answers', async (req, res) => {
+  const session = await db.getSession(req.params.id);
+  if (!session) {
+    return res.status(404).json({ error: 'Сесію не знайдено' });
+  }
+  if (!verifyStudentSessionToken(session, extractStudentToken(req))) {
+    return res.status(401).json({ error: 'Недійсний токен сесії' });
+  }
   const { answers } = req.body;
   if (!answers || typeof answers !== 'object') {
     return res.status(400).json({ error: 'Некоректні відповіді' });
@@ -736,7 +1090,14 @@ app.post('/api/sessions/:id/answers', async (req, res) => {
 });
 
 app.get('/api/health', (req, res) => {
-  res.json({ status: 'ok', uptime: process.uptime() });
+  res.json({
+    ok: true,
+    status: 'ok',
+    version: readLocalVersion(),
+    storage: db.isPostgres() ? 'postgres' : 'json',
+    uptime: process.uptime(),
+    timestamp: Date.now()
+  });
 });
 
 app.post('/api/ping', (req, res) => {
@@ -751,6 +1112,13 @@ app.post('/api/incidents', async (req, res) => {
   const { sessionId, incident } = req.body;
   if (!sessionId || !incident) {
     return res.status(400).json({ error: 'Невірні дані' });
+  }
+  const session = await db.getSession(sessionId);
+  if (!session) {
+    return res.status(404).json({ error: 'Сесію не знайдено' });
+  }
+  if (!verifyStudentSessionToken(session, extractStudentToken(req))) {
+    return res.status(401).json({ error: 'Недійсний токен сесії' });
   }
 
   const recorded = await db.logIncident(sessionId, incident);
@@ -769,6 +1137,14 @@ app.post('/api/sessions/submit', async (req, res) => {
     return res.status(400).json({ error: 'Не вказано sessionId' });
   }
 
+  const existing = await db.getSession(sessionId);
+  if (!existing) {
+    return res.status(404).json({ error: 'Сесію не знайдено' });
+  }
+  if (!verifyStudentSessionToken(existing, extractStudentToken(req))) {
+    return res.status(401).json({ error: 'Недійсний токен сесії' });
+  }
+
   const result = await db.submitTest(sessionId, { answers: answers || {}, questionTimings: questionTimings || {} });
   if (!result) {
     return res.status(404).json({ error: 'Сесію не знайдено' });
@@ -777,7 +1153,7 @@ app.post('/api/sessions/submit', async (req, res) => {
   broadcastToAdmins({
     type: 'session_completed',
     sessionId,
-    result
+    result: sanitizeSessionForAdmin(result)
   });
 
   const answerReviewAvailable = result.status === 'completed' && !!result.answers;
@@ -789,6 +1165,7 @@ app.post('/api/sessions/submit', async (req, res) => {
     id: result.id,
     studentName: result.studentName,
     studentId: result.studentId,
+    attemptNumber: result.attemptNumber || 1,
     scorePercentage: result.scorePercentage,
     score12: result.score12,
     rawScore: result.rawScore,
@@ -803,7 +1180,7 @@ app.post('/api/sessions/submit', async (req, res) => {
 
 app.get('/api/admin/sessions', requireAdmin, async (req, res) => {
   const sessions = await db.getAllSessions();
-  res.json(sessions);
+  res.json(sessions.map(sanitizeSessionForAdmin));
 });
 
 app.get('/api/admin/sessions/:id', requireAdmin, async (req, res) => {
@@ -816,7 +1193,7 @@ app.get('/api/admin/sessions/:id', requireAdmin, async (req, res) => {
   const pings = await db.getSessionPings(req.params.id);
 
   res.json({
-    session,
+    session: sanitizeSessionForAdmin(session),
     incidents,
     pings
   });
@@ -880,21 +1257,28 @@ app.put('/api/admin/tests/:id', requireAdmin, async (req, res) => {
   if (req.body.topic !== undefined) test.topic = req.body.topic;
   if (req.body.subject !== undefined) test.subject = req.body.subject;
   if (req.body.tags !== undefined) test.tags = Array.isArray(req.body.tags) ? req.body.tags : [];
-  if (req.body.questions !== undefined && Array.isArray(req.body.questions)) test.questions = req.body.questions;
+  if (req.body.questions !== undefined && Array.isArray(req.body.questions)) {
+    test.questions = req.body.questions.map(q => {
+      const copy = { ...q };
+      if (copy.type === 'numeric') {
+        const parsedTarget = parseNumericInput(copy.correct);
+        copy.correct = parsedTarget !== null ? parsedTarget : 0;
+        copy.numericTolerance = Math.max(0, Math.abs(parseNumericInput(copy.numericTolerance) ?? 0));
+      }
+      return copy;
+    });
+  }
   if (req.body.shuffleQuestions !== undefined) test.shuffleQuestions = !!req.body.shuffleQuestions;
   if (req.body.shuffleOptions !== undefined) test.shuffleOptions = !!req.body.shuffleOptions;
   await db.saveTest(test);
   res.json(test);
 });
 
-app.post('/api/admin/tests/:id/questions', requireAdmin, async (req, res) => {
-  const { text, options, correct, timeLimitSeconds, type, matchingPairs, orderingItems, blanks, hotspotTarget, imageUrl, images, correctKeywords, useAiGrading } = req.body;
-  if (!text || !text.trim()) {
-    return res.status(400).json({ error: 'Питання повинно містити текст' });
-  }
-
+function parseQuestionPayload(body) {
+  const { text, options, correct, numericTolerance, timeLimitSeconds, type, matchingPairs, orderingItems, blanks, hotspotTarget, imageUrl, images, correctKeywords } = body;
   const qType = type || 'single';
   let processedCorrect = 0;
+  let processedTolerance = undefined;
 
   if (qType === 'multiple') {
     processedCorrect = Array.isArray(correct) ? correct.map(Number).filter(n => !isNaN(n)) : [0];
@@ -904,6 +1288,17 @@ app.post('/api/admin/tests/:id/questions', requireAdmin, async (req, res) => {
     processedCorrect = Array.isArray(orderingItems) ? orderingItems : (Array.isArray(options) ? options : []);
   } else if (qType === 'short_answer') {
     processedCorrect = typeof correct === 'string' ? correct.trim() : String(correct || '');
+  } else if (qType === 'numeric') {
+    const parsedTarget = parseNumericInput(correct);
+    if (parsedTarget === null) {
+      return { error: 'Вкажіть коректне числове значення правильної відповіді' };
+    }
+    const parsedTol = numericTolerance !== undefined ? parseNumericInput(numericTolerance) : 0;
+    if (parsedTol === null || parsedTol < 0) {
+      return { error: 'Допустима похибка має бути невід’ємним числом' };
+    }
+    processedCorrect = parsedTarget;
+    processedTolerance = Math.abs(parsedTol);
   } else if (qType === 'true_false') {
     processedCorrect = Number(correct) === 1 ? 1 : 0;
   } else {
@@ -911,21 +1306,48 @@ app.post('/api/admin/tests/:id/questions', requireAdmin, async (req, res) => {
     if (isNaN(processedCorrect) || processedCorrect < 0) processedCorrect = 0;
   }
 
-  const finalImages = Array.isArray(images) ? images : (imageUrl ? [imageUrl] : []);
-  const newQ = await db.addQuestion(req.params.id, {
-    text: text.trim(),
-    images: finalImages,
+  const finalImages = images !== undefined ? (Array.isArray(images) ? images : (images ? [images] : [])) : (imageUrl ? [imageUrl] : []);
+  return {
+    text,
+    qType,
+    finalImages,
     imageUrl: finalImages[0] || (imageUrl || ''),
     options: Array.isArray(options) ? options : [],
     matchingPairs: Array.isArray(matchingPairs) ? matchingPairs : [],
     orderingItems: Array.isArray(orderingItems) ? orderingItems : [],
     blanks: Array.isArray(blanks) ? blanks : [],
     hotspotTarget: hotspotTarget || null,
-    correct: processedCorrect,
+    processedCorrect,
+    processedTolerance,
     correctKeywords: Array.isArray(correctKeywords) ? correctKeywords : (typeof processedCorrect === 'string' ? processedCorrect.split(',').map(s => s.trim()).filter(Boolean) : []),
-    timeLimitSeconds: parseInt(timeLimitSeconds, 10) || 60,
-    type: qType,
-    useAiGrading: qType === 'short_answer' ? (useAiGrading || false) : false
+    timeLimitSeconds: parseInt(timeLimitSeconds, 10) || 60
+  };
+}
+
+app.post('/api/admin/tests/:id/questions', requireAdmin, async (req, res) => {
+  if (!req.body.text || !req.body.text.trim()) {
+    return res.status(400).json({ error: 'Питання повинно містити текст' });
+  }
+  const parsed = parseQuestionPayload(req.body);
+  if (parsed.error) {
+    return res.status(400).json({ error: parsed.error });
+  }
+
+  const newQ = await db.addQuestion(req.params.id, {
+    text: req.body.text.trim(),
+    images: parsed.finalImages,
+    imageUrl: parsed.imageUrl,
+    options: parsed.options,
+    matchingPairs: parsed.matchingPairs,
+    orderingItems: parsed.orderingItems,
+    blanks: parsed.blanks,
+    hotspotTarget: parsed.hotspotTarget,
+    correct: parsed.processedCorrect,
+    numericTolerance: parsed.processedTolerance,
+    correctKeywords: parsed.correctKeywords,
+    timeLimitSeconds: parsed.timeLimitSeconds,
+    type: parsed.qType,
+    useAiGrading: false
   });
 
   if (!newQ) {
@@ -954,40 +1376,24 @@ app.post('/api/admin/tests/:id/questions/bulk', requireAdmin, async (req, res) =
   const added = [];
   for (const q of questions) {
     if (!q.text || !q.text.trim()) continue;
+    const parsed = parseQuestionPayload(q);
+    if (parsed.error) continue;
 
-    const qType = q.type || 'single';
-    let processedCorrect = 0;
-
-    if (qType === 'multiple') {
-      processedCorrect = Array.isArray(q.correct) ? q.correct.map(Number).filter(n => !isNaN(n)) : [0];
-    } else if (qType === 'matching') {
-      processedCorrect = typeof q.correct === 'object' && q.correct !== null ? q.correct : {};
-    } else if (qType === 'ordering') {
-      processedCorrect = Array.isArray(q.orderingItems) ? q.orderingItems : (Array.isArray(q.options) ? q.options : []);
-    } else if (qType === 'short_answer') {
-      processedCorrect = typeof q.correct === 'string' ? q.correct.trim() : String(q.correct || '');
-    } else if (qType === 'true_false') {
-      processedCorrect = Number(q.correct) === 1 ? 1 : 0;
-    } else {
-      processedCorrect = parseInt(q.correct, 10);
-      if (isNaN(processedCorrect) || processedCorrect < 0) processedCorrect = 0;
-    }
-
-    const qImages = Array.isArray(q.images) ? q.images : (q.imageUrl ? [q.imageUrl] : []);
     const newQuestion = {
-      id: 'q_' + Math.random().toString(36).substring(2, 9),
+      id: generateSecureId('q_', 6),
       text: q.text.trim(),
-      type: qType,
-      images: qImages,
-      imageUrl: qImages[0] || (q.imageUrl || ''),
-      options: Array.isArray(q.options) ? q.options : [],
-      matchingPairs: Array.isArray(q.matchingPairs) ? q.matchingPairs : [],
-      orderingItems: Array.isArray(q.orderingItems) ? q.orderingItems : [],
-      blanks: Array.isArray(q.blanks) ? q.blanks : [],
-      hotspotTarget: q.hotspotTarget || null,
-      correct: processedCorrect,
-      correctKeywords: Array.isArray(q.correctKeywords) ? q.correctKeywords : (typeof processedCorrect === 'string' ? processedCorrect.split(',').map(s => s.trim()).filter(Boolean) : []),
-      timeLimitSeconds: parseInt(q.timeLimitSeconds, 10) || 60
+      type: parsed.qType,
+      images: parsed.finalImages,
+      imageUrl: parsed.imageUrl,
+      options: parsed.options,
+      matchingPairs: parsed.matchingPairs,
+      orderingItems: parsed.orderingItems,
+      blanks: parsed.blanks,
+      hotspotTarget: parsed.hotspotTarget,
+      correct: parsed.processedCorrect,
+      numericTolerance: parsed.processedTolerance,
+      correctKeywords: parsed.correctKeywords,
+      timeLimitSeconds: parsed.timeLimitSeconds
     };
     test.questions.push(newQuestion);
     added.push(newQuestion);
@@ -998,39 +1404,25 @@ app.post('/api/admin/tests/:id/questions/bulk', requireAdmin, async (req, res) =
 });
 
 app.put('/api/admin/tests/:id/questions/:qId', requireAdmin, async (req, res) => {
-  const { text, options, correct, timeLimitSeconds, type, matchingPairs, orderingItems, blanks, hotspotTarget, imageUrl, images, correctKeywords, useAiGrading } = req.body;
-  const qType = type || 'single';
-  let processedCorrect = 0;
-
-  if (qType === 'multiple') {
-    processedCorrect = Array.isArray(correct) ? correct.map(Number).filter(n => !isNaN(n)) : [0];
-  } else if (qType === 'matching') {
-    processedCorrect = typeof correct === 'object' && correct !== null ? correct : {};
-  } else if (qType === 'ordering') {
-    processedCorrect = Array.isArray(orderingItems) ? orderingItems : (Array.isArray(options) ? options : []);
-  } else if (qType === 'short_answer') {
-    processedCorrect = typeof correct === 'string' ? correct.trim() : String(correct || '');
-  } else if (qType === 'true_false') {
-    processedCorrect = Number(correct) === 1 ? 1 : 0;
-  } else {
-    processedCorrect = parseInt(correct, 10);
-    if (isNaN(processedCorrect) || processedCorrect < 0) processedCorrect = 0;
+  const parsed = parseQuestionPayload(req.body);
+  if (parsed.error) {
+    return res.status(400).json({ error: parsed.error });
   }
 
-  const finalImages = images !== undefined ? (Array.isArray(images) ? images : (images ? [images] : [])) : undefined;
   const updated = await db.updateQuestion(req.params.id, req.params.qId, {
-    text,
-    images: finalImages,
-    imageUrl: finalImages && finalImages.length > 0 ? finalImages[0] : imageUrl,
-    options,
-    matchingPairs,
-    orderingItems,
-    blanks: blanks !== undefined ? (Array.isArray(blanks) ? blanks : []) : undefined,
-    hotspotTarget: hotspotTarget !== undefined ? hotspotTarget : undefined,
-    correct: processedCorrect,
-    correctKeywords: Array.isArray(correctKeywords) ? correctKeywords : (typeof processedCorrect === 'string' ? processedCorrect.split(',').map(s => s.trim()).filter(Boolean) : []),
-    timeLimitSeconds,
-    type: qType
+    text: req.body.text,
+    images: req.body.images !== undefined ? parsed.finalImages : undefined,
+    imageUrl: req.body.images !== undefined ? parsed.imageUrl : req.body.imageUrl,
+    options: req.body.options,
+    matchingPairs: req.body.matchingPairs,
+    orderingItems: req.body.orderingItems,
+    blanks: req.body.blanks !== undefined ? parsed.blanks : undefined,
+    hotspotTarget: req.body.hotspotTarget !== undefined ? parsed.hotspotTarget : undefined,
+    correct: parsed.processedCorrect,
+    numericTolerance: parsed.processedTolerance,
+    correctKeywords: parsed.correctKeywords,
+    timeLimitSeconds: req.body.timeLimitSeconds,
+    type: parsed.qType
   });
   if (!updated) {
     return res.status(404).json({ error: 'Питання або тест не знайдено' });
@@ -1054,7 +1446,7 @@ app.post('/api/admin/upload-image', requireAdmin, async (req, res) => {
     if (!fs.existsSync(uploadDir)) {
       fs.mkdirSync(uploadDir, { recursive: true });
     }
-    const cleanName = 'img_' + Date.now() + '_' + Math.random().toString(36).substring(2, 8) + '.' + ext;
+    const cleanName = 'img_' + Date.now() + '_' + crypto.randomBytes(4).toString('hex') + '.' + ext;
     const filePath = path.join(uploadDir, cleanName);
     fs.writeFileSync(filePath, buffer);
     res.json({ success: true, url: '/uploads/' + cleanName });
@@ -1069,17 +1461,12 @@ app.post('/api/admin/sessions/:id/send-message', requireAdmin, async (req, res) 
   if (!message || !message.trim()) {
     return res.status(400).json({ error: 'Повідомлення не може бути порожнім' });
   }
-  const targetClient = connectedClients.get(sessionId);
-  let delivered = false;
-  if (targetClient && targetClient.ws && targetClient.ws.readyState === WebSocket.OPEN) {
-    targetClient.ws.send(JSON.stringify({
-      type: 'teacher_warning',
-      message: message.trim(),
-      level: level || 'warning',
-      timestamp: Date.now()
-    }));
-    delivered = true;
-  }
+  const delivered = sendToStudent(sessionId, {
+    type: 'teacher_warning',
+    message: message.trim(),
+    level: level || 'warning',
+    timestamp: Date.now()
+  });
   await db.logIncident(sessionId, {
     category: 'teacher_warning',
     message: `Попередження від викладача: ${message.trim()}`,
@@ -1117,7 +1504,7 @@ app.post('/api/admin/ai-parse-import', requireAdmin, async (req, res) => {
       const options = [];
       let correctIdx = 0;
 
-      optLines.forEach((ol, idx) => {
+      optLines.forEach((ol) => {
         let isCorrect = false;
         let clean = ol;
         if (clean.includes('+') || clean.includes('*') || clean.toLowerCase().includes('(правильно)')) {
@@ -1185,11 +1572,8 @@ app.post('/api/admin/sessions/:id/override-unlock', requireAdmin, async (req, re
     return res.status(404).json({ error: 'Сесію не знайдено' });
   }
   broadcastToAdmins({ type: 'session_unlocked', sessionId: req.params.id, trustScore: session.trustScore });
-  const studentClient = connectedClients.get(req.params.id);
-  if (studentClient && studentClient.ws.readyState === WebSocket.OPEN) {
-    studentClient.ws.send(JSON.stringify({ type: 'admin_override_unlock', trustScore: session.trustScore }));
-  }
-  res.json({ success: true, session });
+  sendToStudent(req.params.id, { type: 'admin_override_unlock', trustScore: session.trustScore });
+  res.json({ success: true, session: sanitizeSessionForAdmin(session) });
 });
 
 app.post('/api/admin/sessions/:id/override-bypass', requireAdmin, async (req, res) => {
@@ -1197,12 +1581,9 @@ app.post('/api/admin/sessions/:id/override-bypass', requireAdmin, async (req, re
   if (!session) {
     return res.status(404).json({ error: 'Сесію не знайдено' });
   }
-  const studentClient = connectedClients.get(req.params.id);
-  if (studentClient && studentClient.ws.readyState === WebSocket.OPEN) {
-    studentClient.ws.send(JSON.stringify({ type: 'admin_override_bypass', trustScore: session.trustScore }));
-  }
+  sendToStudent(req.params.id, { type: 'admin_override_bypass', trustScore: session.trustScore });
   broadcastToAdmins({ type: 'session_bypassed', sessionId: req.params.id, trustScore: session.trustScore });
-  res.json({ success: true, session });
+  res.json({ success: true, session: sanitizeSessionForAdmin(session) });
 });
 
 app.patch('/api/admin/sessions/:id/override-score', requireAdmin, async (req, res) => {
@@ -1215,7 +1596,7 @@ app.patch('/api/admin/sessions/:id/override-score', requireAdmin, async (req, re
     return res.status(404).json({ error: 'Сесію не знайдено' });
   }
   broadcastToAdmins({ type: 'session_score_overridden', sessionId: req.params.id, score12: session.score12 });
-  res.json({ success: true, session });
+  res.json({ success: true, session: sanitizeSessionForAdmin(session) });
 });
 
 app.post('/api/admin/sessions/:id/add-time', requireAdmin, async (req, res) => {
@@ -1225,10 +1606,7 @@ app.post('/api/admin/sessions/:id/add-time', requireAdmin, async (req, res) => {
   if (!session) {
     return res.status(404).json({ error: 'Сесію не знайдено' });
   }
-  const studentClient = connectedClients.get(req.params.id);
-  if (studentClient && studentClient.ws.readyState === WebSocket.OPEN) {
-    studentClient.ws.send(JSON.stringify({ type: 'time_extended', minutes: mins }));
-  }
+  sendToStudent(req.params.id, { type: 'time_extended', minutes: mins });
   broadcastToAdmins({
     type: 'session_time_extended',
     sessionId: req.params.id,
@@ -1236,7 +1614,7 @@ app.post('/api/admin/sessions/:id/add-time', requireAdmin, async (req, res) => {
     durationMinutes: session.durationMinutes,
     extraTimeMinutes: session.extraTimeMinutes
   });
-  res.json({ success: true, session, addedMinutes: mins });
+  res.json({ success: true, session: sanitizeSessionForAdmin(session), addedMinutes: mins });
 });
 
 app.delete('/api/admin/sessions/:id', requireAdmin, async (req, res) => {
@@ -1511,9 +1889,7 @@ app.post('/api/admin/announcement', requireAdmin, async (req, res) => {
   }
 });
 
-app.get('/api/health', (req, res) => {
-  res.json({ ok: true, version: readLocalVersion(), timestamp: Date.now() });
-});
+
 
 let updateProgress = {
   active: false,
@@ -1539,7 +1915,7 @@ app.post('/api/admin/update/apply', requireAdmin, async (req, res) => {
     active: true,
     percent: 5,
     stage: 'Створення резервної копії даних...',
-    detail: 'Збереження data.json та .env',
+    detail: 'Збереження data.json',
     error: null
   };
 
@@ -1551,10 +1927,6 @@ app.post('/api/admin/update/apply', requireAdmin, async (req, res) => {
     const dataFile = path.join(__dirname, 'data.json');
     if (fs.existsSync(dataFile)) {
       fs.copyFileSync(dataFile, path.join(backupDir, `data_backup_${Date.now()}.json`));
-    }
-    const envFile = fs.existsSync(path.join(__dirname, '.env')) ? path.join(__dirname, '.env') : path.join(rootDir, '.env');
-    if (fs.existsSync(envFile)) {
-      fs.copyFileSync(envFile, path.join(backupDir, `env_backup_${Date.now()}.json`));
     }
 
     if (downloadUrl && downloadUrl.startsWith('http')) {
@@ -1729,7 +2101,12 @@ async function bootstrap() {
     if (httpsServer) {
       console.log(`[+] Адмін-панель (HTTPS):   https://localhost:${HTTPS_PORT}/admin.html (Камера/SSL)`);
     }
-    console.log('[+] Пароль викладача збережений у server/admin_secret.json; значення приховане.');
+    console.log(`[+] База даних:             ${db.isPostgres() ? 'PostgreSQL (постійна)' : 'JSON (локальний файл)'}`);
+    if (generatedOneTimePassword) {
+      console.log(`[+] Початковий пароль:      ${generatedOneTimePassword}`);
+    } else {
+      console.log('[+] Пароль викладача захищено (хеш збережено у server/admin_secret.json).');
+    }
     console.log(`[+] Локальна мережа (Wi-Fi): http://${localIp}:${PORT}`);
     if (httpsServer) {
       console.log(`[+] Wi-Fi HTTPS:            https://${localIp}:${HTTPS_PORT}`);
