@@ -72,9 +72,11 @@ let activeQuestionIndex = 0;
 let draggedQuestionIndex = null;
 let draggedOptionIndex = null;
 let undoStack = [];
+let aiChatHistory = [];
 
 function loadTestIntoStudio(testData) {
   if (!testData) return;
+  const prevId = currentTest?.id;
   currentTest = {
     id: testData.id || ('test_' + Date.now()),
     name: testData.title || testData.name || 'Новий тест',
@@ -94,6 +96,9 @@ function loadTestIntoStudio(testData) {
     if (!q.options) q.options = [];
   });
 
+  if (prevId && prevId !== currentTest.id) {
+    aiChatHistory = [];
+  }
   activeQuestionIndex = 0;
   undoStack = [];
   updateUndoButtonState();
@@ -310,52 +315,53 @@ function bindActionButtons() {
 
   if (quickSave) {
     quickSave.addEventListener('click', async () => {
-      saveCurrentEditorQuestion();
-      saveDraftToStorage();
-      if (!currentTest || !currentTest.id) {
-        showToast('Тест збережено локально');
-        return;
-      }
-      const payload = {
-        title: currentTest.name || currentTest.title,
-        subject: currentTest.subject || 'Географія',
-        topic: currentTest.topic || '',
-        durationMinutes: parseInt(currentTest.durationMinutes, 10) || 15,
-        class: currentTest.class || '10-А',
-        shuffleQuestions: !!currentTest.shuffleQuestions,
-        shuffleOptions: !!currentTest.shuffleOptions,
-        questions: (currentTest.questions || []).map(q => {
-          const copy = { ...q };
-          copy.timeLimitSeconds = copy.timeLimit || copy.timeLimitSeconds || 60;
-          return copy;
-        })
-      };
+      quickSave.disabled = true;
       try {
-        quickSave.disabled = true;
-        const token = localStorage.getItem('admin_token') || '';
-        const res = await fetch(`/api/admin/tests/${encodeURIComponent(currentTest.id)}`, {
-          method: 'PUT',
-          headers: {
-            'Content-Type': 'application/json',
-            'x-admin-token': token
-          },
-          body: JSON.stringify(payload)
-        });
-        if (res.ok) {
-          showToast('Тест успішно збережено на сервері!');
-          if (typeof window.refreshAdminTestsList === 'function') {
-            window.refreshAdminTestsList();
-          }
-        } else {
-          showToast('Збережено локально');
-        }
-      } catch {
-        showToast('Збережено локально');
+        const savedOk = await persistStudioTestToServer();
+        showToast(savedOk ? 'Тест успішно збережено на сервері!' : 'Тест збережено локально');
       } finally {
         quickSave.disabled = false;
       }
     });
   }
+}
+
+async function persistStudioTestToServer() {
+  saveCurrentEditorQuestion();
+  saveDraftToStorage();
+  if (!currentTest || !currentTest.id) return false;
+  const payload = {
+    title: currentTest.name || currentTest.title,
+    subject: currentTest.subject || 'Загальний',
+    topic: currentTest.topic || '',
+    durationMinutes: parseInt(currentTest.durationMinutes, 10) || 15,
+    class: currentTest.class || '10-А',
+    shuffleQuestions: !!currentTest.shuffleQuestions,
+    shuffleOptions: !!currentTest.shuffleOptions,
+    questions: (currentTest.questions || []).map(q => {
+      const copy = { ...q };
+      copy.timeLimitSeconds = copy.timeLimit || copy.timeLimitSeconds || 60;
+      return copy;
+    })
+  };
+  try {
+    const token = localStorage.getItem('admin_token') || '';
+    const res = await fetch(`/api/admin/tests/${encodeURIComponent(currentTest.id)}`, {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-admin-token': token
+      },
+      body: JSON.stringify(payload)
+    });
+    if (res.ok) {
+      if (typeof window.refreshAdminTestsList === 'function') {
+        await window.refreshAdminTestsList();
+      }
+      return true;
+    }
+  } catch {}
+  return false;
 }
 
 function saveDraftToStorage() {
@@ -1410,7 +1416,182 @@ function saveCurrentEditorQuestion() {
 
 let lastGeminiError = '';
 
-async function callGeminiApi(promptText, expectJson = true) {
+const STUDIO_TYPE_LABELS = {
+  single: '1 варіант',
+  multiple: 'Кілька правильних',
+  true_false: 'Правда / Неправда',
+  numeric: 'Числова ±',
+  matching: 'Відповідність',
+  ordering: 'Послідовність',
+  short_answer: 'Коротка відповідь',
+  fill_blanks: 'Пропуски'
+};
+
+function normalizeStudioQuestion(raw, fallbackTimeLimit = 60, fallbackToleranceHint = null) {
+  if (!raw || typeof raw !== 'object') return null;
+  const text = String(raw.text || raw.question || '').trim();
+  if (!text) return null;
+
+  const typeAliases = {
+    single: 'single',
+    multiple: 'multiple',
+    true_false: 'true_false',
+    tf: 'true_false',
+    boolean: 'true_false',
+    matching: 'matching',
+    match: 'matching',
+    ordering: 'ordering',
+    order: 'ordering',
+    numeric: 'numeric',
+    number: 'numeric',
+    short_answer: 'short_answer',
+    short: 'short_answer',
+    open: 'short_answer',
+    fill_blanks: 'fill_blanks'
+  };
+  const qType = typeAliases[String(raw.type || 'single').toLowerCase()] || 'single';
+  const tl = Math.max(10, Math.min(600, parseInt(raw.timeLimit || raw.timeLimitSeconds || fallbackTimeLimit, 10) || 60));
+  const points = Math.max(1, parseInt(raw.points, 10) || 1);
+  const explanation = String(raw.explanation || '').trim();
+
+  const q = {
+    id: raw.id || ('q_ai_' + Date.now() + '_' + Math.random().toString(36).slice(2, 6)),
+    text,
+    type: qType,
+    images: [],
+    imageUrl: '',
+    options: [],
+    matchingPairs: [],
+    orderingItems: [],
+    blanks: [],
+    correctKeywords: [],
+    points,
+    timeLimit: tl,
+    timeLimitSeconds: tl,
+    explanation
+  };
+
+  if (qType === 'true_false') {
+    q.options = ['Неправда', 'Правда'];
+    const cRaw = raw.correct !== undefined ? raw.correct : raw.correctAnswer;
+    const cStr = String(cRaw).trim().toLowerCase();
+    q.correct = (cRaw === true || cRaw === 1 || cStr === '1' || cStr === 'true' || cStr === 'правда') ? 1 : 0;
+    return q;
+  }
+
+  if (qType === 'matching') {
+    const rawPairs = Array.isArray(raw.matchingPairs) ? raw.matchingPairs : (Array.isArray(raw.pairs) ? raw.pairs : []);
+    const pairs = rawPairs
+      .map(p => ({ left: String(p?.left || p?.a || '').trim(), right: String(p?.right || p?.b || '').trim() }))
+      .filter(p => p.left && p.right);
+    if (pairs.length < 2) return null;
+    q.matchingPairs = pairs;
+    q.correct = {};
+    return q;
+  }
+
+  if (qType === 'ordering') {
+    const rawItems = Array.isArray(raw.orderingItems)
+      ? raw.orderingItems
+      : (Array.isArray(raw.items) ? raw.items : (Array.isArray(raw.options) ? raw.options : []));
+    const items = rawItems.map(i => String(i || '').trim()).filter(Boolean);
+    if (items.length < 2) return null;
+    q.orderingItems = items;
+    q.options = items;
+    q.correct = items;
+    return q;
+  }
+
+  if (qType === 'numeric') {
+    const target = parseEditorNumericVal(raw.correct !== undefined ? raw.correct : raw.answer);
+    if (target === null) return null;
+    let parsedTol = parseEditorNumericVal(raw.numericTolerance);
+    if (parsedTol === null && fallbackToleranceHint !== null && fallbackToleranceHint !== undefined) {
+      parsedTol = parseEditorNumericVal(fallbackToleranceHint);
+    }
+    const absTol = Math.max(0, Math.abs(parsedTol ?? 0));
+    const enabled = fallbackToleranceHint === 0
+      ? false
+      : (raw.numericToleranceEnabled !== undefined ? !!raw.numericToleranceEnabled && absTol > 0 : absTol > 0);
+    q.correct = target;
+    q.numericTolerance = enabled ? absTol : 0;
+    q.numericToleranceEnabled = enabled;
+    return q;
+  }
+
+  if (qType === 'short_answer') {
+    let keywords = [];
+    if (Array.isArray(raw.correctKeywords)) {
+      keywords = raw.correctKeywords.map(k => String(k || '').trim()).filter(Boolean);
+    }
+    if (keywords.length === 0) {
+      if (Array.isArray(raw.correct)) {
+        keywords = raw.correct.map(k => String(k || '').trim()).filter(Boolean);
+      } else if (raw.correct !== undefined || raw.answer !== undefined) {
+        keywords = String(raw.correct !== undefined ? raw.correct : raw.answer)
+          .split(',')
+          .map(s => s.trim())
+          .filter(Boolean);
+      }
+    }
+    if (keywords.length === 0) return null;
+    q.correct = keywords.join(', ');
+    q.correctKeywords = keywords;
+    q.useAiGrading = !!raw.useAiGrading;
+    return q;
+  }
+
+  const opts = Array.isArray(raw.options) ? raw.options.map(o => String(o || '').trim()).filter(Boolean) : [];
+  if (opts.length < 2) return null;
+  q.options = opts;
+
+  if (qType === 'multiple') {
+    let corr = Array.isArray(raw.correct)
+      ? raw.correct.map(c => parseInt(c, 10)).filter(n => !isNaN(n) && n >= 0 && n < opts.length)
+      : [];
+    corr = Array.from(new Set(corr)).sort((a, b) => a - b);
+    q.correct = corr.length > 0 ? corr : [0];
+    return q;
+  }
+
+  let corrIdx = parseInt(raw.correct, 10);
+  if ((isNaN(corrIdx) || corrIdx < 0 || corrIdx >= opts.length) && raw.correctAnswer !== undefined) {
+    corrIdx = opts.findIndex(o => o.toLowerCase() === String(raw.correctAnswer).trim().toLowerCase());
+  }
+  q.correct = (!isNaN(corrIdx) && corrIdx >= 0 && corrIdx < opts.length) ? corrIdx : 0;
+  return q;
+}
+
+function formatQuestionSummaryLines(q) {
+  if (!q) return [];
+  if (q.type === 'matching' && Array.isArray(q.matchingPairs)) {
+    return q.matchingPairs.map((p, idx) => `${idx + 1}. ${p.left} ↔ ${p.right}`);
+  }
+  if (q.type === 'ordering') {
+    const items = Array.isArray(q.orderingItems) && q.orderingItems.length > 0 ? q.orderingItems : (q.options || []);
+    return items.map((item, idx) => `${idx + 1}) ${item}`);
+  }
+  if (q.type === 'numeric') {
+    const target = q.correct;
+    const tol = q.numericToleranceEnabled && Number(q.numericTolerance) > 0
+      ? ` (± ${q.numericTolerance})`
+      : ' (точне число)';
+    return [`Відповідь: ${target}${tol}`];
+  }
+  if (q.type === 'short_answer') {
+    const kw = Array.isArray(q.correctKeywords) && q.correctKeywords.length > 0
+      ? q.correctKeywords.join(', ')
+      : String(q.correct || '');
+    return [`Прийнятні відповіді: ${kw}`];
+  }
+  const opts = Array.isArray(q.options) ? q.options : [];
+  return opts.map((opt, idx) => {
+    const isCorr = Array.isArray(q.correct) ? q.correct.includes(idx) : Number(q.correct) === idx;
+    return `${isCorr ? '[✓]' : '•'} ${opt}`;
+  });
+}
+
+async function callGeminiApi(promptText, expectJson = true, extraOptions = {}) {
   lastGeminiError = '';
   const token = localStorage.getItem('admin_token') || '';
   if (!token) {
@@ -1427,7 +1608,10 @@ async function callGeminiApi(promptText, expectJson = true) {
       },
       body: JSON.stringify({
         prompt: promptText,
-        expectJson: !!expectJson
+        expectJson: !!expectJson,
+        history: Array.isArray(extraOptions.history) ? extraOptions.history : undefined,
+        systemInstruction: extraOptions.systemInstruction || undefined,
+        timeoutMs: extraOptions.timeoutMs || undefined
       })
     });
     const data = await res.json().catch(() => ({}));
@@ -1443,6 +1627,32 @@ async function callGeminiApi(promptText, expectJson = true) {
   return null;
 }
 
+function appendChatErrorWithRetry(errorMessage, onRetry) {
+  const container = document.getElementById('aiChatMessages');
+  if (!container) return;
+  const msg = document.createElement('div');
+  msg.className = 'chat-msg assistant';
+  msg.innerHTML = `
+    <div class="chat-msg-avatar"><img src="/img/icons/warning.svg" class="pixel-icon inline" alt=""></div>
+    <div class="chat-msg-bubble">
+      <div>Не вдалося виконати запит через Gemini.</div>
+      <div class="chat-retry-wrap">
+        <span>${escapeHtml(errorMessage || 'Помилка з’єднання або таймаут сервера.')}</span>
+        ${typeof onRetry === 'function' ? '<button type="button" class="btn-chat-retry">Спробувати ще раз</button>' : ''}
+      </div>
+    </div>
+  `;
+  const retryBtn = msg.querySelector('.btn-chat-retry');
+  if (retryBtn && typeof onRetry === 'function') {
+    retryBtn.addEventListener('click', () => {
+      msg.remove();
+      onRetry();
+    });
+  }
+  container.appendChild(msg);
+  container.scrollTop = container.scrollHeight;
+}
+
 function bindAiSmartTools() {
   const genOptionsBtn = document.getElementById('aiGenOptionsBtn');
   const improveTextBtn = document.getElementById('aiImproveTextBtn');
@@ -1455,7 +1665,7 @@ function bindAiSmartTools() {
   }
 
   if (genOptionsBtn) {
-    genOptionsBtn.addEventListener('click', async () => {
+    const runGenerateOptions = async () => {
       const q = currentTest.questions[activeQuestionIndex];
       if (!q || !q.text) {
         showToast('Спочатку введіть текст запитання');
@@ -1482,15 +1692,16 @@ function bindAiSmartTools() {
   "explanation": "..."
 }`;
 
-      let result = await callGeminiApi(prompt, true);
+      const result = await callGeminiApi(prompt, true, { timeoutMs: 35000 });
       removeTypingIndicator(typingId);
 
-      if (!result || !result.options || result.options.length < 2) {
-        result = getIntelligentFallbackOptions(q);
+      if (!result || !Array.isArray(result.options) || result.options.length < 2) {
+        appendChatErrorWithRetry(lastGeminiError || 'Gemini не повернув коректні варіанти.', runGenerateOptions);
+        return;
       }
 
       recordUndoSnapshot();
-      q.options = result.options;
+      q.options = result.options.map(o => String(o || '').trim()).filter(Boolean);
       if (q.type === 'multiple') {
         q.correct = Array.isArray(result.correct) ? result.correct : [result.correct || 0];
       } else {
@@ -1513,19 +1724,17 @@ function bindAiSmartTools() {
         title: 'Застосовані варіанти відповідей:',
         items: q.options.map((opt, i) => {
           const isCorr = Array.isArray(q.correct) ? q.correct.includes(i) : q.correct === i;
-          return `${isCorr ? '[+]' : '•'} ${opt}`;
+          return `${isCorr ? '[✓]' : '•'} ${opt}`;
         }),
-        explanation: q.explanation,
-        onApply: () => {
-          showToast('Варіанти вже застосовано до питання!');
-        }
+        explanation: q.explanation
       });
       showToast('Gemini згенерував варіанти!');
-    });
+    };
+    genOptionsBtn.addEventListener('click', runGenerateOptions);
   }
 
   if (improveTextBtn) {
-    improveTextBtn.addEventListener('click', async () => {
+    const runImproveText = async () => {
       const q = currentTest.questions[activeQuestionIndex];
       if (!q || !q.text) {
         showToast('Спочатку введіть текст запитання');
@@ -1542,16 +1751,13 @@ function bindAiSmartTools() {
 "${q.text}".
 Поверни строго JSON: { "improved": "покращений текст завдання" }`;
 
-      let result = await callGeminiApi(prompt, true);
+      const result = await callGeminiApi(prompt, true, { timeoutMs: 30000 });
       removeTypingIndicator(typingId);
 
-      let improvedText = result?.improved;
+      const improvedText = result && typeof result.improved === 'string' ? result.improved.trim() : '';
       if (!improvedText) {
-        improvedText = q.text.trim();
-        if (!improvedText.endsWith('?') && !improvedText.endsWith(':')) improvedText += '?';
-        if (!improvedText.startsWith('Укажіть') && !improvedText.startsWith('Визначте') && !improvedText.startsWith('Оберіть')) {
-          improvedText = 'Визначте правильну відповідь: ' + improvedText;
-        }
+        appendChatErrorWithRetry(lastGeminiError || 'Не вдалося покращити формулювання.', runImproveText);
+        return;
       }
 
       recordUndoSnapshot();
@@ -1562,19 +1768,17 @@ function bindAiSmartTools() {
       updateLivePreview();
       saveDraftToStorage();
 
-      appendChatMessage('assistant', `Текст завдання оновлено відповідно до стандартів тестування:`, {
+      appendChatMessage('assistant', 'Текст завдання оновлено відповідно до стандартів тестування:', {
         title: 'Покращене формулювання:',
-        items: [improvedText],
-        onApply: () => {
-          showToast('Текст уже оновлено в редакторі!');
-        }
+        items: [improvedText]
       });
       showToast('Формулювання покращено!');
-    });
+    };
+    improveTextBtn.addEventListener('click', runImproveText);
   }
 
   if (explainBtn) {
-    explainBtn.addEventListener('click', async () => {
+    const runExplainQuestion = async () => {
       const q = currentTest.questions[activeQuestionIndex];
       if (!q || !q.text) {
         showToast('Спочатку введіть текст запитання');
@@ -1588,16 +1792,17 @@ function bindAiSmartTools() {
 
       const prompt = `Створи лаконічне і науково обґрунтоване методичне пояснення правильної відповіді до тестового завдання українською мовою.
 Завдання: "${q.text}".
-Варіанти: ${JSON.stringify(q.options || [])}.
-Правильна відповідь індекс: ${JSON.stringify(q.correct)}.
+Тип: "${q.type}".
+Дані: ${JSON.stringify({ options: q.options || [], matchingPairs: q.matchingPairs || [], orderingItems: q.orderingItems || [], correct: q.correct, numericTolerance: q.numericTolerance })}.
 Поверни строго JSON: { "explanation": "текст пояснення з фактами" }`;
 
-      let result = await callGeminiApi(prompt, true);
+      const result = await callGeminiApi(prompt, true, { timeoutMs: 30000 });
       removeTypingIndicator(typingId);
 
-      let explanation = result?.explanation;
+      const explanation = result && typeof result.explanation === 'string' ? result.explanation.trim() : '';
       if (!explanation) {
-        explanation = `Правильна відповідь обґрунтована положеннями навчальної програми з курсу «${currentTest.subject || 'Загальний'}».`;
+        appendChatErrorWithRetry(lastGeminiError || 'Не вдалося згенерувати пояснення.', runExplainQuestion);
+        return;
       }
 
       recordUndoSnapshot();
@@ -1608,46 +1813,14 @@ function bindAiSmartTools() {
       if (expBox) expBox.classList.remove('hidden');
       saveDraftToStorage();
 
-      appendChatMessage('assistant', `Методичне пояснення для учнів готове:`, {
+      appendChatMessage('assistant', 'Методичне пояснення для учнів готове:', {
         title: 'Пояснення:',
-        items: [explanation],
-        onApply: () => {
-          showToast('Пояснення прикріплено до питання!');
-        }
+        items: [explanation]
       });
       showToast('Пояснення створено!');
-    });
-  }
-}
-
-function getIntelligentFallbackOptions(q) {
-  const text = (q.text || '').toLowerCase();
-  if (text.includes('східн') && text.includes('азі')) {
-    return {
-      options: ['Японія, Китай, Південна Корея', 'Індія, Пакистан, Бангладеш', 'Монголія, Північна Корея, Китай', 'В\'єтнам, Таїланд, Філіппіни'],
-      correct: q.type === 'multiple' ? [0, 2] : 0,
-      explanation: 'До Східної Азії належать Китай, Японія, Південна Корея, КНДР та Монголія.'
     };
+    explainBtn.addEventListener('click', runExplainQuestion);
   }
-  if (text.includes('столиц') || text.includes('місто')) {
-    return {
-      options: ['Токіо', 'Пекін', 'Сеул', 'Астана'],
-      correct: q.type === 'multiple' ? [0, 1] : 0,
-      explanation: 'Токіо та Пекін є найбільшими мегаполісами та столицями провідних держав Азії.'
-    };
-  }
-  if (text.includes('населен') || text.includes('лідер')) {
-    return {
-      options: ['Індія (1.43 млрд)', 'Китай (1.41 млрд)', 'США (340 млн)', 'Індонезія (278 млн)'],
-      correct: q.type === 'multiple' ? [0, 1] : 0,
-      explanation: 'Індія та Китай займають перші дві сходинки у світовому рейтингу населення.'
-    };
-  }
-  return {
-    options: ['Китай, Японія, Монголія', 'Німеччина, Франція, Польща', 'Бразилія, Аргентина, Перу', 'Єгипет, Нігерія, Кенія'],
-    correct: q.type === 'multiple' ? [0] : 0,
-    explanation: 'Дані варіанти відповідають географічній класифікації регіонів.'
-  };
 }
 
 function copyTextToClipboard(text) {
@@ -1761,6 +1934,7 @@ function bindAiChatSidebar() {
 
   if (clearBtn) {
     clearBtn.addEventListener('click', () => {
+      aiChatHistory = [];
       const container = document.getElementById('aiChatMessages');
       if (container) {
         container.innerHTML = `
@@ -1773,6 +1947,80 @@ function bindAiChatSidebar() {
     });
   }
 
+  async function applyQuestionsToCurrent(questionsToApply, mode = 'append', newTitle = '') {
+    if (!Array.isArray(questionsToApply) || questionsToApply.length === 0) {
+      showToast('Оберіть хоча б одне питання');
+      return;
+    }
+    recordUndoSnapshot();
+    const prepared = questionsToApply.map(q => JSON.parse(JSON.stringify(q)));
+    if (mode === 'replace') {
+      currentTest.questions = prepared;
+      if (newTitle) currentTest.name = currentTest.title = newTitle;
+      activeQuestionIndex = 0;
+    } else {
+      if (!Array.isArray(currentTest.questions)) currentTest.questions = [];
+      const startIdx = currentTest.questions.length;
+      currentTest.questions.push(...prepared);
+      activeQuestionIndex = startIdx;
+    }
+    syncMetaHeader();
+    renderQuestionsNav();
+    loadQuestionIntoEditor(activeQuestionIndex);
+    updateTestAnalytics();
+    await persistStudioTestToServer();
+    if (typeof window.switchTabTo === 'function') {
+      window.switchTabTo('testEditor');
+    }
+    showToast(mode === 'replace'
+      ? `Тест замінено на ${prepared.length} питань!`
+      : `Додано ${prepared.length} питань до поточного тесту!`);
+  }
+
+  async function createNewTestFromChat(questionsToCreate, title, parsedMeta = {}) {
+    if (!Array.isArray(questionsToCreate) || questionsToCreate.length === 0) {
+      showToast('Оберіть хоча б одне питання');
+      return;
+    }
+    try {
+      const token = localStorage.getItem('admin_token') || '';
+      const res = await fetch('/api/admin/tests', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-admin-token': token
+        },
+        body: JSON.stringify({
+          title: title || ((currentTest?.subject || 'Новий тест') + ' (ШІ)'),
+          durationMinutes: parseInt(parsedMeta.durationMinutes, 10) || 15,
+          topic: parsedMeta.topic || currentTest?.topic || '',
+          subject: parsedMeta.subject || currentTest?.subject || 'Загальний',
+          questions: questionsToCreate
+        })
+      });
+      if (!res.ok) {
+        const errData = await res.json().catch(() => ({}));
+        showToast(errData.error || 'Не вдалося створити тест на сервері');
+        return;
+      }
+      const created = await res.json();
+      if (typeof window.refreshAdminTestsList === 'function') {
+        await window.refreshAdminTestsList();
+      }
+      if (typeof window.selectAndOpenAdminTest === 'function') {
+        await window.selectAndOpenAdminTest(created.id);
+      } else {
+        loadTestIntoStudio(created);
+      }
+      if (typeof window.switchTabTo === 'function') {
+        window.switchTabTo('testEditor');
+      }
+      showToast(`Тест "${created.title}" створено та відкрито!`);
+    } catch (e) {
+      showToast('Помилка створення тесту: ' + e.message);
+    }
+  }
+
   const handleSend = async (customPrompt) => {
     const text = customPrompt || (input ? input.value.trim() : '');
     if (!text) return;
@@ -1781,16 +2029,33 @@ function bindAiChatSidebar() {
     appendChatMessage('user', text);
     const typingId = appendTypingIndicator();
 
-    const q = currentTest.questions[activeQuestionIndex] || {};
+    const q = (currentTest?.questions && currentTest.questions[activeQuestionIndex]) || {};
+    const existingList = Array.isArray(currentTest?.questions)
+      ? currentTest.questions.slice(0, 35).map((item, idx) => `${idx + 1}. [${item.type || 'single'}] ${String(item.text || '').replace(/\s+/g, ' ').slice(0, 100)}`)
+      : [];
+
     const prompt = `Ти — інтелектуальний помічник викладача Gemini у системі створення тестів SecureExam.
-Поточний тест: "${currentTest.name || ''}", предмет: "${currentTest.subject || ''}", тема: "${currentTest.topic || ''}".
-Поточне активне запитання (#${activeQuestionIndex + 1}): "${q.text || ''}", тип: "${q.type || 'single'}", варіанти: ${JSON.stringify(q.options || [])}.
+Поточний тест: "${currentTest?.name || ''}", предмет: "${currentTest?.subject || ''}", тема: "${currentTest?.topic || ''}".
+Повний список уже наявних питань у тесті (${currentTest?.questions?.length || 0}):
+${existingList.length > 0 ? existingList.join('\n') : '(поки порожній)'}
 
-Запит викладача: "${text}".
+Поточне активне питання у редакторі (#${activeQuestionIndex + 1}):
+"${q.text || ''}", тип: "${q.type || 'single'}", дані: ${JSON.stringify({ options: q.options || [], matchingPairs: q.matchingPairs || [], orderingItems: q.orderingItems || [], correct: q.correct, numericTolerance: q.numericTolerance })}.
 
-ІНСТРУКЦІЯ:
-1. Якщо викладач просить СТВОРИТИ ЦІЛИЙ ТЕСТ або КІЛЬКА ПИТАНЬ (наприклад: "створи тест про...", "зроби 5 питань...", "згенеруй тест на тему..."):
-Напиши короткий опис тесту і ОБОВ'ЯЗКОВО додай JSON-блок:
+Поточний запит викладача: "${text}"
+
+ІНСТРУКЦІЯ ВІДПОВІДІ:
+Підтримувані типи питань:
+- "single": options[], correct (індекс 0..3)
+- "multiple": options[], correct ([0, 2])
+- "true_false": options:["Неправда","Правда"], correct (0 або 1)
+- "matching": matchingPairs:[{"left":"...","right":"..."}]
+- "ordering": orderingItems:["...","..."]
+- "numeric": correct (число), numericTolerance (число >=0), numericToleranceEnabled (boolean)
+- "short_answer": correctKeywords:["..."]
+
+1. Якщо викладач просить створити тест або кілька питань (наприклад "додай 5 питань", "створи тест про...", "зроби 3 задачі"):
+Напиши короткий коментар і ОБОВ'ЯЗКОВО додай JSON-блок:
 \`\`\`json
 {
   "action": "create_test",
@@ -1812,10 +2077,10 @@ function bindAiChatSidebar() {
 }
 \`\`\`
 
-2. Якщо викладач просить створити ОДНЕ питання чи змінити варіанти/поточне питання:
+2. Якщо викладач просить створити ОДНЕ питання або переробити/оновити активне питання (#${activeQuestionIndex + 1}):
 \`\`\`json
 {
-  "action": "add_new_question",
+  "action": "update_or_add_question",
   "text": "Текст запитання",
   "type": "single",
   "options": ["Варіант 1", "Варіант 2", "Варіант 3", "Варіант 4"],
@@ -1824,13 +2089,27 @@ function bindAiChatSidebar() {
 }
 \`\`\`
 
-3. Якщо це порада чи відповідь — відповідай грамотною українською мовою.`;
+3. Якщо це методична порада, рев'ю тесту чи пояснення — відповідай чітко українською без вигадувань.`;
 
-    let reply = await callGeminiApi(prompt, false);
+    const historySnapshot = aiChatHistory.slice(-8);
+    const reply = await callGeminiApi(prompt, false, {
+      history: historySnapshot,
+      timeoutMs: 45000
+    });
     removeTypingIndicator(typingId);
 
     if (!reply) {
-      reply = lastGeminiError || 'Не вдалося отримати відповідь від Gemini API на сервері.';
+      appendChatErrorWithRetry(
+        lastGeminiError || 'Не вдалося отримати відповідь від Gemini API на сервері.',
+        () => handleSend(text)
+      );
+      return;
+    }
+
+    aiChatHistory.push({ role: 'user', text });
+    aiChatHistory.push({ role: 'model', text: String(reply).slice(0, 6000) });
+    if (aiChatHistory.length > 12) {
+      aiChatHistory = aiChatHistory.slice(-12);
     }
 
     let parsedAction = extractJsonFromText(reply);
@@ -1854,227 +2133,100 @@ function bindAiChatSidebar() {
     }
 
     let cardData = null;
-    let questionsList = null;
+    let rawQuestionsList = null;
     if (Array.isArray(parsedAction)) {
-      questionsList = parsedAction;
+      rawQuestionsList = parsedAction;
     } else if (parsedAction && Array.isArray(parsedAction.questions)) {
-      questionsList = parsedAction.questions;
+      rawQuestionsList = parsedAction.questions;
     } else if (parsedAction && parsedAction.test && Array.isArray(parsedAction.test.questions)) {
-      questionsList = parsedAction.test.questions;
+      rawQuestionsList = parsedAction.test.questions;
     }
 
-    if (!questionsList || questionsList.length === 0) {
+    if (!rawQuestionsList || rawQuestionsList.length === 0) {
       const fallbackQuestions = parseRawTestText(reply);
       if (fallbackQuestions && fallbackQuestions.length >= 2) {
-        questionsList = fallbackQuestions;
-        if (!parsedAction) parsedAction = { action: 'create_test', questions: questionsList };
+        rawQuestionsList = fallbackQuestions;
+        if (!parsedAction) parsedAction = { action: 'create_test', questions: rawQuestionsList };
       }
     }
 
-    if (questionsList && questionsList.length > 0) {
-      const qCount = questionsList.length;
-      const testTitle = (parsedAction && (parsedAction.testTitle || parsedAction.topic)) || ((currentTest && currentTest.subject ? currentTest.subject : 'Тест') + ': Новий тест');
+    if (rawQuestionsList && rawQuestionsList.length > 0) {
+      const normalizedList = rawQuestionsList
+        .map(item => normalizeStudioQuestion(item, 60))
+        .filter(Boolean);
 
-      try {
-        const token = localStorage.getItem('admin_token') || '';
-        const res = await fetch('/api/admin/tests', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'x-admin-token': token
+      if (normalizedList.length > 0) {
+        const qCount = normalizedList.length;
+        const testTitle = (parsedAction && (parsedAction.testTitle || parsedAction.topic)) || ((currentTest?.subject ? currentTest.subject : 'Тест') + ': Новий набір');
+        const fullTestClipboard = formatTestForClipboard(testTitle, normalizedList);
+
+        cardData = {
+          title: `Підготовлено ${qCount} завдань («${testTitle}»). Оберіть потрібні та дію:`,
+          selectableQuestions: normalizedList.map((nq, idx) => ({
+            question: nq,
+            label: `${idx + 1}. [${STUDIO_TYPE_LABELS[nq.type] || nq.type}] ${nq.text}`,
+            summary: formatQuestionSummaryLines(nq).slice(0, 4).join(' • ')
+          })),
+          explanation: parsedAction?.explanation || '',
+          onAppendSelected: (selected) => applyQuestionsToCurrent(selected, 'append'),
+          onReplaceSelected: (selected) => applyQuestionsToCurrent(selected, 'replace', parsedAction?.testTitle || ''),
+          onCreateNewSelected: (selected) => createNewTestFromChat(selected, testTitle, parsedAction || {}),
+          onCopyText: () => {
+            copyTextToClipboard(fullTestClipboard).then(() => showToast('Весь тест скопійовано в буфер обміну!'));
           },
-          body: JSON.stringify({
-            title: testTitle,
-            durationMinutes: (parsedAction && parsedAction.durationMinutes) || 15,
-            topic: (parsedAction && parsedAction.topic) || '',
-            subject: (parsedAction && parsedAction.subject) || (currentTest ? currentTest.subject : '') || 'Загальний',
-            questions: questionsList.map((item, i) => {
-              const opts = Array.isArray(item.options) ? item.options : ['Варіант 1', 'Варіант 2'];
-              let corr = 0;
-              if (item.correct !== undefined) {
-                corr = item.correct;
-              } else if (item.correctAnswer !== undefined) {
-                const idx = opts.indexOf(item.correctAnswer);
-                if (idx !== -1) corr = idx;
-              }
-              return {
-                id: 'q_ai_' + Date.now() + '_' + i,
-                text: item.text || item.question || 'Питання #' + (i + 1),
-                type: item.type || 'single',
-                options: opts,
-                correct: corr,
-                points: item.points || 1,
-                timeLimit: item.timeLimit || item.timeLimitSeconds || 60,
-                imageUrl: '',
-                explanation: item.explanation || ''
-              };
-            })
-          })
-        });
-        if (res.ok) {
-          const created = await res.json();
-          if (typeof window.refreshAdminTestsList === 'function') {
-            await window.refreshAdminTestsList();
+          onCopyJson: () => {
+            copyTextToClipboard(JSON.stringify({ title: testTitle, questions: normalizedList }, null, 2)).then(() => showToast('JSON тесту скопійовано!'));
           }
-          if (typeof window.selectAndOpenAdminTest === 'function') {
-            await window.selectAndOpenAdminTest(created.id);
-          } else {
-            window.selectedAdminTestId = created.id;
-            const edSel = document.getElementById('editorTestSelector');
-            if (edSel) edSel.value = created.id;
-            const adSel = document.getElementById('adminTestSelector');
-            if (adSel) adSel.value = created.id;
-            if (typeof window.loadAdminTest === 'function') {
-              await window.loadAdminTest();
-            }
-            if (typeof window.loadTestIntoStudio === 'function') {
-              window.loadTestIntoStudio(created);
-            }
-            if (typeof window.switchTabTo === 'function') {
-              window.switchTabTo('testEditor');
-            }
-          }
-          showToast(`✅ Тест "${created.title}" створено та відкрито!`, true);
-        } else {
+        };
+      }
+    } else if (parsedAction && (parsedAction.options || parsedAction.matchingPairs || parsedAction.orderingItems || parsedAction.correctKeywords || parsedAction.text || parsedAction.question || parsedAction.correct !== undefined)) {
+      const normalizedSingle = normalizeStudioQuestion({
+        ...parsedAction,
+        text: parsedAction.text || parsedAction.question || q.text || 'Нове запитання від Gemini',
+        type: parsedAction.type || q.type || 'single'
+      }, q.timeLimit || 60);
+
+      if (normalizedSingle) {
+        const qClipboard = formatQuestionForClipboard(normalizedSingle, activeQuestionIndex + 1);
+        const applySingle = (asNew) => {
           recordUndoSnapshot();
-          currentTest.questions = questionsList.map((item, i) => {
-            const opts = Array.isArray(item.options) ? item.options : ['Варіант 1', 'Варіант 2'];
-            let corr = 0;
-            if (item.correct !== undefined) {
-              corr = item.correct;
-            } else if (item.correctAnswer !== undefined) {
-              const idx = opts.indexOf(item.correctAnswer);
-              if (idx !== -1) corr = idx;
-            }
-            return {
-              id: 'q_ai_' + Date.now() + '_' + i,
-              text: item.text || item.question || 'Питання #' + (i + 1),
-              type: item.type || 'single',
-              options: opts,
-              correct: corr,
-              points: item.points || 1,
-              timeLimit: item.timeLimit || 60,
-              imageUrl: '',
-              explanation: item.explanation || ''
-            };
-          });
-          if (parsedAction && parsedAction.testTitle) {
-            currentTest.name = currentTest.title = parsedAction.testTitle;
+          if (asNew || !currentTest.questions || currentTest.questions.length === 0) {
+            if (!Array.isArray(currentTest.questions)) currentTest.questions = [];
+            currentTest.questions.push(JSON.parse(JSON.stringify(normalizedSingle)));
+            activeQuestionIndex = currentTest.questions.length - 1;
+            showToast('Нове запитання додано до тесту!');
+          } else {
+            const targetQ = currentTest.questions[activeQuestionIndex] || currentTest.questions[0];
+            Object.assign(targetQ, JSON.parse(JSON.stringify(normalizedSingle)), { id: targetQ.id });
+            showToast('Поточне запитання оновлено!');
           }
-          activeQuestionIndex = 0;
-          syncMetaHeader();
           renderQuestionsNav();
-          loadQuestionIntoEditor(0);
+          loadQuestionIntoEditor(activeQuestionIndex);
           updateTestAnalytics();
           saveDraftToStorage();
           if (typeof window.switchTabTo === 'function') {
             window.switchTabTo('testEditor');
           }
-          showToast(`✅ Тест замінено на ${qCount} нових завдань!`);
-        }
-      } catch (e) {
-        console.error(e);
-      }
-
-      const fullTestClipboard = formatTestForClipboard(testTitle, questionsList);
-
-      cardData = {
-        title: `✅ Тест "${testTitle}" (${qCount} завдань) створено та відкрито:`,
-        items: questionsList.map((qItem, idx) => {
-          const optCount = Array.isArray(qItem.options) ? qItem.options.length : 0;
-          return `${idx + 1}. ${qItem.text || qItem.question || 'Завдання #' + (idx + 1)} (${optCount} вар.)`;
-        }),
-        explanation: parsedAction.explanation || '',
-        onCopyText: () => {
-          copyTextToClipboard(fullTestClipboard).then(() => showToast('📋 Весь тест скопійовано в буфер обміну!'));
-        },
-        onCopyJson: () => {
-          copyTextToClipboard(JSON.stringify(parsedAction, null, 2)).then(() => showToast('📋 JSON тесту скопійовано!'));
-        }
-      };
-    } else if (parsedAction && ((parsedAction.options && parsedAction.options.length > 0) || parsedAction.text || parsedAction.question)) {
-      recordUndoSnapshot();
-      let appliedTitle = '';
-
-      if (parsedAction.action === 'add_new_question' || !currentTest || !currentTest.questions || currentTest.questions.length === 0) {
-        const opts = Array.isArray(parsedAction.options) ? parsedAction.options : ['Варіант 1', 'Варіант 2'];
-        let corr = 0;
-        if (parsedAction.correct !== undefined) {
-          corr = parsedAction.correct;
-        } else if (parsedAction.correctAnswer !== undefined) {
-          const idx = opts.indexOf(parsedAction.correctAnswer);
-          if (idx !== -1) corr = idx;
-        }
-        const newQ = {
-          id: 'q_' + Date.now(),
-          text: parsedAction.text || parsedAction.question || 'Нове запитання від Gemini',
-          type: parsedAction.type || 'single',
-          options: opts,
-          correct: corr,
-          points: 1,
-          timeLimit: 60,
-          imageUrl: '',
-          explanation: parsedAction.explanation || ''
         };
-        if (!currentTest.questions) currentTest.questions = [];
-        currentTest.questions.push(newQ);
-        activeQuestionIndex = currentTest.questions.length - 1;
-        renderQuestionsNav();
-        loadQuestionIntoEditor(activeQuestionIndex);
-        updateTestAnalytics();
-        saveDraftToStorage();
-        appliedTitle = '✅ Нове запитання автоматично додано та відкрито:';
-        showToast('✅ Нове запитання додано до тесту!');
-      } else {
-        const targetQ = currentTest.questions[activeQuestionIndex] || currentTest.questions[0];
-        if (parsedAction.text || parsedAction.question) targetQ.text = parsedAction.text || parsedAction.question;
-        if (parsedAction.type) targetQ.type = parsedAction.type;
-        if (Array.isArray(parsedAction.options) && parsedAction.options.length > 0) {
-          targetQ.options = parsedAction.options;
-        }
-        if (parsedAction.correct !== undefined) {
-          targetQ.correct = parsedAction.correct;
-        } else if (parsedAction.correctAnswer !== undefined && Array.isArray(targetQ.options)) {
-          const idx = targetQ.options.indexOf(parsedAction.correctAnswer);
-          if (idx !== -1) targetQ.correct = idx;
-        }
-        if (parsedAction.explanation) targetQ.explanation = parsedAction.explanation;
-        renderQuestionsNav();
-        loadQuestionIntoEditor(activeQuestionIndex);
-        updateTestAnalytics();
-        saveDraftToStorage();
-        appliedTitle = '✅ Запитання автоматично оновлено в редакторі:';
-        showToast('✅ Запитання оновлено в редакторі!');
+
+        cardData = {
+          title: `Пропозиція питання [${STUDIO_TYPE_LABELS[normalizedSingle.type] || normalizedSingle.type}]:`,
+          items: [normalizedSingle.text, ...formatQuestionSummaryLines(normalizedSingle)],
+          explanation: normalizedSingle.explanation || '',
+          onApply: () => applySingle(false),
+          onAddNew: () => applySingle(true),
+          onCopyQuestion: () => {
+            copyTextToClipboard(qClipboard).then(() => showToast('Запитання скопійовано в буфер обміну!'));
+          },
+          onCopyJson: () => {
+            copyTextToClipboard(JSON.stringify(normalizedSingle, null, 2)).then(() => showToast('JSON скопійовано!'));
+          }
+        };
       }
-
-      if (typeof window.switchTabTo === 'function') {
-        window.switchTabTo('testEditor');
-      }
-
-      const qClipboard = formatQuestionForClipboard(parsedAction, activeQuestionIndex + 1);
-
-      cardData = {
-        title: appliedTitle,
-        items: (parsedAction.options || []).map((opt, idx) => {
-          const isC = Array.isArray(parsedAction.correct) ? parsedAction.correct.includes(idx) : parsedAction.correct === idx;
-          return `${isC ? '[✓]' : '•'} ${opt}`;
-        }),
-        explanation: parsedAction.explanation || '',
-        onCopyQuestion: () => {
-          copyTextToClipboard(qClipboard).then(() => showToast('📋 Запитання скопійовано в буфер обміну!'));
-        },
-        onCopyJson: () => {
-          copyTextToClipboard(JSON.stringify(parsedAction, null, 2)).then(() => showToast('📋 JSON скопійовано!'));
-        }
-      };
     }
 
     if (!cleanReply) {
-      if (cardData) {
-        cleanReply = cardData.title;
-      } else {
-        cleanReply = 'Відповідь від Gemini:';
-      }
+      cleanReply = cardData ? 'Готово! Перевірте згенерований результат нижче:' : 'Відповідь від Gemini:';
     }
 
     appendChatMessage('assistant', cleanReply, cardData);
@@ -2134,22 +2286,43 @@ function appendChatMessage(role, text, cardData = null) {
   inner += `<div class="chat-msg-bubble"><div>${escapeHtml(text).replace(/\n/g, '<br>')}</div>`;
 
   if (cardData) {
-    inner += `
-      <div class="chat-action-card">
-        <div class="chat-action-title">${escapeHtml(cardData.title)}</div>
+    let listMarkup = '';
+    if (Array.isArray(cardData.selectableQuestions) && cardData.selectableQuestions.length > 0) {
+      listMarkup = `
+        <div class="chat-preview-items">
+          ${cardData.selectableQuestions.map((entry, idx) => `
+            <label class="chat-preview-cb-row">
+              <input type="checkbox" class="chat-q-select-cb" data-idx="${idx}" checked>
+              <div>
+                <div style="font-weight:600;">${escapeHtml(entry.label)}</div>
+                ${entry.summary ? `<div style="font-size:10px; color:var(--text-muted); margin-top:2px;">${escapeHtml(entry.summary)}</div>` : ''}
+              </div>
+            </label>
+          `).join('')}
+        </div>
+      `;
+    } else if (Array.isArray(cardData.items) && cardData.items.length > 0) {
+      listMarkup = `
         <ul class="chat-action-list">
           ${cardData.items.map(it => `<li>${escapeHtml(it)}</li>`).join('')}
         </ul>
+      `;
+    }
+
+    inner += `
+      <div class="chat-action-card">
+        <div class="chat-action-title">${escapeHtml(cardData.title)}</div>
+        ${listMarkup}
         ${cardData.explanation ? `<div style="font-size:10px; color:var(--text-muted); margin-top:4px;"><img src="/img/icons/bulb.svg" class="pixel-icon inline" alt=""> ${escapeHtml(cardData.explanation)}</div>` : ''}
         <div class="chat-action-btns" style="display:flex; flex-wrap:wrap; gap:6px; margin-top:8px;">
-          ${cardData.onCopyText ? `<button type="button" class="btn-chat-copy-text" style="background:#2563eb; color:#fff; border:none; padding:6px 12px; border-radius:6px; font-size:11px; font-weight:700; cursor:pointer; display:inline-flex; align-items:center; gap:5px;"><img src="/img/icons/download.svg" class="pixel-icon inline" alt="" style="filter:brightness(0) invert(1);"> Копіювати тест</button>` : ''}
-          ${cardData.onCopyQuestion ? `<button type="button" class="btn-chat-copy-q" style="background:#2563eb; color:#fff; border:none; padding:6px 12px; border-radius:6px; font-size:11px; font-weight:700; cursor:pointer; display:inline-flex; align-items:center; gap:5px;"><img src="/img/icons/download.svg" class="pixel-icon inline" alt="" style="filter:brightness(0) invert(1);"> Копіювати запитання</button>` : ''}
-          ${cardData.onCopyJson ? `<button type="button" class="btn-chat-copy-json" style="background:rgba(255,255,255,0.08); color:var(--text,#fff); border:1px solid rgba(255,255,255,0.2); padding:6px 10px; border-radius:6px; font-size:11px; font-weight:600; cursor:pointer; display:inline-flex; align-items:center; gap:4px;">JSON</button>` : ''}
-          ${cardData.onCreateNewTest ? `<button type="button" class="btn-chat-create-test" style="background:linear-gradient(135deg,#6366f1,#8b5cf6); color:#fff; border:none; padding:6px 12px; border-radius:6px; font-size:11px; font-weight:700; cursor:pointer; display:inline-flex; align-items:center; gap:5px;"><img src="/img/icons/plus.svg" class="pixel-icon inline" alt="" style="filter:brightness(0) invert(1);"> Створити новий тест</button>` : ''}
-          ${cardData.onReplaceTest ? `<button type="button" class="btn-chat-replace-test" style="background:rgba(99,102,241,0.12); color:var(--accent,#6366f1); border:1px solid rgba(99,102,241,0.35); padding:6px 10px; border-radius:6px; font-size:11px; font-weight:600; cursor:pointer; display:inline-flex; align-items:center; gap:5px;"><img src="/img/icons/refresh.svg" class="pixel-icon inline" alt=""> Замінити цей тест</button>` : ''}
-          ${cardData.onAppendQuestions ? `<button type="button" class="btn-chat-append-test" style="background:rgba(16,185,129,0.12); color:#10b981; border:1px solid rgba(16,185,129,0.35); padding:6px 10px; border-radius:6px; font-size:11px; font-weight:600; cursor:pointer; display:inline-flex; align-items:center; gap:5px;"><img src="/img/icons/download.svg" class="pixel-icon inline" alt=""> Додати до тесту</button>` : ''}
-          ${cardData.onApply ? `<button type="button" class="btn-chat-apply"><img src="/img/icons/download.svg" class="pixel-icon inline" alt=""> Застосувати до цього питання</button>` : ''}
-          ${cardData.onAddNew ? `<button type="button" class="btn-chat-new"><img src="/img/icons/plus.svg" class="pixel-icon inline" alt=""> Додати як нове</button>` : ''}
+          ${cardData.onAppendSelected ? `<button type="button" class="btn-chat-apply btn-chat-append-sel">Додати в поточний тест</button>` : ''}
+          ${cardData.onCreateNewSelected ? `<button type="button" class="btn-chat-new btn-chat-create-sel">Створити як новий тест</button>` : ''}
+          ${cardData.onReplaceSelected ? `<button type="button" class="btn-chat-new btn-chat-replace-sel">Замінити поточний</button>` : ''}
+          ${cardData.onCopyText ? `<button type="button" class="btn-chat-new btn-chat-copy-text">Копіювати</button>` : ''}
+          ${cardData.onCopyQuestion ? `<button type="button" class="btn-chat-new btn-chat-copy-q">Копіювати питання</button>` : ''}
+          ${cardData.onCopyJson ? `<button type="button" class="btn-chat-new btn-chat-copy-json">JSON</button>` : ''}
+          ${cardData.onApply ? `<button type="button" class="btn-chat-apply">Застосувати до поточного</button>` : ''}
+          ${cardData.onAddNew ? `<button type="button" class="btn-chat-new">Додати як нове</button>` : ''}
         </div>
       </div>
     `;
@@ -2159,21 +2332,27 @@ function appendChatMessage(role, text, cardData = null) {
   msg.innerHTML = inner;
 
   if (cardData) {
+    const getSelectedQuestions = () => {
+      if (!Array.isArray(cardData.selectableQuestions)) return [];
+      const checked = Array.from(msg.querySelectorAll('.chat-q-select-cb:checked')).map(cb => parseInt(cb.dataset.idx, 10));
+      return checked.map(i => cardData.selectableQuestions[i]?.question).filter(Boolean);
+    };
+
+    const appendSelBtn = msg.querySelector('.btn-chat-append-sel');
+    const createSelBtn = msg.querySelector('.btn-chat-create-sel');
+    const replaceSelBtn = msg.querySelector('.btn-chat-replace-sel');
     const copyTextBtn = msg.querySelector('.btn-chat-copy-text');
     const copyQBtn = msg.querySelector('.btn-chat-copy-q');
     const copyJsonBtn = msg.querySelector('.btn-chat-copy-json');
-    const createTestBtn = msg.querySelector('.btn-chat-create-test');
-    const replaceTestBtn = msg.querySelector('.btn-chat-replace-test');
-    const appendTestBtn = msg.querySelector('.btn-chat-append-test');
-    const applyBtn = msg.querySelector('.btn-chat-apply');
-    const addBtn = msg.querySelector('.btn-chat-new');
+    const applyBtn = msg.querySelector('.btn-chat-apply:not(.btn-chat-append-sel)');
+    const addBtn = msg.querySelector('.btn-chat-new:not(.btn-chat-create-sel):not(.btn-chat-replace-sel):not(.btn-chat-copy-text):not(.btn-chat-copy-q):not(.btn-chat-copy-json)');
 
+    if (appendSelBtn && cardData.onAppendSelected) appendSelBtn.addEventListener('click', () => cardData.onAppendSelected(getSelectedQuestions()));
+    if (createSelBtn && cardData.onCreateNewSelected) createSelBtn.addEventListener('click', () => cardData.onCreateNewSelected(getSelectedQuestions()));
+    if (replaceSelBtn && cardData.onReplaceSelected) replaceSelBtn.addEventListener('click', () => cardData.onReplaceSelected(getSelectedQuestions()));
     if (copyTextBtn && cardData.onCopyText) copyTextBtn.addEventListener('click', cardData.onCopyText);
     if (copyQBtn && cardData.onCopyQuestion) copyQBtn.addEventListener('click', cardData.onCopyQuestion);
     if (copyJsonBtn && cardData.onCopyJson) copyJsonBtn.addEventListener('click', cardData.onCopyJson);
-    if (createTestBtn && cardData.onCreateNewTest) createTestBtn.addEventListener('click', cardData.onCreateNewTest);
-    if (replaceTestBtn && cardData.onReplaceTest) replaceTestBtn.addEventListener('click', cardData.onReplaceTest);
-    if (appendTestBtn && cardData.onAppendQuestions) appendTestBtn.addEventListener('click', cardData.onAppendQuestions);
     if (applyBtn && cardData.onApply) applyBtn.addEventListener('click', cardData.onApply);
     if (addBtn && cardData.onAddNew) addBtn.addEventListener('click', cardData.onAddNew);
   }
@@ -2462,14 +2641,211 @@ function bindAiGeneratorModal() {
   const closeBtn = document.getElementById('closeAiModalBtn');
   const cancelBtn = document.getElementById('cancelAiGenBtn');
   const startBtn = document.getElementById('startAiGenBtn');
+  const stopBatchBtn = document.getElementById('stopAiBatchBtn');
+  const retryBtn = document.getElementById('retryAiGenBtn');
   const topicInput = document.getElementById('aiTopicInput');
   const subjectInput = document.getElementById('aiSubjectInput');
   const countInput = document.getElementById('aiCountInput');
-  const countSelect = document.getElementById('aiCountSelect');
+  const timeLimitInput = document.getElementById('aiTimeLimitInput');
   const presetsContainer = document.getElementById('aiCountPresets');
   const gradeInput = document.getElementById('aiGradeInput');
   const diffSelect = document.getElementById('aiDifficultySelect');
+  const typesGrid = document.getElementById('aiTypesGrid');
+  const numTolWrap = document.getElementById('aiNumericTolHintWrap');
+  const numTolSelect = document.getElementById('aiNumericTolSelect');
+  const sourceInput = document.getElementById('aiSourceTextInput');
+  const sourceFileInput = document.getElementById('aiSourceFileInput');
+  const clearSourceBtn = document.getElementById('aiClearSourceBtn');
+  const sourceBadge = document.getElementById('aiSourceStatusBadge');
+  const customInstInput = document.getElementById('aiCustomInstructionsInput');
+  const errorBox = document.getElementById('aiGenErrorBox');
+  const errorTextEl = document.getElementById('aiGenErrorText');
   const progressWrap = document.getElementById('aiGenProgressWrap');
+  const progressText = document.getElementById('aiProgressText');
+  const progressPercent = document.getElementById('aiProgressPercent');
+  const progressFill = document.getElementById('aiProgressFill');
+  const progressBatchMeta = document.getElementById('aiProgressBatchMeta');
+
+  const configStep = document.getElementById('aiGenConfigStep');
+  const previewStep = document.getElementById('aiGenPreviewStep');
+  const footerConfig = document.getElementById('aiGenFooterConfig');
+  const footerPreview = document.getElementById('aiGenFooterPreview');
+  const previewSummaryText = document.getElementById('aiPreviewSummaryText');
+  const previewSelectAll = document.getElementById('aiPreviewSelectAll');
+  const previewListEl = document.getElementById('aiPreviewCardsList');
+  const backToConfigBtn = document.getElementById('aiBackToConfigBtn');
+  const applyAppendBtn = document.getElementById('aiApplyAppendBtn');
+  const applyReplaceBtn = document.getElementById('aiApplyReplaceBtn');
+  const applyNewTestBtn = document.getElementById('aiApplyNewTestBtn');
+
+  let generatedPreviewItems = [];
+  let generatedTestTitle = '';
+  let lastRunParams = null;
+  let batchAbortController = null;
+  let stopRequested = false;
+
+  const updateSourceBadge = () => {
+    const len = sourceInput ? sourceInput.value.trim().length : 0;
+    if (sourceBadge) {
+      sourceBadge.textContent = len > 0 ? `${len.toLocaleString('uk-UA')} симв.` : '';
+    }
+    if (clearSourceBtn) {
+      clearSourceBtn.classList.toggle('hidden', len === 0);
+    }
+  };
+
+  const getSelectedTypes = () => {
+    if (!typesGrid) return ['single'];
+    const checked = Array.from(typesGrid.querySelectorAll('input[type="checkbox"]:checked')).map(cb => cb.value);
+    return checked.length > 0 ? checked : ['single'];
+  };
+
+  const syncNumericHintVisibility = () => {
+    const types = getSelectedTypes();
+    if (numTolWrap) numTolWrap.classList.toggle('hidden', !types.includes('numeric'));
+  };
+
+  const showStep = (step) => {
+    const isPreview = step === 'preview';
+    if (configStep) configStep.classList.toggle('hidden', isPreview);
+    if (footerConfig) footerConfig.classList.toggle('hidden', isPreview);
+    if (previewStep) previewStep.classList.toggle('hidden', !isPreview);
+    if (footerPreview) footerPreview.classList.toggle('hidden', !isPreview);
+  };
+
+  const setProgress = (percent, text, meta = '') => {
+    const pct = Math.max(0, Math.min(100, Math.round(percent)));
+    if (progressFill) progressFill.style.width = `${pct}%`;
+    if (progressPercent) progressPercent.textContent = `${pct}%`;
+    if (progressText && text) progressText.textContent = text;
+    if (progressBatchMeta) progressBatchMeta.textContent = meta;
+  };
+
+  const showConfigError = (message) => {
+    if (errorBox && errorTextEl) {
+      errorTextEl.textContent = message;
+      errorBox.classList.remove('hidden');
+    } else {
+      showToast(message);
+    }
+  };
+
+  const hideConfigError = () => {
+    if (errorBox) errorBox.classList.add('hidden');
+  };
+
+  const updatePreviewSummary = () => {
+    const total = generatedPreviewItems.length;
+    const selected = generatedPreviewItems.filter(it => it.selected).length;
+    if (previewSummaryText) {
+      previewSummaryText.textContent = `Обрано ${selected} з ${total} згенерованих питань`;
+    }
+    if (previewSelectAll) {
+      previewSelectAll.checked = total > 0 && selected === total;
+      previewSelectAll.indeterminate = selected > 0 && selected < total;
+    }
+    const disabled = selected === 0;
+    if (applyAppendBtn) applyAppendBtn.disabled = disabled;
+    if (applyReplaceBtn) applyReplaceBtn.disabled = disabled;
+    if (applyNewTestBtn) applyNewTestBtn.disabled = disabled;
+  };
+
+  const regeneratePreviewItem = async (idx, tweak) => {
+    const entry = generatedPreviewItems[idx];
+    if (!entry) return;
+    const card = previewListEl?.querySelector(`.ai-preview-card[data-idx="${idx}"]`);
+    const btns = card ? Array.from(card.querySelectorAll('.ai-q-mini-btn')) : [];
+    btns.forEach(b => { b.disabled = true; });
+    try {
+      const token = localStorage.getItem('admin_token') || '';
+      const tolRaw = numTolSelect ? numTolSelect.value : 'auto';
+      const numericToleranceHint = tolRaw === 'auto' ? undefined : Number(tolRaw);
+      const excludeQuestions = generatedPreviewItems.map(it => it.question.text);
+      const res = await fetch('/api/admin/ai/regenerate-question', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-admin-token': token
+        },
+        body: JSON.stringify({
+          topic: lastRunParams?.topic || (topicInput ? topicInput.value.trim() : ''),
+          subject: lastRunParams?.subject || (subjectInput ? subjectInput.value.trim() : ''),
+          grade: lastRunParams?.grade || (gradeInput ? gradeInput.value.trim() : ''),
+          difficulty: lastRunParams?.difficulty || (diffSelect ? diffSelect.value : 'medium'),
+          sourceText: lastRunParams?.sourceText || '',
+          question: entry.question,
+          tweak,
+          allowedTypes: [entry.question.type],
+          excludeQuestions,
+          timeLimitSeconds: entry.question.timeLimitSeconds || 60,
+          numericToleranceHint
+        })
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok || !data.success || !data.question) {
+        throw new Error(data.error || 'Не вдалося перегенерувати питання');
+      }
+      const norm = normalizeStudioQuestion(data.question, entry.question.timeLimitSeconds || 60);
+      if (!norm) throw new Error('Отримано некоректний формат питання');
+      generatedPreviewItems[idx] = { question: norm, selected: true };
+      renderPreviewCards();
+      showToast(tweak === 'replace' ? `Питання #${idx + 1} замінено!` : `Складність питання #${idx + 1} оновлено!`);
+    } catch (err) {
+      showToast(err.message);
+      btns.forEach(b => { b.disabled = false; });
+    }
+  };
+
+  const renderPreviewCards = () => {
+    if (!previewListEl) return;
+    previewListEl.innerHTML = '';
+    generatedPreviewItems.forEach((entry, idx) => {
+      const q = entry.question;
+      const card = document.createElement('div');
+      card.className = 'ai-preview-card' + (entry.selected ? '' : ' is-unchecked');
+      card.dataset.idx = idx;
+
+      const summaryLines = formatQuestionSummaryLines(q);
+      const typeLabel = STUDIO_TYPE_LABELS[q.type] || q.type;
+
+      card.innerHTML = `
+        <div class="ai-preview-card-head">
+          <label class="ai-preview-title-wrap" style="cursor:pointer;">
+            <input type="checkbox" class="ai-preview-item-cb" data-idx="${idx}" ${entry.selected ? 'checked' : ''} style="margin-top:3px; accent-color:var(--accent);">
+            <div style="min-width:0;">
+              <div style="font-size:12.5px; font-weight:700; color:var(--text); line-height:1.4;">
+                ${idx + 1}. ${escapeHtml(q.text)}
+                <span class="tag-badge" style="font-size:10px; margin-left:6px; vertical-align:middle;">${escapeHtml(typeLabel)}</span>
+              </div>
+            </div>
+          </label>
+          <div class="ai-preview-q-actions">
+            <button type="button" class="ai-q-mini-btn" data-action="replace" title="Замінити іншим питанням">Перегенерувати</button>
+            <button type="button" class="ai-q-mini-btn" data-action="harder" title="Ускладнити це питання">Складніше</button>
+            <button type="button" class="ai-q-mini-btn" data-action="easier" title="Спростити це питання">Простіше</button>
+          </div>
+        </div>
+        <div class="ai-preview-details">
+          ${summaryLines.map(line => `<div>${escapeHtml(line)}</div>`).join('')}
+          ${q.explanation ? `<div style="margin-top:4px; color:var(--accent); font-size:11px;">Пояснення: ${escapeHtml(q.explanation)}</div>` : ''}
+        </div>
+      `;
+
+      const cb = card.querySelector('.ai-preview-item-cb');
+      if (cb) {
+        cb.addEventListener('change', () => {
+          generatedPreviewItems[idx].selected = cb.checked;
+          card.classList.toggle('is-unchecked', !cb.checked);
+          updatePreviewSummary();
+        });
+      }
+      card.querySelectorAll('.ai-q-mini-btn').forEach(btn => {
+        btn.addEventListener('click', () => regeneratePreviewItem(idx, btn.dataset.action));
+      });
+      previewListEl.appendChild(card);
+    });
+    updatePreviewSummary();
+  };
 
   if (presetsContainer && countInput) {
     presetsContainer.addEventListener('click', e => {
@@ -2483,92 +2859,327 @@ function bindAiGeneratorModal() {
     countInput.addEventListener('input', () => {
       const val = countInput.value;
       presetsContainer.querySelectorAll('.preset-chip').forEach(c => {
-        if (c.getAttribute('data-count') === val) c.classList.add('active');
-        else c.classList.remove('active');
+        c.classList.toggle('active', c.getAttribute('data-count') === val);
       });
     });
   }
 
-  if (openBtn && modal) {
-    openBtn.addEventListener('click', () => {
-      if (topicInput && currentTest.topic) topicInput.value = currentTest.topic;
-      if (subjectInput && currentTest.subject) subjectInput.value = currentTest.subject;
-      if (gradeInput && currentTest.class) gradeInput.value = currentTest.class;
-      if (progressWrap) progressWrap.classList.add('hidden');
-      modal.classList.remove('hidden');
+  if (typesGrid) {
+    typesGrid.addEventListener('change', syncNumericHintVisibility);
+    syncNumericHintVisibility();
+  }
+
+  if (sourceInput) {
+    sourceInput.addEventListener('input', updateSourceBadge);
+  }
+  if (clearSourceBtn && sourceInput) {
+    clearSourceBtn.addEventListener('click', () => {
+      sourceInput.value = '';
+      if (sourceFileInput) sourceFileInput.value = '';
+      updateSourceBadge();
     });
   }
-  const close = () => { if (modal) modal.classList.add('hidden'); };
+  if (sourceFileInput && sourceInput) {
+    sourceFileInput.addEventListener('change', async (e) => {
+      const file = e.target.files && e.target.files[0];
+      if (!file) return;
+      const name = (file.name || '').toLowerCase();
+      hideConfigError();
+      try {
+        if (name.endsWith('.docx') || name.endsWith('.pdf')) {
+          if (file.size > 10 * 1024 * 1024) {
+            throw new Error('Файл завеликий (максимум 10 МБ)');
+          }
+          if (sourceBadge) sourceBadge.textContent = name.endsWith('.pdf') ? 'Читаю PDF через Gemini...' : 'Витягую текст із DOCX...';
+          const base64Data = await new Promise((resolve, reject) => {
+            const reader = new FileReader();
+            reader.onload = () => resolve(String(reader.result || ''));
+            reader.onerror = () => reject(new Error('Помилка читання файлу'));
+            reader.readAsDataURL(file);
+          });
+          const token = localStorage.getItem('admin_token') || '';
+          const res = await fetch('/api/admin/extract-document-text', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'x-admin-token': token
+            },
+            body: JSON.stringify({
+              fileName: file.name,
+              mimeType: file.type,
+              base64Data
+            })
+          });
+          const data = await res.json().catch(() => ({}));
+          if (!res.ok || !data.success) {
+            throw new Error(data.error || 'Не вдалося прочитати документ');
+          }
+          sourceInput.value = data.text || '';
+          updateSourceBadge();
+          showToast(data.truncated ? `Завантажено перші ${data.charCount} символів із "${file.name}"` : `Матеріал з "${file.name}" завантажено!`);
+        } else {
+          const textContent = await file.text();
+          sourceInput.value = String(textContent || '').slice(0, 35000);
+          updateSourceBadge();
+          showToast(`Файл "${file.name}" завантажено!`);
+        }
+      } catch (err) {
+        updateSourceBadge();
+        showConfigError(err.message);
+      } finally {
+        sourceFileInput.value = '';
+      }
+    });
+  }
+
+  const openModal = (prefillTopic = '') => {
+    if (!modal) return;
+    hideConfigError();
+    showStep('config');
+    if (progressWrap) progressWrap.classList.add('hidden');
+    if (stopBatchBtn) stopBatchBtn.classList.add('hidden');
+    if (topicInput) topicInput.value = prefillTopic || currentTest?.topic || '';
+    if (subjectInput && currentTest?.subject) subjectInput.value = currentTest.subject;
+    if (gradeInput && currentTest?.class) gradeInput.value = currentTest.class;
+    updateSourceBadge();
+    syncNumericHintVisibility();
+    modal.classList.remove('hidden');
+  };
+
+  window.openStudioAiGenerator = openModal;
+
+  if (openBtn && modal) {
+    openBtn.addEventListener('click', () => openModal(''));
+  }
+
+  const close = () => {
+    if (batchAbortController) {
+      batchAbortController.abort();
+      batchAbortController = null;
+    }
+    if (modal) modal.classList.add('hidden');
+  };
   if (closeBtn) closeBtn.addEventListener('click', close);
   if (cancelBtn) cancelBtn.addEventListener('click', close);
+  if (backToConfigBtn) {
+    backToConfigBtn.addEventListener('click', () => showStep('config'));
+  }
+  if (previewSelectAll) {
+    previewSelectAll.addEventListener('change', () => {
+      const checked = previewSelectAll.checked;
+      generatedPreviewItems.forEach(it => { it.selected = checked; });
+      renderPreviewCards();
+    });
+  }
+  if (stopBatchBtn) {
+    stopBatchBtn.addEventListener('click', () => {
+      stopRequested = true;
+      if (batchAbortController) batchAbortController.abort();
+    });
+  }
 
-  if (startBtn) {
-    startBtn.addEventListener('click', async () => {
-      const topic = topicInput ? topicInput.value.trim() : 'Загальна тема';
-      const subject = subjectInput ? subjectInput.value.trim() : 'Предмет';
-      let count = 5;
-      if (countInput) {
-        count = parseInt(countInput.value) || 5;
-      } else if (countSelect) {
-        count = parseInt(countSelect.value) || 5;
-      }
-      count = Math.min(50, Math.max(1, count));
-
-      const grade = gradeInput ? (gradeInput.value.trim() || '10-11 клас') : '10-11 клас';
-      const difficulty = diffSelect ? diffSelect.value : 'Середній рівень';
-
-      if (progressWrap) progressWrap.classList.remove('hidden');
-      startBtn.disabled = true;
-
-      const prompt = `Ти — експерт зі створення тестів українською мовою.
-Предмет: "${subject}". Тема: "${topic}".
-Клас / Аудиторія: "${grade}".
-Рівень складності: "${difficulty}".
-Кількість завдань: ${count}.
-Склади рівно ${count} якісних тестових завдань (single та multiple), що суворо відповідають рівню складності (${difficulty}) та класу (${grade}). Всі варіанти мають бути реальними назвами, фактами чи датами (жодних "Варіант А").
-Поверни строго JSON у форматі:
-{
-  "questions": [
-    {
-      "text": "текст запитання",
-      "type": "single",
-      "options": ["варіант 1", "варіант 2", "варіант 3", "варіант 4"],
-      "correct": 0,
-      "points": 1,
-      "timeLimit": 60,
-      "explanation": "пояснення чому це правильно"
+  const runGeneration = async () => {
+    const topic = topicInput ? topicInput.value.trim() : '';
+    const sourceText = sourceInput ? sourceInput.value.trim() : '';
+    if (!topic && !sourceText) {
+      showConfigError('Вкажіть тему тесту або вставте / завантажте опорний конспект!');
+      if (topicInput) topicInput.focus();
+      return;
     }
-  ]
-}`;
 
-      let aiResult = await callGeminiApi(prompt, true);
-      let generated = aiResult?.questions;
+    const subject = subjectInput ? subjectInput.value.trim() : '';
+    const grade = gradeInput ? (gradeInput.value.trim() || '10-11 клас') : '10-11 клас';
+    const difficulty = diffSelect ? diffSelect.value : 'medium';
+    const count = Math.min(50, Math.max(1, parseInt(countInput ? countInput.value : '5', 10) || 5));
+    const timeLimitSeconds = Math.min(600, Math.max(10, parseInt(timeLimitInput ? timeLimitInput.value : '60', 10) || 60));
+    const customInstructions = customInstInput ? customInstInput.value.trim() : '';
+    const questionTypes = getSelectedTypes();
+    const tolRaw = numTolSelect ? numTolSelect.value : 'auto';
+    const numericToleranceHint = tolRaw === 'auto' ? undefined : Number(tolRaw);
 
-      if (!generated || !Array.isArray(generated) || generated.length === 0) {
-        if (progressWrap) progressWrap.classList.add('hidden');
-        startBtn.disabled = false;
-        showToast(lastGeminiError || 'Не вдалося згенерувати питання через Gemini AI');
-        return;
-      } else {
-        generated.forEach((q, idx) => {
-          q.id = 'q_ai_' + Date.now() + '_' + idx;
-          q.points = q.points || 1;
-          q.timeLimit = q.timeLimit || 60;
-          q.imageUrl = '';
+    lastRunParams = { topic, sourceText, subject, grade, difficulty, count, timeLimitSeconds, customInstructions, questionTypes, numericToleranceHint };
+
+    hideConfigError();
+    if (progressWrap) progressWrap.classList.remove('hidden');
+    if (startBtn) startBtn.disabled = true;
+    stopRequested = false;
+
+    const batchSizes = [];
+    let left = count;
+    while (left > 0) {
+      const chunk = Math.min(10, left);
+      batchSizes.push(chunk);
+      left -= chunk;
+    }
+    if (stopBatchBtn) {
+      stopBatchBtn.classList.toggle('hidden', batchSizes.length < 2);
+    }
+
+    const collected = [];
+    let finalTitle = topic || 'Тест за конспектом';
+    const existingPool = Array.isArray(currentTest?.questions) ? currentTest.questions.map(q => q.text).filter(Boolean) : [];
+    const token = localStorage.getItem('admin_token') || '';
+
+    try {
+      for (let bIdx = 0; bIdx < batchSizes.length; bIdx++) {
+        if (stopRequested) break;
+        const batchCount = batchSizes[bIdx];
+        const basePct = (collected.length / count) * 100;
+        setProgress(
+          Math.max(8, basePct),
+          `Партія ${bIdx + 1} з ${batchSizes.length}: генеруємо ${batchCount} пит...`,
+          `Згенеровано ${collected.length} із ${count} питань`
+        );
+
+        batchAbortController = new AbortController();
+        const res = await fetch('/api/admin/generate-test', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'x-admin-token': token
+          },
+          signal: batchAbortController.signal,
+          body: JSON.stringify({
+            topic,
+            subject,
+            grade,
+            difficulty,
+            count: batchCount,
+            timeLimitSeconds,
+            customInstructions,
+            sourceText,
+            questionTypes,
+            numericToleranceHint,
+            excludeQuestions: [...existingPool, ...collected.map(q => q.text)],
+            applyToTest: false
+          })
         });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok || !data.success || !Array.isArray(data.questions)) {
+          throw new Error(data.error || 'Помилка генерації через Gemini API');
+        }
+        if (bIdx === 0 && data.title) {
+          finalTitle = data.title;
+        }
+        for (const rawQ of data.questions) {
+          const norm = normalizeStudioQuestion(rawQ, timeLimitSeconds, numericToleranceHint);
+          if (norm) collected.push(norm);
+        }
+        setProgress(
+          (collected.length / count) * 100,
+          bIdx + 1 < batchSizes.length
+            ? `Готово ${collected.length} із ${count}. Перехід до наступної партії...`
+            : `Успішно згенеровано ${collected.length} питань!`,
+          `Завершено партій: ${bIdx + 1} з ${batchSizes.length}`
+        );
       }
+    } catch (err) {
+      if (err.name === 'AbortError' && collected.length > 0) {
+        showToast(`Генерацію зупинено: збережено ${collected.length} готових питань`);
+      } else {
+        if (progressWrap) progressWrap.classList.add('hidden');
+        if (stopBatchBtn) stopBatchBtn.classList.add('hidden');
+        if (startBtn) startBtn.disabled = false;
+        showConfigError(err.name === 'AbortError' ? 'Генерацію скасовано' : err.message);
+        return;
+      }
+    } finally {
+      batchAbortController = null;
+      if (startBtn) startBtn.disabled = false;
+      if (stopBatchBtn) stopBatchBtn.classList.add('hidden');
+    }
 
+    if (progressWrap) progressWrap.classList.add('hidden');
+    if (collected.length === 0) {
+      showConfigError('Gemini не сформував жодного валідного питання. Спробуйте уточнити тему або формати.');
+      return;
+    }
+
+    generatedTestTitle = finalTitle;
+    generatedPreviewItems = collected.map(q => ({ question: q, selected: true }));
+    renderPreviewCards();
+    showStep('preview');
+  };
+
+  if (startBtn) startBtn.addEventListener('click', runGeneration);
+  if (retryBtn) retryBtn.addEventListener('click', runGeneration);
+
+  const getSelectedPreviewQuestions = () => generatedPreviewItems.filter(it => it.selected).map(it => JSON.parse(JSON.stringify(it.question)));
+
+  if (applyAppendBtn) {
+    applyAppendBtn.addEventListener('click', async () => {
+      const selected = getSelectedPreviewQuestions();
+      if (selected.length === 0) return;
       recordUndoSnapshot();
-      currentTest.questions.push(...generated);
-      activeQuestionIndex = currentTest.questions.length - generated.length;
-      if (progressWrap) progressWrap.classList.add('hidden');
-      startBtn.disabled = false;
+      if (!Array.isArray(currentTest.questions)) currentTest.questions = [];
+      const firstAddedIdx = currentTest.questions.length;
+      currentTest.questions.push(...selected);
+      activeQuestionIndex = firstAddedIdx;
       close();
+      syncMetaHeader();
       renderQuestionsNav();
       loadQuestionIntoEditor(activeQuestionIndex);
       updateTestAnalytics();
-      saveDraftToStorage();
-      showToast(`Gemini згенерував ${generated.length} завдань!`);
+      await persistStudioTestToServer();
+      showToast(`Додано ${selected.length} питань до тесту!`);
+    });
+  }
+
+  if (applyReplaceBtn) {
+    applyReplaceBtn.addEventListener('click', async () => {
+      const selected = getSelectedPreviewQuestions();
+      if (selected.length === 0) return;
+      recordUndoSnapshot();
+      currentTest.questions = selected;
+      activeQuestionIndex = 0;
+      close();
+      syncMetaHeader();
+      renderQuestionsNav();
+      loadQuestionIntoEditor(0);
+      updateTestAnalytics();
+      await persistStudioTestToServer();
+      showToast(`Питання тесту замінено (${selected.length} шт.)!`);
+    });
+  }
+
+  if (applyNewTestBtn) {
+    applyNewTestBtn.addEventListener('click', async () => {
+      const selected = getSelectedPreviewQuestions();
+      if (selected.length === 0) return;
+      applyNewTestBtn.disabled = true;
+      try {
+        const token = localStorage.getItem('admin_token') || '';
+        const res = await fetch('/api/admin/tests', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'x-admin-token': token
+          },
+          body: JSON.stringify({
+            title: generatedTestTitle || topicInput?.value.trim() || 'Новий ШІ-тест',
+            subject: subjectInput?.value.trim() || currentTest?.subject || 'Загальний',
+            topic: topicInput?.value.trim() || '',
+            durationMinutes: Math.max(10, Math.round(selected.length * 1.5)),
+            questions: selected
+          })
+        });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) throw new Error(data.error || 'Помилка створення тесту');
+        close();
+        if (typeof window.refreshAdminTestsList === 'function') {
+          await window.refreshAdminTestsList();
+        }
+        if (typeof window.selectAndOpenAdminTest === 'function') {
+          await window.selectAndOpenAdminTest(data.id);
+        } else {
+          loadTestIntoStudio(data);
+        }
+        showToast(`Створено новий тест "${data.title}" (${selected.length} пит.)!`);
+      } catch (err) {
+        showToast(err.message);
+      } finally {
+        applyNewTestBtn.disabled = false;
+      }
     });
   }
 }

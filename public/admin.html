@@ -8,7 +8,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="/css/style.css?v=1.2.3_14">
+  <link rel="stylesheet" href="/css/style.css?v=1.2.3_15">
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.css" crossorigin="anonymous">
   <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.js" crossorigin="anonymous"></script>
   <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/contrib/auto-render.min.js" crossorigin="anonymous"></script>
@@ -1533,96 +1533,6 @@
 
     <div id="printableGradebookContainer" class="hidden"></div>
 
-    <div id="aiGenerateModal" class="hidden" style="position: fixed; inset: 0; background: rgba(0,0,0,0.65); z-index: 10000; display: flex; align-items: center; justify-content: center; padding: 16px;">
-      <div class="card-panel" style="max-width: 680px; width: 100%; max-height: 92vh; overflow-y: auto; padding: 24px;">
-        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
-          <div style="display: flex; align-items: center; gap: 8px;">
-            <div style="width: 28px; height: 28px; border-radius: 6px; background: linear-gradient(135deg, #6366f1, #8b5cf6); display: flex; align-items: center; justify-content: center;">
-              <img src="/img/icons/star.svg" class="pixel-icon" alt="" style="filter: brightness(0) invert(1);">
-            </div>
-            <div>
-              <h3 style="font-size: 16px; font-weight: 700; margin: 0;">Генерація тесту через Gemini AI</h3>
-              <div style="font-size: 11px; color: var(--text-muted); margin-top: 2px;">Автоматичне створення запитань із варіантами відповідей</div>
-            </div>
-          </div>
-          <button id="closeAiModalBtn" style="background: none; border: none; cursor: pointer; display: flex; align-items: center; padding: 4px;" type="button"><img src="/img/icons/cross.svg" class="pixel-icon" alt=""></button>
-        </div>
-
-        <div class="form-group" style="margin-bottom: 14px;">
-          <label class="form-label" for="aiTopicInput">Тема або предмет тесту *</label>
-          <input type="text" id="aiTopicInput" class="form-input" style="font-size: 13px;" placeholder="Наприклад: Основи комп'ютерних мереж, модель OSI, протокол TCP/IP">
-        </div>
-
-        <div class="admin-modal-grid-3" style="display: grid; grid-template-columns: 1.2fr 1fr 1fr; gap: 12px; margin-bottom: 14px;">
-          <div>
-            <label class="form-label" for="aiCountInput">Кількість питань</label>
-            <input type="number" id="aiCountInput" class="form-input" value="5" min="1" max="50" style="font-size: 13px; padding: 7px 10px;" placeholder="Введіть число...">
-            <div style="display: flex; gap: 4px; margin-top: 6px; flex-wrap: wrap;">
-              <button type="button" class="ai-count-chip" data-val="3">3</button>
-              <button type="button" class="ai-count-chip active" data-val="5">5</button>
-              <button type="button" class="ai-count-chip" data-val="10">10</button>
-              <button type="button" class="ai-count-chip" data-val="15">15</button>
-              <button type="button" class="ai-count-chip" data-val="20">20</button>
-              <button type="button" class="ai-count-chip" data-val="30">30</button>
-            </div>
-          </div>
-          <div>
-            <label class="form-label" for="aiDifficultySelect">Рівень складності</label>
-            <select id="aiDifficultySelect" class="form-input" style="font-size: 13px; padding: 8px 10px;">
-              <option value="easy">Початковий / Легкий</option>
-              <option value="medium" selected>Середній стандарт</option>
-              <option value="hard">Складний / Просунутий</option>
-              <option value="olympiad">Олімпіадний</option>
-            </select>
-          </div>
-          <div>
-            <label class="form-label" for="aiTimeLimitInput">Час на питання (сек)</label>
-            <input type="number" id="aiTimeLimitInput" class="form-input" value="60" min="15" max="300" style="font-size: 13px;">
-          </div>
-        </div>
-
-        <div class="form-group" style="margin-bottom: 14px;">
-          <label class="form-label" for="aiCustomPrompt">Додаткові вказівки для ШІ (необов'язково)</label>
-          <textarea id="aiCustomPrompt" class="form-input" style="min-height: 60px; resize: vertical; font-size: 12px; line-height: 1.4;" placeholder="Наприклад: Зосередься на практичних ситуаціях та прикладах з реального життя"></textarea>
-        </div>
-
-        <div style="margin-bottom: 16px;">
-          <label class="form-label">Дія з існуючими питаннями тесту</label>
-          <div style="display: flex; gap: 16px; font-size: 13px;">
-            <label style="display: flex; align-items: center; gap: 6px; cursor: pointer;">
-              <input type="radio" name="aiActionMode" value="append" checked>
-              <span>Додати нові питання до вже існуючих</span>
-            </label>
-            <label style="display: flex; align-items: center; gap: 6px; cursor: pointer;">
-              <input type="radio" name="aiActionMode" value="replace">
-              <span>Замінити всі існуючі питання новими</span>
-            </label>
-          </div>
-        </div>
-
-        <div id="aiModalError" style="color: var(--accent-red); font-size: 12px; margin-bottom: 14px; min-height: 16px;"></div>
-
-        <div id="aiGeneratingIndicator" class="hidden" style="padding: 16px; margin-bottom: 14px; text-align: center; background: rgba(99,102,241,0.08); border: 1px dashed #6366f1; border-radius: var(--radius-sm);">
-          <div style="font-size: 13px; font-weight: 600; color: #6366f1; margin-bottom: 4px;">Gemini AI аналізує тему та генерує варіанти...</div>
-          <div style="font-size: 11px; color: var(--text-muted);">Зазвичай це триває кілька секунд. Будь ласка, зачекайте.</div>
-        </div>
-
-        <div id="aiSuccessIndicator" class="hidden" style="padding: 16px; margin-bottom: 14px; text-align: center; background: rgba(22,163,74,0.1); border: 1px solid var(--accent-green); border-radius: var(--radius-sm);">
-          <div style="font-size: 14px; font-weight: 700; color: var(--accent-green); margin-bottom: 4px; display: flex; align-items: center; justify-content: center; gap: 6px;">
-            <img src="/img/icons/check.svg" class="pixel-icon inline" alt=""> Генерацію завершено!
-          </div>
-          <div id="aiSuccessDetails" style="font-size: 12px; color: var(--text);">Тест успішно згенеровано та додано до списку.</div>
-        </div>
-
-        <div style="display: flex; justify-content: flex-end; gap: 10px;">
-          <button id="cancelAiModalBtn" class="btn-secondary" style="width: auto; padding: 8px 18px; font-size: 12px;" type="button">Скасувати</button>
-          <button id="startAiGenerateBtn" class="btn-primary" style="width: auto; padding: 8px 22px; font-size: 12px; background: linear-gradient(135deg, #6366f1, #8b5cf6); border: none;" type="button">
-            <img src="/img/icons/star.svg" class="pixel-icon inline" alt="" style="filter: brightness(0) invert(1);"> Згенерувати тест
-          </button>
-        </div>
-      </div>
-    </div>
-
     <div id="createTestModal" class="hidden" style="position: fixed; inset: 0; background: rgba(0,0,0,0.65); z-index: 10000; display: flex; align-items: center; justify-content: center; padding: 16px;">
       <div class="card-panel" style="max-width: 540px; width: 100%; padding: 24px;">
         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px;">
@@ -2272,7 +2182,7 @@
       </div>
     </div>
 
-  <script type="module" src="/js/admin.js?v=1.2.3_14"></script>
+  <script type="module" src="/js/admin.js?v=1.2.3_15"></script>
   <div id="massImportModal" class="modal-backdrop hidden">
     <div class="modal-window">
       <div class="modal-window-head">
@@ -2309,67 +2219,163 @@
   </div>
 
   <div id="aiGenModal" class="modal-backdrop hidden">
-    <div class="modal-window">
+    <div class="modal-window" style="max-width: 780px; max-height: 92vh;">
       <div class="modal-window-head">
         <div>
           <div class="modal-window-title"><img src="/img/icons/star.svg" class="pixel-icon inline" alt=""> ШІ Генератор тесту Gemini</div>
-          <div class="modal-window-sub">Автоматичне створення тестових завдань за навчальною програмою</div>
+          <div class="modal-window-sub">Мультиформатна генерація партіями, за темою або за вашим конспектом із передпереглядом</div>
         </div>
         <button type="button" id="closeAiModalBtn" class="close-win-btn"><img src="/img/icons/cross.svg" class="pixel-icon inline" alt=""></button>
       </div>
-      <div class="modal-window-body">
-        <div class="ai-form-grid">
-          <div>
-            <label class="form-label" for="aiTopicInput">Тема або параграф підручника</label>
-            <input type="text" id="aiTopicInput" class="form-input" style="font-size: 13px;" placeholder="напр. Загальна характеристика Азії">
-          </div>
-          <div>
-            <label class="form-label" for="aiSubjectInput">Предмет</label>
-            <input type="text" id="aiSubjectInput" class="form-input" style="font-size: 13px;" placeholder="Географія">
-          </div>
-          <div>
-            <label class="form-label" for="aiGradeInput">Клас / Аудиторія</label>
-            <input type="text" id="aiGradeInput" list="aiGradeList" class="form-input" style="font-size: 13px;" value="10-11 клас (Старша школа / ЗНО / НМТ)" placeholder="Оберіть або введіть клас...">
-            <datalist id="aiGradeList">
-              <option value="1-4 клас (Початкова школа)"></option>
-              <option value="5-6 клас (Середня школа)"></option>
-              <option value="7-9 клас (Основна школа)"></option>
-              <option value="10-11 клас (Старша школа / ЗНО / НМТ)"></option>
-              <option value="Коледж / 1-2 курс"></option>
-            </datalist>
-          </div>
-          <div>
-            <label class="form-label" for="aiDifficultySelect">Рівень складності</label>
-            <select id="aiDifficultySelect" class="form-input" style="font-size: 13px; cursor: pointer;">
-              <option value="Базовий (рівень стандарт, початкові терміни)">[Базовий] Рівень стандарт, базові терміни</option>
-              <option value="Середній (стандартне розуміння та типові факти)" selected>[Середній] Стандартне розуміння</option>
-              <option value="Достатній (поглиблений аналіз, комплексні задачі)">[Достатній] Поглиблений аналіз</option>
-              <option value="Високий / Олімпіадний / ЗНО (підвищена складність, неочевидні дистрактори)">[Високий] Олімпіадний / ЗНО</option>
-            </select>
-          </div>
-          <div style="grid-column: 1 / -1;">
-            <label class="form-label" for="aiCountInput">Кількість тестових питань (введіть або оберіть):</label>
-            <div style="display: flex; align-items: center; gap: 10px; flex-wrap: wrap;">
-              <input type="number" id="aiCountInput" class="form-input" min="1" max="50" value="5" style="width: 85px; font-size: 14px; font-weight: 700; text-align: center;" placeholder="5">
-              <div id="aiCountPresets" style="display: flex; gap: 6px; flex-wrap: wrap;">
-                <button type="button" class="preset-chip" data-count="3">3 питання</button>
-                <button type="button" class="preset-chip active" data-count="5">5 питань</button>
-                <button type="button" class="preset-chip" data-count="10">10 питань</button>
-                <button type="button" class="preset-chip" data-count="15">15 питань</button>
-                <button type="button" class="preset-chip" data-count="20">20 питань</button>
+      <div class="modal-window-body" style="overflow-y: auto; max-height: calc(92vh - 135px);">
+        <div id="aiGenConfigStep">
+          <div class="ai-form-grid">
+            <div>
+              <label class="form-label" for="aiTopicInput">Тема або параграф підручника</label>
+              <input type="text" id="aiTopicInput" class="form-input" style="font-size: 13px;" placeholder="напр. Закони Ньютона або вставити конспект нижче">
+            </div>
+            <div>
+              <label class="form-label" for="aiSubjectInput">Предмет</label>
+              <input type="text" id="aiSubjectInput" class="form-input" style="font-size: 13px;" placeholder="Фізика / Географія">
+            </div>
+            <div>
+              <label class="form-label" for="aiGradeInput">Клас / Аудиторія</label>
+              <input type="text" id="aiGradeInput" list="aiGradeList" class="form-input" style="font-size: 13px;" value="10-11 клас (Старша школа / ЗНО / НМТ)" placeholder="Оберіть або введіть клас...">
+              <datalist id="aiGradeList">
+                <option value="1-4 клас (Початкова школа)"></option>
+                <option value="5-6 клас (Середня школа)"></option>
+                <option value="7-9 клас (Основна школа)"></option>
+                <option value="10-11 клас (Старша школа / ЗНО / НМТ)"></option>
+                <option value="Коледж / 1-2 курс"></option>
+              </datalist>
+            </div>
+            <div>
+              <label class="form-label" for="aiDifficultySelect">Рівень складності</label>
+              <select id="aiDifficultySelect" class="form-input" style="font-size: 13px; cursor: pointer;">
+                <option value="easy">[Базовий] Початкові терміни та факти</option>
+                <option value="medium" selected>[Середній] Стандартне розуміння та задачі</option>
+                <option value="hard">[Достатній] Поглиблений аналіз</option>
+                <option value="olympiad">[Високий] Олімпіадний / ЗНО / НМТ</option>
+              </select>
+            </div>
+            <div>
+              <label class="form-label" for="aiCountInput">Кількість питань (1–50)</label>
+              <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
+                <input type="number" id="aiCountInput" class="form-input" min="1" max="50" value="5" style="width: 78px; font-size: 14px; font-weight: 700; text-align: center;" placeholder="5">
+                <div id="aiCountPresets" style="display: flex; gap: 5px; flex-wrap: wrap;">
+                  <button type="button" class="preset-chip" data-count="3">3</button>
+                  <button type="button" class="preset-chip active" data-count="5">5</button>
+                  <button type="button" class="preset-chip" data-count="10">10</button>
+                  <button type="button" class="preset-chip" data-count="15">15</button>
+                  <button type="button" class="preset-chip" data-count="20">20</button>
+                  <button type="button" class="preset-chip" data-count="30">30</button>
+                </div>
               </div>
-              <span style="font-size: 11px; color: var(--text-muted);">(можна вписати від 1 до 50)</span>
+              <div id="aiBatchHint" style="font-size: 11px; color: var(--text-muted); margin-top: 4px;">Понад 10 питань автоматично розбиваються на партії без втрати якості</div>
+            </div>
+            <div>
+              <label class="form-label" for="aiTimeLimitInput">Час на 1 питання (сек)</label>
+              <input type="number" id="aiTimeLimitInput" class="form-input" value="60" min="10" max="600" style="font-size: 13px;">
+            </div>
+          </div>
+
+          <div style="margin-top: 14px;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px; flex-wrap: wrap; gap: 6px;">
+              <label class="form-label" style="margin: 0;">Формати питань (оберіть один або декілька)</label>
+              <span style="font-size: 11px; color: var(--text-muted);">ШІ чергуватиме обрані типи</span>
+            </div>
+            <div id="aiTypesGrid" class="ai-type-pills-wrap">
+              <label class="ai-type-pill"><input type="checkbox" value="single" checked> <span>Один варіант</span></label>
+              <label class="ai-type-pill"><input type="checkbox" value="multiple"> <span>Кілька відповідей</span></label>
+              <label class="ai-type-pill"><input type="checkbox" value="true_false"> <span>Правда / Неправда</span></label>
+              <label class="ai-type-pill"><input type="checkbox" value="numeric"> <span>Числова (± похибка)</span></label>
+              <label class="ai-type-pill"><input type="checkbox" value="matching"> <span>Відповідність</span></label>
+              <label class="ai-type-pill"><input type="checkbox" value="ordering"> <span>Послідовність</span></label>
+              <label class="ai-type-pill"><input type="checkbox" value="short_answer"> <span>Коротка відповідь</span></label>
+            </div>
+            <div id="aiNumericTolHintWrap" class="hidden" style="margin-top: 8px; padding: 8px 10px; border-radius: var(--radius-sm); background: var(--bg-elevated); border: 1px solid var(--border); display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap;">
+              <span style="font-size: 12px; color: var(--text);">Похибка для згенерованих числових питань:</span>
+              <select id="aiNumericTolSelect" class="form-input" style="width: auto; font-size: 12px; padding: 5px 10px;">
+                <option value="auto" selected>Авто (ШІ підбере під задачу)</option>
+                <option value="0">Вимкнена (лише точне число)</option>
+                <option value="0.05">± 0.05</option>
+                <option value="0.1">± 0.1</option>
+                <option value="0.2">± 0.2</option>
+                <option value="0.5">± 0.5</option>
+                <option value="1">± 1</option>
+              </select>
+            </div>
+          </div>
+
+          <div class="ai-source-box">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px; flex-wrap: wrap; gap: 8px;">
+              <label class="form-label" for="aiSourceTextInput" style="margin: 0;">Опорний конспект / параграф (необов'язково)</label>
+              <div style="display: flex; align-items: center; gap: 6px; flex-wrap: wrap;">
+                <span id="aiSourceStatusBadge" style="font-size: 11px; color: var(--text-muted);"></span>
+                <label class="btn-secondary ai-upload-doc-btn" style="padding: 4px 10px; font-size: 11px; cursor: pointer; display: inline-flex; align-items: center; gap: 5px; margin: 0;">
+                  <img src="/img/icons/upload.svg" class="pixel-icon inline" alt=""> Завантажити .txt / .docx / .pdf
+                  <input type="file" id="aiSourceFileInput" accept=".txt,.md,.csv,.json,.docx,.pdf" style="display: none;">
+                </label>
+                <button type="button" id="aiClearSourceBtn" class="btn-secondary hidden" style="padding: 4px 8px; font-size: 11px;">Очистити</button>
+              </div>
+            </div>
+            <textarea id="aiSourceTextInput" class="form-input" rows="4" style="font-size: 12px; line-height: 1.45; resize: vertical;" placeholder="Вставте текст підручника, лекції чи конспекту — ШІ складатиме завдання суворо за цим матеріалом без вигадування фактів..."></textarea>
+          </div>
+
+          <div style="margin-top: 12px;">
+            <label class="form-label" for="aiCustomInstructionsInput">Додаткові побажання (необов'язково)</label>
+            <input type="text" id="aiCustomInstructionsInput" class="form-input" style="font-size: 12px;" placeholder="Наприклад: більше практичних задач, перевір типові помилки учнів">
+          </div>
+
+          <div id="aiGenErrorBox" class="ai-error-banner hidden">
+            <span id="aiGenErrorText"></span>
+            <button type="button" id="retryAiGenBtn" class="btn-chat-retry">Спробувати ще раз</button>
+          </div>
+
+          <div id="aiGenProgressWrap" class="ai-progress-wrap hidden" style="flex-direction: column; align-items: stretch; gap: 8px;">
+            <div style="display: flex; align-items: center; justify-content: space-between; gap: 10px;">
+              <div style="display: flex; align-items: center; gap: 10px; min-width: 0;">
+                <div class="ai-spinner" style="flex-shrink: 0;"></div>
+                <span id="aiProgressText" class="ai-progress-text">Підготовка запиту до Gemini...</span>
+              </div>
+              <strong id="aiProgressPercent" style="font-size: 12px; color: var(--accent); flex-shrink: 0;">0%</strong>
+            </div>
+            <div class="ai-progress-track">
+              <div id="aiProgressFill" class="ai-progress-fill" style="width: 0%;"></div>
+            </div>
+            <div style="display: flex; align-items: center; justify-content: space-between; gap: 8px; flex-wrap: wrap;">
+              <span id="aiProgressBatchMeta" style="font-size: 11px; color: var(--text-muted);"></span>
+              <button type="button" id="stopAiBatchBtn" class="ai-q-mini-btn hidden">Зупинити й переглянути готове</button>
             </div>
           </div>
         </div>
-        <div id="aiGenProgressWrap" class="ai-progress-wrap hidden">
-          <div class="ai-spinner"></div>
-          <span id="aiProgressText" class="ai-progress-text">Gemini формує якісні тестові завдання та дистрактори...</span>
+
+        <div id="aiGenPreviewStep" class="hidden">
+          <div class="ai-preview-toolbar">
+            <div>
+              <strong id="aiPreviewSummaryText" style="font-size: 13px;">Згенеровано 0 питань</strong>
+              <div style="font-size: 11px; color: var(--text-muted);">Оберіть потрібні або точково перегенеруйте окреме завдання перед збереженням</div>
+            </div>
+            <div style="display: flex; align-items: center; gap: 10px; flex-wrap: wrap;">
+              <label style="font-size: 12px; display: inline-flex; align-items: center; gap: 6px; cursor: pointer;">
+                <input type="checkbox" id="aiPreviewSelectAll" checked> Обрати всі
+              </label>
+              <button type="button" id="aiBackToConfigBtn" class="btn-secondary" style="font-size: 11px; padding: 5px 10px;">← Назад до параметрів</button>
+            </div>
+          </div>
+          <div id="aiPreviewCardsList" class="ai-preview-list"></div>
         </div>
       </div>
-      <div class="modal-window-footer">
-        <button type="button" id="cancelAiGenBtn" class="btn-secondary" style="font-size: 12px; padding: 7px 16px;">Скасувати</button>
-        <button type="button" id="startAiGenBtn" class="btn-primary" style="font-size: 12px; padding: 7px 18px; background: linear-gradient(135deg, #6366f1, #8b5cf6);"><img src="/img/icons/star.svg" class="pixel-icon inline" style="filter:brightness(0) invert(1);" alt=""> Згенерувати завдання</button>
+      <div class="modal-window-footer" style="flex-wrap: wrap;">
+        <div id="aiGenFooterConfig" style="display: flex; gap: 8px; justify-content: flex-end; width: 100%; flex-wrap: wrap;">
+          <button type="button" id="cancelAiGenBtn" class="btn-secondary" style="font-size: 12px; padding: 7px 16px;">Скасувати</button>
+          <button type="button" id="startAiGenBtn" class="btn-primary" style="font-size: 12px; padding: 7px 18px; background: linear-gradient(135deg, #6366f1, #8b5cf6);"><img src="/img/icons/star.svg" class="pixel-icon inline" style="filter:brightness(0) invert(1);" alt=""> Згенерувати та переглянути</button>
+        </div>
+        <div id="aiGenFooterPreview" class="hidden" style="display: flex; gap: 8px; justify-content: flex-end; width: 100%; flex-wrap: wrap;">
+          <button type="button" id="aiApplyReplaceBtn" class="btn-secondary" style="font-size: 12px; padding: 7px 14px;">Замінити поточні питання</button>
+          <button type="button" id="aiApplyNewTestBtn" class="btn-secondary" style="font-size: 12px; padding: 7px 14px; border-color: rgba(99, 102, 241, 0.45); color: var(--accent);">Створити як новий тест</button>
+          <button type="button" id="aiApplyAppendBtn" class="btn-primary" style="font-size: 12px; padding: 7px 18px; background: linear-gradient(135deg, #6366f1, #8b5cf6);">+ Додати обрані до тесту</button>
+        </div>
       </div>
     </div>
   </div>
@@ -2509,7 +2515,7 @@
     </div>
   </div>
 
-<script src="/js/test-editor.js?v=1.2.3_14"></script>
+<script src="/js/test-editor.js?v=1.2.3_15"></script>
 <script>
 (function(){
   var s=document.getElementById('adminSplash');

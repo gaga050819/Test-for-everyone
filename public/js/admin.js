@@ -2698,15 +2698,11 @@ function initMultiTestControls() {
         if (fillMethod === 'ai') {
           switchTabTo('testEditor');
           setTimeout(() => {
-            const aiBtn = document.getElementById('openAiGenModalBtn') || document.getElementById('openAiGenerateBtn');
-            if (aiBtn) {
-              aiBtn.click();
-            } else if (aiGenerateModal) {
-              aiModalError.textContent = '';
-              if (aiGeneratingIndicator) aiGeneratingIndicator.classList.add('hidden');
-              if (aiSuccessIndicator) aiSuccessIndicator.classList.add('hidden');
-              aiTopicInput.value = topic || title || '';
-              aiGenerateModal.classList.remove('hidden');
+            if (typeof window.openStudioAiGenerator === 'function') {
+              window.openStudioAiGenerator(topic || title || '');
+            } else {
+              const aiBtn = document.getElementById('openAiGenModalBtn');
+              if (aiBtn) aiBtn.click();
             }
           }, 400);
         } else if (fillMethod === 'import') {
@@ -3171,20 +3167,6 @@ const editTestTitleInput = document.getElementById('editTestTitleInput');
 const editTestDurationInput = document.getElementById('editTestDurationInput');
 const saveTestMetaBtn = document.getElementById('saveTestMetaBtn');
 const openAddQuestionBtn = document.getElementById('openAddQuestionBtn');
-const openAiGenerateBtn = document.getElementById('openAiGenerateBtn');
-const aiGenerateModal = document.getElementById('aiGenerateModal');
-const closeAiModalBtn = document.getElementById('closeAiModalBtn');
-const cancelAiModalBtn = document.getElementById('cancelAiModalBtn');
-const startAiGenerateBtn = document.getElementById('startAiGenerateBtn');
-const aiTopicInput = document.getElementById('aiTopicInput');
-const aiCountInput = document.getElementById('aiCountInput') || document.getElementById('aiCountSelect');
-const aiDifficultySelect = document.getElementById('aiDifficultySelect');
-const aiTimeLimitInput = document.getElementById('aiTimeLimitInput');
-const aiCustomPrompt = document.getElementById('aiCustomPrompt');
-const aiModalError = document.getElementById('aiModalError');
-const aiGeneratingIndicator = document.getElementById('aiGeneratingIndicator');
-const aiSuccessIndicator = document.getElementById('aiSuccessIndicator');
-const aiSuccessDetails = document.getElementById('aiSuccessDetails');
 const aiStatusBanner = document.getElementById('aiStatusBanner');
 const aiStatusBannerText = document.getElementById('aiStatusBannerText');
 const closeAiStatusBannerBtn = document.getElementById('closeAiStatusBannerBtn');
@@ -3914,136 +3896,9 @@ function initTestEditor() {
     });
   }
 
-  const countChips = document.querySelectorAll('.ai-count-chip');
-  if (countChips.length > 0 && aiCountInput) {
-    countChips.forEach(chip => {
-      chip.addEventListener('click', () => {
-        countChips.forEach(c => c.classList.remove('active'));
-        chip.classList.add('active');
-        aiCountInput.value = chip.dataset.val;
-      });
-    });
-    aiCountInput.addEventListener('input', () => {
-      const val = aiCountInput.value;
-      countChips.forEach(c => {
-        if (c.dataset.val === val) c.classList.add('active');
-        else c.classList.remove('active');
-      });
-    });
-  }
-
   if (closeAiStatusBannerBtn) {
     closeAiStatusBannerBtn.addEventListener('click', () => {
       if (aiStatusBanner) aiStatusBanner.classList.add('hidden');
-    });
-  }
-
-  if (openAiGenerateBtn) {
-    openAiGenerateBtn.classList.remove('hidden');
-    openAiGenerateBtn.addEventListener('click', () => {
-      aiModalError.textContent = '';
-      if (aiGeneratingIndicator) aiGeneratingIndicator.classList.add('hidden');
-      if (aiSuccessIndicator) aiSuccessIndicator.classList.add('hidden');
-      aiTopicInput.value = '';
-      aiGenerateModal.classList.remove('hidden');
-      setTimeout(() => aiTopicInput.focus(), 50);
-    });
-  }
-  if (startAiGenerateBtn) {
-    startAiGenerateBtn.disabled = false;
-    startAiGenerateBtn.removeAttribute('title');
-  }
-
-  if (closeAiModalBtn) closeAiModalBtn.addEventListener('click', () => aiGenerateModal.classList.add('hidden'));
-  if (cancelAiModalBtn) cancelAiModalBtn.addEventListener('click', () => aiGenerateModal.classList.add('hidden'));
-
-  if (startAiGenerateBtn) {
-    startAiGenerateBtn.addEventListener('click', async () => {
-      aiModalError.textContent = '';
-      if (aiSuccessIndicator) aiSuccessIndicator.classList.add('hidden');
-
-      const topic = aiTopicInput.value.trim();
-      if (!topic) {
-        aiModalError.textContent = 'Будь ласка, вкажіть тему тесту!';
-        aiTopicInput.focus();
-        return;
-      }
-
-      const countVal = parseInt(aiCountInput ? aiCountInput.value : '5', 10);
-      if (isNaN(countVal) || countVal < 1) {
-        aiModalError.textContent = 'Вкажіть коректну кількість питань (мінімум 1)!';
-        if (aiCountInput) aiCountInput.focus();
-        return;
-      }
-      if (countVal > 50) {
-        aiModalError.textContent = 'Максимальна кількість питань для однієї генерації — 50!';
-        if (aiCountInput) aiCountInput.focus();
-        return;
-      }
-      const count = countVal;
-
-      const difficulty = aiDifficultySelect.value;
-      const timeLimitSeconds = parseInt(aiTimeLimitInput.value, 10) || 60;
-      const customInstructions = aiCustomPrompt.value.trim();
-      const modeInput = document.querySelector('input[name="aiActionMode"]:checked');
-      const replaceExisting = modeInput && modeInput.value === 'replace';
-
-      try {
-        startAiGenerateBtn.disabled = true;
-        cancelAiModalBtn.disabled = true;
-        if (aiGeneratingIndicator) aiGeneratingIndicator.classList.remove('hidden');
-
-        const res = await adminFetch('/api/admin/generate-test', {
-          method: 'POST',
-          body: JSON.stringify({
-            topic,
-            count,
-            difficulty,
-            timeLimitSeconds,
-            customInstructions,
-            testId: selectedAdminTestId,
-            applyToTest: true,
-            replaceExisting
-          })
-        });
-
-        const data = await res.json();
-        if (!res.ok) {
-          throw new Error(data.error || 'Помилка генерації через Gemini');
-        }
-
-        if (aiGeneratingIndicator) aiGeneratingIndicator.classList.add('hidden');
-        if (aiSuccessIndicator) {
-          aiSuccessIndicator.classList.remove('hidden');
-          if (aiSuccessDetails) {
-            aiSuccessDetails.textContent = `Успішно створено та додано ${data.questions.length} питань на тему "${topic}".`;
-          }
-        }
-
-        await loadAdminTest();
-
-        const timeNow = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
-        if (aiStatusBanner) {
-          aiStatusBanner.classList.remove('hidden');
-          if (aiStatusBannerText) {
-            aiStatusBannerText.innerHTML = `<strong>ШІ завершив генерацію:</strong> успішно додано <strong>${data.questions.length}</strong> питань на тему "<em>${escapeHtml(topic)}</em>" (о ${timeNow}).`;
-          }
-        }
-
-        showAdminToast(`ШІ завершив генерацію: створено ${data.questions.length} питань!`);
-
-        setTimeout(() => {
-          if (aiGenerateModal) aiGenerateModal.classList.add('hidden');
-          if (aiSuccessIndicator) aiSuccessIndicator.classList.add('hidden');
-        }, 1400);
-
-      } catch (err) {
-        aiModalError.textContent = err.message;
-        if (aiGeneratingIndicator) aiGeneratingIndicator.classList.add('hidden');
-      } finally {
-        startAiGenerateBtn.disabled = false;
-        cancelAiModalBtn.disabled = false;
-      }
     });
   }
 

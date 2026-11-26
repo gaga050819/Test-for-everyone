@@ -365,6 +365,8 @@ export class PostgresDatabaseAdapter extends DatabaseAdapter {
       hotspotTarget: questionData.hotspotTarget !== undefined ? questionData.hotspotTarget : (current.hotspotTarget || null),
       correct: questionData.correct !== undefined ? questionData.correct : current.correct,
       correctKeywords: questionData.correctKeywords !== undefined ? questionData.correctKeywords : (current.correctKeywords || []),
+      points: questionData.points !== undefined ? Math.max(1, parseInt(questionData.points, 10) || 1) : (current.points || 1),
+      explanation: questionData.explanation !== undefined ? String(questionData.explanation || '').trim() : (current.explanation || ''),
       timeLimitSeconds: questionData.timeLimitSeconds !== undefined ? parseInt(questionData.timeLimitSeconds, 10) : current.timeLimitSeconds
     };
     if (type === 'numeric') {

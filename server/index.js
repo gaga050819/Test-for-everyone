@@ -7,6 +7,7 @@ import crypto from 'crypto';
 import { WebSocketServer, WebSocket } from 'ws';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import zlib from 'zlib';
 import { db, generateSecureId, parseNumericInput } from './database.js';
 import fs from 'fs';
 
@@ -82,9 +83,47 @@ async function callGeminiServer(promptText, options = {}) {
   if (!apiKey) {
     return { ok: false, status: 503, error: 'GEMINI_API_KEY не налаштований на сервері' };
   }
-  const cleanPrompt = String(promptText || '').trim();
-  if (!cleanPrompt || cleanPrompt.length > 24000) {
-    return { ok: false, status: 400, error: 'Некоректний розмір запиту для ШІ' };
+
+  let contentsPayload = null;
+  if (Array.isArray(options.contents) && options.contents.length > 0) {
+    const normalizedHistory = [];
+    for (const item of options.contents) {
+      if (!item || typeof item !== 'object') continue;
+      const role = item.role === 'model' ? 'model' : 'user';
+      const txt = typeof item.text === 'string'
+        ? item.text.trim()
+        : (Array.isArray(item.parts) ? item.parts.map(p => String(p.text || '')).join('\n').trim() : '');
+      if (txt) {
+        normalizedHistory.push({ role, parts: [{ text: txt.slice(0, 12000) }] });
+      }
+    }
+    const cleanCurrent = String(promptText || '').trim();
+    if (cleanCurrent) {
+      normalizedHistory.push({ role: 'user', parts: [{ text: cleanCurrent.slice(0, 48000) }] });
+    }
+    if (normalizedHistory.length === 0) {
+      return { ok: false, status: 400, error: 'Порожній запит для ШІ' };
+    }
+    contentsPayload = normalizedHistory;
+  } else {
+    const cleanPrompt = String(promptText || '').trim();
+    const hasInline = Boolean(options.inlineData && options.inlineData.data);
+    if ((!cleanPrompt && !hasInline) || cleanPrompt.length > 60000) {
+      return { ok: false, status: 400, error: 'Некоректний розмір запиту для ШІ' };
+    }
+    const parts = [];
+    if (hasInline) {
+      parts.push({
+        inlineData: {
+          mimeType: options.inlineData.mimeType || 'application/octet-stream',
+          data: options.inlineData.data
+        }
+      });
+    }
+    if (cleanPrompt) {
+      parts.push({ text: cleanPrompt });
+    }
+    contentsPayload = [{ role: 'user', parts }];
   }
 
   const generationConfig = {
@@ -96,6 +135,10 @@ async function callGeminiServer(promptText, options = {}) {
   if (options.temperature !== undefined) {
     generationConfig.temperature = options.temperature;
   }
+
+  const sysText = options.systemInstruction
+    ? String(options.systemInstruction).trim().slice(0, 4000)
+    : 'Відповідай виключно українською мовою. All responses must be in Ukrainian language.';
 
   let lastError = 'Не вдалося отримати відповідь від Gemini';
   for (const model of GEMINI_MODELS) {
@@ -109,12 +152,12 @@ async function callGeminiServer(promptText, options = {}) {
         },
         body: JSON.stringify({
           systemInstruction: {
-            parts: [{ text: 'Відповідай виключно українською мовою. All responses must be in Ukrainian language.' }]
+            parts: [{ text: sysText }]
           },
-          contents: [{ parts: [{ text: cleanPrompt }] }],
+          contents: contentsPayload,
           generationConfig
         }),
-        signal: AbortSignal.timeout(options.timeoutMs || 18000)
+        signal: AbortSignal.timeout(options.timeoutMs || 25000)
       });
 
       if (gRes.ok) {
@@ -1374,7 +1417,7 @@ app.put('/api/admin/tests/:id', requireAdmin, async (req, res) => {
 });
 
 function parseQuestionPayload(body) {
-  const { text, options, correct, numericTolerance, numericToleranceEnabled, useAiGrading, timeLimitSeconds, type, matchingPairs, orderingItems, blanks, hotspotTarget, imageUrl, images, correctKeywords } = body;
+  const { text, options, correct, numericTolerance, numericToleranceEnabled, useAiGrading, timeLimitSeconds, type, matchingPairs, orderingItems, blanks, hotspotTarget, imageUrl, images, correctKeywords, points, explanation } = body;
   const qType = type || 'single';
   let processedCorrect = 0;
   let processedTolerance = undefined;
@@ -1424,6 +1467,8 @@ function parseQuestionPayload(body) {
     processedToleranceEnabled,
     useAiGrading: qType === 'short_answer' ? !!useAiGrading : false,
     correctKeywords: Array.isArray(correctKeywords) ? correctKeywords : (typeof processedCorrect === 'string' ? processedCorrect.split(',').map(s => s.trim()).filter(Boolean) : []),
+    points: Math.max(1, parseInt(points, 10) || 1),
+    explanation: explanation ? String(explanation).trim() : '',
     timeLimitSeconds: parseInt(timeLimitSeconds, 10) || 60
   };
 }
@@ -1450,6 +1495,8 @@ app.post('/api/admin/tests/:id/questions', requireAdmin, async (req, res) => {
     numericTolerance: parsed.processedTolerance,
     numericToleranceEnabled: parsed.processedToleranceEnabled,
     correctKeywords: parsed.correctKeywords,
+    points: parsed.points,
+    explanation: parsed.explanation,
     timeLimitSeconds: parsed.timeLimitSeconds,
     type: parsed.qType,
     useAiGrading: parsed.useAiGrading
@@ -1500,6 +1547,8 @@ app.post('/api/admin/tests/:id/questions/bulk', requireAdmin, async (req, res) =
       numericToleranceEnabled: parsed.processedToleranceEnabled,
       useAiGrading: parsed.useAiGrading,
       correctKeywords: parsed.correctKeywords,
+      points: parsed.points,
+      explanation: parsed.explanation,
       timeLimitSeconds: parsed.timeLimitSeconds
     };
     test.questions.push(newQuestion);
@@ -1530,6 +1579,8 @@ app.put('/api/admin/tests/:id/questions/:qId', requireAdmin, async (req, res) =>
     numericToleranceEnabled: parsed.processedToleranceEnabled,
     useAiGrading: parsed.useAiGrading,
     correctKeywords: parsed.correctKeywords,
+    points: req.body.points !== undefined ? parsed.points : undefined,
+    explanation: req.body.explanation !== undefined ? parsed.explanation : undefined,
     timeLimitSeconds: req.body.timeLimitSeconds,
     type: parsed.qType
   });
@@ -1636,9 +1687,14 @@ ${cleanText}
   ]
 }`;
 
-      const aiRes = await callGeminiServer(promptText, { expectJson: true, temperature: 0.2 });
+      const aiRes = await callGeminiServer(promptText, { expectJson: true, temperature: 0.2, timeoutMs: 45000 });
       if (aiRes.ok && aiRes.result && Array.isArray(aiRes.result.questions) && aiRes.result.questions.length > 0) {
-        return res.json({ success: true, source: 'gemini', questions: aiRes.result.questions });
+        const normalizedImported = aiRes.result.questions
+          .map(q => normalizeAiQuestion(q))
+          .filter(Boolean);
+        if (normalizedImported.length > 0) {
+          return res.json({ success: true, source: 'gemini', questions: normalizedImported });
+        }
       }
     }
 
@@ -1708,21 +1764,441 @@ app.delete('/api/admin/tests/:id/questions', requireAdmin, async (req, res) => {
   res.json({ success: true, removed });
 });
 
+const ALLOWED_AI_QUESTION_TYPES = ['single', 'multiple', 'true_false', 'matching', 'ordering', 'numeric', 'short_answer'];
+
+const AI_TYPE_ALIASES = {
+  single: 'single',
+  multiple: 'multiple',
+  true_false: 'true_false',
+  tf: 'true_false',
+  boolean: 'true_false',
+  matching: 'matching',
+  match: 'matching',
+  ordering: 'ordering',
+  order: 'ordering',
+  numeric: 'numeric',
+  number: 'numeric',
+  short_answer: 'short_answer',
+  short: 'short_answer',
+  open: 'short_answer'
+};
+
+function sanitizeQuestionTypes(rawTypes) {
+  if (!Array.isArray(rawTypes) || rawTypes.length === 0) return ['single'];
+  const unique = [];
+  for (const t of rawTypes) {
+    const mapped = AI_TYPE_ALIASES[String(t || '').trim().toLowerCase()];
+    if (mapped && ALLOWED_AI_QUESTION_TYPES.includes(mapped) && !unique.includes(mapped)) {
+      unique.push(mapped);
+    }
+  }
+  return unique.length > 0 ? unique : ['single'];
+}
+
+function normalizeAiQuestion(rawQ, defaults = {}) {
+  if (!rawQ || typeof rawQ !== 'object') return null;
+  const text = String(rawQ.text || rawQ.question || '').trim();
+  if (!text) return null;
+
+  const rawTypeKey = String(rawQ.type || defaults.defaultType || 'single').trim().toLowerCase();
+  let qType = AI_TYPE_ALIASES[rawTypeKey] || 'single';
+  if (Array.isArray(defaults.allowedTypes) && defaults.allowedTypes.length > 0 && !defaults.allowedTypes.includes(qType)) {
+    qType = defaults.allowedTypes[0];
+  }
+
+  const timeLimitSeconds = Math.max(10, Math.min(600, parseInt(rawQ.timeLimitSeconds || rawQ.timeLimit || defaults.timeLimitSeconds, 10) || 60));
+  const points = Math.max(1, Math.min(20, parseInt(rawQ.points, 10) || 1));
+  const explanation = String(rawQ.explanation || '').trim();
+  const base = {
+    id: generateSecureId('q_ai_', 6),
+    text,
+    type: qType,
+    images: [],
+    imageUrl: '',
+    options: [],
+    matchingPairs: [],
+    orderingItems: [],
+    blanks: [],
+    correctKeywords: [],
+    points,
+    timeLimit: timeLimitSeconds,
+    timeLimitSeconds,
+    explanation
+  };
+
+  if (qType === 'true_false') {
+    base.options = ['Неправда', 'Правда'];
+    const cRaw = rawQ.correct !== undefined ? rawQ.correct : rawQ.correctAnswer;
+    const cStr = String(cRaw).trim().toLowerCase();
+    base.correct = (cRaw === true || cRaw === 1 || cStr === '1' || cStr === 'true' || cStr === 'правда') ? 1 : 0;
+    return base;
+  }
+
+  if (qType === 'matching') {
+    const rawPairs = Array.isArray(rawQ.matchingPairs) ? rawQ.matchingPairs : (Array.isArray(rawQ.pairs) ? rawQ.pairs : []);
+    const pairs = rawPairs
+      .map(p => ({
+        left: String(p?.left || p?.a || p?.term || '').trim(),
+        right: String(p?.right || p?.b || p?.definition || '').trim()
+      }))
+      .filter(p => p.left && p.right);
+    if (pairs.length < 2) return null;
+    base.matchingPairs = pairs;
+    base.correct = {};
+    return base;
+  }
+
+  if (qType === 'ordering') {
+    const rawItems = Array.isArray(rawQ.orderingItems)
+      ? rawQ.orderingItems
+      : (Array.isArray(rawQ.items) ? rawQ.items : (Array.isArray(rawQ.options) ? rawQ.options : []));
+    const items = rawItems.map(i => String(i || '').trim()).filter(Boolean);
+    if (items.length < 2) return null;
+    base.orderingItems = items;
+    base.options = items;
+    base.correct = items;
+    return base;
+  }
+
+  if (qType === 'numeric') {
+    const targetVal = parseNumericInput(rawQ.correct !== undefined ? rawQ.correct : rawQ.answer);
+    if (targetVal === null) return null;
+    const hintTol = defaults.numericToleranceHint;
+    let rawTol = parseNumericInput(rawQ.numericTolerance);
+    if (rawTol === null && hintTol !== undefined && hintTol !== null) {
+      rawTol = parseNumericInput(hintTol);
+    }
+    const absTol = Math.max(0, Math.abs(rawTol ?? 0));
+    const tolEnabled = hintTol === 0
+      ? false
+      : (rawQ.numericToleranceEnabled !== undefined ? !!rawQ.numericToleranceEnabled && absTol > 0 : absTol > 0);
+    base.correct = targetVal;
+    base.numericTolerance = tolEnabled ? absTol : 0;
+    base.numericToleranceEnabled = tolEnabled;
+    return base;
+  }
+
+  if (qType === 'short_answer') {
+    let keywords = [];
+    if (Array.isArray(rawQ.correctKeywords)) {
+      keywords = rawQ.correctKeywords.map(k => String(k || '').trim()).filter(Boolean);
+    }
+    if (keywords.length === 0) {
+      if (Array.isArray(rawQ.correct)) {
+        keywords = rawQ.correct.map(k => String(k || '').trim()).filter(Boolean);
+      } else if (rawQ.correct !== undefined || rawQ.answer !== undefined) {
+        keywords = String(rawQ.correct !== undefined ? rawQ.correct : rawQ.answer)
+          .split(',')
+          .map(s => s.trim())
+          .filter(Boolean);
+      }
+    }
+    if (keywords.length === 0) return null;
+    base.correct = keywords.join(', ');
+    base.correctKeywords = keywords;
+    base.useAiGrading = rawQ.useAiGrading !== undefined ? !!rawQ.useAiGrading : false;
+    return base;
+  }
+
+  const opts = Array.isArray(rawQ.options) ? rawQ.options.map(o => String(o || '').trim()).filter(Boolean) : [];
+  if (opts.length < 2) return null;
+  base.options = opts;
+
+  if (qType === 'multiple') {
+    let corrArr = [];
+    if (Array.isArray(rawQ.correct)) {
+      corrArr = rawQ.correct.map(c => {
+        if (typeof c === 'string' && isNaN(Number(c))) {
+          return opts.findIndex(o => o.toLowerCase() === c.trim().toLowerCase());
+        }
+        return parseInt(c, 10);
+      }).filter(n => !isNaN(n) && n >= 0 && n < opts.length);
+    } else if (typeof rawQ.correct === 'number') {
+      if (rawQ.correct >= 0 && rawQ.correct < opts.length) corrArr = [rawQ.correct];
+    }
+    corrArr = Array.from(new Set(corrArr)).sort((a, b) => a - b);
+    if (corrArr.length === 0) corrArr = [0];
+    base.correct = corrArr;
+    return base;
+  }
+
+  let corrIdx = parseInt(rawQ.correct, 10);
+  if ((isNaN(corrIdx) || corrIdx < 0 || corrIdx >= opts.length) && rawQ.correctAnswer !== undefined) {
+    corrIdx = opts.findIndex(o => o.toLowerCase() === String(rawQ.correctAnswer).trim().toLowerCase());
+  }
+  if (isNaN(corrIdx) || corrIdx < 0 || corrIdx >= opts.length) corrIdx = 0;
+  base.correct = corrIdx;
+  return base;
+}
+
+function decodeXmlEntities(str) {
+  return String(str || '')
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&quot;/g, '"')
+    .replace(/&apos;/g, "'")
+    .replace(/&#x([0-9a-fA-F]+);/g, (_, hex) => {
+      const code = parseInt(hex, 16);
+      return Number.isFinite(code) ? String.fromCodePoint(code) : '';
+    })
+    .replace(/&#(\d+);/g, (_, dec) => {
+      const code = parseInt(dec, 10);
+      return Number.isFinite(code) ? String.fromCodePoint(code) : '';
+    })
+    .replace(/&amp;/g, '&');
+}
+
+function extractTextFromDocxBuffer(buf) {
+  if (!Buffer.isBuffer(buf) || buf.length < 22) return '';
+  const minOffset = Math.max(0, buf.length - 65557);
+  let eocdOffset = -1;
+  for (let i = buf.length - 22; i >= minOffset; i--) {
+    if (buf.readUInt32LE(i) === 0x06054b50) {
+      eocdOffset = i;
+      break;
+    }
+  }
+  if (eocdOffset === -1) return '';
+
+  const cdSize = buf.readUInt32LE(eocdOffset + 12);
+  const cdOffset = buf.readUInt32LE(eocdOffset + 16);
+  if (cdOffset + cdSize > buf.length) return '';
+
+  let pos = cdOffset;
+  let xmlString = '';
+  while (pos + 46 <= cdOffset + cdSize) {
+    if (buf.readUInt32LE(pos) !== 0x02014b50) break;
+    const method = buf.readUInt16LE(pos + 10);
+    const compSize = buf.readUInt32LE(pos + 20);
+    const nameLen = buf.readUInt16LE(pos + 28);
+    const extraLen = buf.readUInt16LE(pos + 30);
+    const commentLen = buf.readUInt16LE(pos + 32);
+    const localOffset = buf.readUInt32LE(pos + 42);
+    const entryName = buf.subarray(pos + 46, pos + 46 + nameLen).toString('utf8');
+
+    if (entryName === 'word/document.xml') {
+      if (localOffset + 30 <= buf.length && buf.readUInt32LE(localOffset) === 0x04034b50) {
+        const lfhNameLen = buf.readUInt16LE(localOffset + 26);
+        const lfhExtraLen = buf.readUInt16LE(localOffset + 28);
+        const dataStart = localOffset + 30 + lfhNameLen + lfhExtraLen;
+        if (dataStart + compSize <= buf.length) {
+          const compSlice = buf.subarray(dataStart, dataStart + compSize);
+          let xmlBuf = null;
+          if (method === 0) xmlBuf = compSlice;
+          else if (method === 8) xmlBuf = zlib.inflateRawSync(compSlice);
+          if (xmlBuf) {
+            xmlString = xmlBuf.toString('utf8');
+            break;
+          }
+        }
+      }
+    }
+    pos += 46 + nameLen + extraLen + commentLen;
+  }
+
+  if (!xmlString) return '';
+  return decodeXmlEntities(
+    xmlString
+      .replace(/<w:tab\b[^>]*\/?>/gi, ' ')
+      .replace(/<\/w:tc>/gi, ' | ')
+      .replace(/<w:br\b[^>]*\/?>|<\/w:p>|<\/w:tr>/gi, '\n')
+      .replace(/<[^>]+>/g, '')
+  )
+    .replace(/\r\n/g, '\n')
+    .replace(/[ \t]+\n/g, '\n')
+    .replace(/\n{3,}/g, '\n\n')
+    .trim();
+}
+
+function buildGenerationPrompt({
+  topic,
+  subject,
+  grade,
+  difficultyText,
+  count,
+  timeLimit,
+  allowedTypes,
+  sourceText,
+  customInstructions,
+  excludeQuestions,
+  numericToleranceHint,
+  tweakNote
+}) {
+  const typeDescriptions = {
+    single: '"single" — 1 правильний варіант. Поля: "type":"single", "options":["...","...","...","..."], "correct":0..3 (індекс).',
+    multiple: '"multiple" — кілька правильних відповідей (2-3 з 4-5). Поля: "type":"multiple", "options":["...","...","...","..."], "correct":[0,2] (масив індексів).',
+    true_false: '"true_false" — твердження Правда/Неправда. Поля: "type":"true_false", "options":["Неправда","Правда"], "correct": 0 або 1 (1 = Правда, 0 = Неправда).',
+    matching: '"matching" — встановлення відповідності (3-4 пари). Поля: "type":"matching", "matchingPairs":[{"left":"...","right":"..."},{"left":"...","right":"..."},{"left":"...","right":"..."}].',
+    ordering: '"ordering" — правильна послідовність / хронологія (4 елементи). Поля: "type":"ordering", "orderingItems":["Крок 1","Крок 2","Крок 3","Крок 4"] (у правильному порядку).',
+    numeric: `"numeric" — числова задача. Поля: "type":"numeric", "correct": число (наприклад 9.8), "numericTolerance": ${numericToleranceHint !== undefined && numericToleranceHint !== null ? Number(numericToleranceHint) : 0.2}, "numericToleranceEnabled": ${numericToleranceHint === 0 ? 'false' : 'true'}.`,
+    short_answer: '"short_answer" — коротка відкрита відповідь. Поля: "type":"short_answer", "correctKeywords":["варіант 1","синонім"], "useAiGrading": false.'
+  };
+
+  const selectedSpecs = allowedTypes.map((t, i) => `${i + 1}) ${typeDescriptions[t]}`).filter(Boolean).join('\n');
+  const cleanSource = String(sourceText || '').trim().slice(0, 24000);
+  const excludeList = Array.isArray(excludeQuestions)
+    ? excludeQuestions.map(q => String(q || '').trim().slice(0, 140)).filter(Boolean).slice(-60)
+    : [];
+
+  return `Ти — досвідчений викладач та методист.
+Склади навчальні тестові завдання українською мовою.
+${subject ? `Предмет: "${String(subject).trim().slice(0, 120)}".` : ''}
+${grade ? `Клас / аудиторія: "${String(grade).trim().slice(0, 120)}".` : ''}
+${topic ? `Тема: "${String(topic).trim().slice(0, 500)}".` : ''}
+Рівень складності: ${difficultyText}.
+Кількість питань у цій партії: ${count}.
+Час на одне питання за замовчуванням: ${timeLimit} сек.
+${tweakNote ? `Особлива задача: ${tweakNote}` : ''}
+${customInstructions ? `Додаткові побажання викладача: ${String(customInstructions).trim().slice(0, 1200)}` : ''}
+
+${cleanSource ? `ОПОРНИЙ МАТЕРІАЛ / КОНСПЕКТ (СУВОРО: формуй запитання, числа, терміни та відповіді ВИКЛЮЧНО на основі цього тексту, не вигадуй сторонніх фактів поза матеріалом):
+"""
+${cleanSource}
+"""` : ''}
+
+${excludeList.length > 0 ? `УЖЕ ІСНУЮЧІ ПИТАННЯ (НЕ ПОВТОРЮЙ їх і не перефразовуй те саме, придумай інші питання на інші аспекти теми):
+${excludeList.map((q, idx) => `- ${idx + 1}. ${q}`).join('\n')}` : ''}
+
+ДОЗВОЛЕНІ ТИПИ ЗАВДАНЬ (чергуй і використовуй ТІЛЬКИ ці типи, пропорційно розподіливши між ${count} питаннями):
+${selectedSpecs}
+
+ЗАГАЛЬНІ ВИМОГИ ДО ЯКОСТІ:
+1. Формулювання мають бути грамотними, точними й однозначними, без очевидних дистракторів чи слів-заглушок ("Варіант А").
+2. Для кожного питання ОБОВ'ЯЗКОВО додай поле "explanation" (1-2 речення науково точного пояснення правильної відповіді).
+3. Для кожного питання вкажи "timeLimitSeconds": ${timeLimit} та "points": 1 (для matching/ordering можна 2-3).
+
+Поверни ВИКЛЮЧНО валідний JSON:
+{
+  "title": "Назва тесту відповідно до теми",
+  "questions": [
+    {
+      "text": "Текст питання",
+      "type": "${allowedTypes[0]}",
+      "options": ["Варіант 1", "Варіант 2", "Варіант 3", "Варіант 4"],
+      "correct": 0,
+      "points": 1,
+      "timeLimitSeconds": ${timeLimit},
+      "explanation": "Пояснення"
+    }
+  ]
+}`;
+}
+
+app.post('/api/admin/extract-document-text', requireAdmin, aiLimiter, async (req, res) => {
+  try {
+    const { fileName = '', mimeType = '', base64Data = '', text = '' } = req.body || {};
+    if (text && typeof text === 'string' && text.trim()) {
+      const clean = text.trim();
+      return res.json({
+        success: true,
+        text: clean.slice(0, 35000),
+        truncated: clean.length > 35000,
+        charCount: Math.min(clean.length, 35000),
+        source: 'plain_text'
+      });
+    }
+
+    const cleanB64 = String(base64Data || '').replace(/^data:[^;]+;base64,/i, '').trim();
+    if (!cleanB64) {
+      return res.status(400).json({ error: 'Файл порожній або не передано вміст' });
+    }
+    const fileBuf = Buffer.from(cleanB64, 'base64');
+    if (fileBuf.length === 0 || fileBuf.length > 10 * 1024 * 1024) {
+      return res.status(400).json({ error: 'Підтримуються файли розміром до 10 МБ' });
+    }
+
+    const lowerName = String(fileName || '').toLowerCase();
+    const lowerMime = String(mimeType || '').toLowerCase();
+
+    if (lowerName.endsWith('.docx') || lowerMime.includes('wordprocessingml')) {
+      const extracted = extractTextFromDocxBuffer(fileBuf);
+      if (!extracted) {
+        return res.status(400).json({ error: 'Не вдалося витягнути текст із DOCX. Перевірте файл або скопіюйте текст вручну.' });
+      }
+      return res.json({
+        success: true,
+        text: extracted.slice(0, 35000),
+        truncated: extracted.length > 35000,
+        charCount: Math.min(extracted.length, 35000),
+        source: 'docx_xml'
+      });
+    }
+
+    if (lowerName.endsWith('.doc')) {
+      return res.status(400).json({ error: 'Старий формат .doc не підтримується напряму — перезбережіть файл у .docx або .pdf чи вставте текст.' });
+    }
+
+    if (lowerName.endsWith('.pdf') || lowerMime.includes('pdf')) {
+      if (!getGeminiApiKey()) {
+        return res.status(503).json({ error: 'Для розпізнавання PDF потрібен налаштований GEMINI_API_KEY на сервері.' });
+      }
+      const aiRes = await callGeminiServer(
+        'Витягни повний навчальний текст, терміни, формули, визначення, дати, числа та ключові факти з цього PDF-документа без скорочень і вигадувань. Поверни лише чистий структурований текст.',
+        {
+          inlineData: { mimeType: 'application/pdf', data: cleanB64 },
+          timeoutMs: 55000,
+          maxOutputTokens: 8192
+        }
+      );
+      if (!aiRes.ok || !aiRes.result) {
+        return res.status(aiRes.status || 502).json({ error: `Не вдалося прочитати PDF через Gemini: ${aiRes.error || 'невідома помилка'}` });
+      }
+      const pdfText = String(aiRes.result).trim();
+      return res.json({
+        success: true,
+        text: pdfText.slice(0, 35000),
+        truncated: pdfText.length > 35000,
+        charCount: Math.min(pdfText.length, 35000),
+        source: 'gemini_pdf'
+      });
+    }
+
+    const decoded = fileBuf.toString('utf8').trim();
+    if (!decoded) {
+      return res.status(400).json({ error: 'Текстовий файл порожній' });
+    }
+    return res.json({
+      success: true,
+      text: decoded.slice(0, 35000),
+      truncated: decoded.length > 35000,
+      charCount: Math.min(decoded.length, 35000),
+      source: 'text_file'
+    });
+  } catch (err) {
+    res.status(500).json({ error: sanitizeGeminiMessage(err.message, getGeminiApiKey()) });
+  }
+});
+
+const DIFFICULTY_DESCRIPTION_MAP = {
+  easy: 'початковий / базовий (основні поняття, терміни та базові факти)',
+  medium: 'середній (розуміння принципів, типові задачі та практичне застосування)',
+  hard: 'складний / достатній (глибокий аналіз, порівняння, винятки та нестандартні ситуації)',
+  olympiad: 'олімпіадний / ЗНО / НМТ високого рівня (комплексні задачі, тонкі дистрактори)'
+};
+
 app.post('/api/admin/generate-test', requireAdmin, aiLimiter, async (req, res) => {
   try {
     const {
-      topic,
+      topic = '',
+      subject = '',
+      grade = '',
       count = 5,
       difficulty = 'medium',
       timeLimitSeconds = 60,
       customInstructions = '',
+      sourceText = '',
+      questionTypes = ['single'],
+      excludeQuestions = [],
+      numericToleranceHint,
       testId = 'demo-test-1',
       applyToTest = false,
       replaceExisting = false
-    } = req.body;
+    } = req.body || {};
 
-    if (!topic || typeof topic !== 'string' || !topic.trim()) {
-      return res.status(400).json({ error: 'Вкажіть тему тесту' });
+    const cleanTopic = typeof topic === 'string' ? topic.trim() : '';
+    const cleanSource = typeof sourceText === 'string' ? sourceText.trim() : '';
+    if (!cleanTopic && !cleanSource) {
+      return res.status(400).json({ error: 'Вкажіть тему тесту або додайте опорний текст / конспект' });
     }
     if (!getGeminiApiKey()) {
       return res.status(503).json({ error: 'GEMINI_API_KEY не налаштований на сервері' });
@@ -1730,69 +2206,52 @@ app.post('/api/admin/generate-test', requireAdmin, aiLimiter, async (req, res) =
 
     const questionCount = Math.max(1, Math.min(50, parseInt(count, 10) || 5));
     const timeLimit = Math.max(10, Math.min(600, parseInt(timeLimitSeconds, 10) || 60));
+    const allowedTypes = sanitizeQuestionTypes(questionTypes);
+    const difficultyText = DIFFICULTY_DESCRIPTION_MAP[difficulty] || (typeof difficulty === 'string' && difficulty.trim() ? difficulty.trim() : DIFFICULTY_DESCRIPTION_MAP.medium);
 
-    const difficultyMap = {
-      easy: 'початковий / легкий (базові поняття та терміни)',
-      medium: 'середній (розуміння принципів та практичне застосування)',
-      hard: 'складний (глибокий аналіз, неочевидні ситуації та винятки)',
-      olympiad: 'олімпіадний / експертний (комплексні задачі та нестандартне мислення)'
-    };
-    const difficultyText = difficultyMap[difficulty] || difficultyMap.medium;
+    const promptText = buildGenerationPrompt({
+      topic: cleanTopic,
+      subject,
+      grade,
+      difficultyText,
+      count: questionCount,
+      timeLimit,
+      allowedTypes,
+      sourceText: cleanSource,
+      customInstructions,
+      excludeQuestions,
+      numericToleranceHint
+    });
 
-    const promptText = `Ти — досвідчений викладач та методист.
-Створи навчальний тест українською мовою на тему: "${topic.trim().slice(0, 300)}".
-Рівень складності: ${difficultyText}.
-Кількість питань: ${questionCount}.
-Час на відповідь на одне питання: ${timeLimit} секунд.
-${customInstructions ? `Додаткові вимоги: ${String(customInstructions).trim().slice(0, 1000)}` : ''}
-
-Вимоги до тесту:
-1. Питання мають бути грамотними, точними та однозначними.
-2. Для кожного питання сформулюй рівно 4 реалістичні та змістовні варіанти відповіді.
-3. Лише один варіант відповіді є правильним.
-4. Поле "correct" повинно містити цілочисельний індекс правильного варіанта (0, 1, 2 або 3).
-5. Поле "timeLimitSeconds" встанови рівним ${timeLimit}.
-
-Поверни результат ВИКЛЮЧНО у форматі валідного JSON наступної структури:
-{
-  "title": "Назва тесту відповідно до теми",
-  "questions": [
-    {
-      "text": "Текст питання",
-      "options": ["Варіант 1", "Варіант 2", "Варіант 3", "Варіант 4"],
-      "correct": 0,
-      "timeLimitSeconds": ${timeLimit}
-    }
-  ]
-}`;
-
-    const aiRes = await callGeminiServer(promptText, { expectJson: true, temperature: 0.7 });
+    const aiRes = await callGeminiServer(promptText, {
+      expectJson: true,
+      temperature: 0.65,
+      timeoutMs: 55000,
+      maxOutputTokens: 8192
+    });
     if (!aiRes.ok) {
       return res.status(aiRes.status || 502).json({ error: `Помилка запиту до Gemini API: ${aiRes.error}` });
     }
 
     const parsed = typeof aiRes.result === 'string' ? parseAiJsonResponse(aiRes.result) : aiRes.result;
-    const rawQuestions = parsed && Array.isArray(parsed.questions) ? parsed.questions : [];
+    const rawQuestions = Array.isArray(parsed)
+      ? parsed
+      : (parsed && Array.isArray(parsed.questions) ? parsed.questions : []);
     if (rawQuestions.length === 0) {
       return res.status(502).json({ error: 'ШІ не сформував жодного питання' });
     }
 
-    const validatedQuestions = rawQuestions.map((q) => {
-      const opts = Array.isArray(q.options) ? q.options.map(o => String(o).trim()).filter(Boolean) : [];
-      let c = parseInt(q.correct, 10);
-      if (isNaN(c) || c < 0 || c >= opts.length) c = 0;
-      return {
-        id: generateSecureId('q_ai_', 6),
-        text: String(q.text || '').trim(),
-        options: opts,
-        correct: c,
-        timeLimitSeconds: parseInt(q.timeLimitSeconds, 10) || timeLimit,
-        type: 'single'
-      };
-    }).filter(q => q.text && q.options.length >= 2);
+    const validatedQuestions = rawQuestions
+      .map(q => normalizeAiQuestion(q, {
+        defaultType: allowedTypes[0],
+        allowedTypes,
+        timeLimitSeconds: timeLimit,
+        numericToleranceHint
+      }))
+      .filter(Boolean);
 
     if (validatedQuestions.length === 0) {
-      return res.status(502).json({ error: 'Питання від ШІ не пройшли валідацію' });
+      return res.status(502).json({ error: 'Питання від ШІ не пройшли валідацію формату' });
     }
 
     let applied = false;
@@ -1800,7 +2259,7 @@ ${customInstructions ? `Додаткові вимоги: ${String(customInstruct
     if (applyToTest && testId) {
       const test = await db.getTest(testId);
       if (test) {
-        if (parsed.title && typeof parsed.title === 'string' && parsed.title.trim()) {
+        if (parsed && parsed.title && typeof parsed.title === 'string' && parsed.title.trim()) {
           test.title = parsed.title.trim();
         }
         if (replaceExisting) {
@@ -1815,7 +2274,7 @@ ${customInstructions ? `Додаткові вимоги: ${String(customInstruct
 
     res.json({
       success: true,
-      title: (parsed && parsed.title) || topic,
+      title: (parsed && parsed.title) || cleanTopic || 'Тест за конспектом',
       questions: validatedQuestions,
       applied,
       test: savedTest
@@ -1825,13 +2284,116 @@ ${customInstructions ? `Додаткові вимоги: ${String(customInstruct
   }
 });
 
+app.post('/api/admin/ai/regenerate-question', requireAdmin, aiLimiter, async (req, res) => {
+  try {
+    const {
+      topic = '',
+      subject = '',
+      grade = '',
+      difficulty = 'medium',
+      sourceText = '',
+      question = null,
+      tweak = 'replace',
+      allowedTypes = [],
+      excludeQuestions = [],
+      timeLimitSeconds = 60,
+      numericToleranceHint
+    } = req.body || {};
+
+    if (!getGeminiApiKey()) {
+      return res.status(503).json({ error: 'GEMINI_API_KEY не налаштований на сервері' });
+    }
+    if (!question || typeof question !== 'object') {
+      return res.status(400).json({ error: 'Не передано питання для перегенерації' });
+    }
+
+    const timeLimit = Math.max(10, Math.min(600, parseInt(timeLimitSeconds || question.timeLimitSeconds || question.timeLimit, 10) || 60));
+    const targetType = AI_TYPE_ALIASES[String(question.type || '').toLowerCase()] || 'single';
+    const typeList = Array.isArray(allowedTypes) && allowedTypes.length > 0
+      ? sanitizeQuestionTypes(allowedTypes)
+      : [targetType];
+    if (!typeList.includes(targetType)) typeList.unshift(targetType);
+
+    let tweakNote = `Заміни наведене запитання ЦІЛКОМ НОВИМ іншим запитанням типу "${targetType}" на інший факт або задачу з цієї ж теми: "${String(question.text || '').slice(0, 300)}".`;
+    if (tweak === 'harder') {
+      tweakNote = `УСКЛАДНИ це запитання (глибший аналіз, тонші дистрактори або багатоходова задача, збережи тип "${targetType}"): "${String(question.text || '').slice(0, 300)}".`;
+    } else if (tweak === 'easier') {
+      tweakNote = `СПРОСТИ це запитання (зроби формулювання доступнішим і базовим, збережи тип "${targetType}"): "${String(question.text || '').slice(0, 300)}".`;
+    }
+
+    const difficultyText = DIFFICULTY_DESCRIPTION_MAP[difficulty] || (typeof difficulty === 'string' && difficulty.trim() ? difficulty.trim() : DIFFICULTY_DESCRIPTION_MAP.medium);
+    const mergedExclude = tweak === 'replace'
+      ? [...(Array.isArray(excludeQuestions) ? excludeQuestions : []), question.text].filter(Boolean)
+      : excludeQuestions;
+
+    const promptText = buildGenerationPrompt({
+      topic,
+      subject,
+      grade,
+      difficultyText,
+      count: 1,
+      timeLimit,
+      allowedTypes: [targetType],
+      sourceText,
+      customInstructions: '',
+      excludeQuestions: mergedExclude,
+      numericToleranceHint,
+      tweakNote
+    });
+
+    const aiRes = await callGeminiServer(promptText, {
+      expectJson: true,
+      temperature: tweak === 'replace' ? 0.8 : 0.45,
+      timeoutMs: 35000,
+      maxOutputTokens: 4096
+    });
+    if (!aiRes.ok) {
+      return res.status(aiRes.status || 502).json({ error: aiRes.error });
+    }
+
+    const parsed = typeof aiRes.result === 'string' ? parseAiJsonResponse(aiRes.result) : aiRes.result;
+    let rawItem = null;
+    if (parsed && Array.isArray(parsed.questions) && parsed.questions.length > 0) rawItem = parsed.questions[0];
+    else if (Array.isArray(parsed) && parsed.length > 0) rawItem = parsed[0];
+    else if (parsed && typeof parsed === 'object' && parsed.text) rawItem = parsed;
+
+    const normalized = normalizeAiQuestion(rawItem, {
+      defaultType: targetType,
+      allowedTypes: [targetType],
+      timeLimitSeconds: timeLimit,
+      numericToleranceHint
+    });
+    if (!normalized) {
+      return res.status(502).json({ error: 'ШІ не зміг коректно перегенерувати питання. Спробуйте ще раз.' });
+    }
+
+    res.json({ success: true, question: normalized });
+  } catch (err) {
+    res.status(500).json({ error: sanitizeGeminiMessage(err.message, getGeminiApiKey()) });
+  }
+});
+
 app.post('/api/admin/gemini/prompt', requireAdmin, aiLimiter, async (req, res) => {
   try {
-    const { prompt, expectJson } = req.body;
+    const { prompt, expectJson, history, systemInstruction, timeoutMs } = req.body || {};
     if (!prompt || typeof prompt !== 'string' || !prompt.trim()) {
       return res.status(400).json({ error: 'Порожній запит' });
     }
-    const aiRes = await callGeminiServer(prompt, { expectJson: !!expectJson, maxOutputTokens: 8192 });
+    const callOptions = {
+      expectJson: !!expectJson,
+      maxOutputTokens: 8192,
+      timeoutMs: Math.max(10000, Math.min(60000, parseInt(timeoutMs, 10) || 35000))
+    };
+    if (typeof systemInstruction === 'string' && systemInstruction.trim()) {
+      callOptions.systemInstruction = systemInstruction.trim();
+    }
+    if (Array.isArray(history) && history.length > 0) {
+      callOptions.contents = history.slice(-10).map(h => ({
+        role: h?.role === 'model' ? 'model' : 'user',
+        text: String(h?.text || '').slice(0, 8000)
+      })).filter(h => h.text);
+    }
+    const aiRes = await callGeminiServer(prompt, callOptions);
     if (!aiRes.ok) {
       return res.status(aiRes.status || 502).json({ error: aiRes.error });
     }
@@ -2414,6 +2976,75 @@ async function getTunnelUrl() {
   return null;
 }
 
+function printStartupBanner({ port, httpsPort, hasHttps, localIp, tunnel, isPostgres, oneTimePassword, aiEnabled }) {
+  const useColor = Boolean(process.stdout.isTTY && !process.env.NO_COLOR);
+  const c = useColor
+    ? {
+        reset: '\x1b[0m',
+        bold: '\x1b[1m',
+        dim: '\x1b[90m',
+        cyan: '\x1b[36m',
+        green: '\x1b[32m',
+        yellow: '\x1b[33m',
+        white: '\x1b[37m'
+      }
+    : { reset: '', bold: '', dim: '', cyan: '', green: '', yellow: '', white: '' };
+
+  const stripAnsi = (s) => String(s).replace(/\x1b\[[0-9;]*m/g, '');
+  const sections = [
+    [
+      { label: 'Адмін (HTTP)', value: `http://localhost:${port}/admin.html`, tone: 'cyan' },
+      hasHttps ? { label: 'Адмін (HTTPS)', value: `https://localhost:${httpsPort}/admin.html (SSL / камера)`, tone: 'cyan' } : null
+    ],
+    [
+      { label: 'Wi-Fi (HTTP)', value: `http://${localIp}:${port}`, tone: 'white' },
+      hasHttps ? { label: 'Wi-Fi (HTTPS)', value: `https://${localIp}:${httpsPort}`, tone: 'white' } : null,
+      tunnel ? { label: 'Інтернет (Ngrok)', value: tunnel, tone: 'green' } : null
+    ],
+    [
+      { label: 'База даних', value: isPostgres ? 'PostgreSQL (постійна)' : 'JSON (локальний файл)', tone: isPostgres ? 'green' : 'white' },
+      oneTimePassword
+        ? { label: 'Початковий пароль', value: oneTimePassword, tone: 'yellow' }
+        : { label: 'Авторизація', value: 'Захищено (server/admin_secret.json)', tone: 'green' },
+      { label: 'Gemini ШІ', value: aiEnabled ? 'Увімкнено' : 'Вимкнено', tone: aiEnabled ? 'green' : 'dim' }
+    ]
+  ].map(group => group.filter(Boolean)).filter(group => group.length > 0);
+
+  const labelWidth = 19;
+  const formattedRows = sections.map(group => group.map(item => {
+    const paddedLabel = item.label.padEnd(labelWidth, ' ');
+    const valColor = c[item.tone] || c.white;
+    const rawLine = `  ${c.green}•${c.reset} ${c.dim}${paddedLabel}${c.reset} ${valColor}${item.value}${c.reset}`;
+    return { rawLine, visibleLen: stripAnsi(rawLine).length };
+  }));
+
+  const titlePlain = 'SecureExam  •  Система безпечного тестування';
+  const maxRowLen = formattedRows.flat().reduce((max, r) => Math.max(max, r.visibleLen), titlePlain.length + 4);
+  const innerWidth = Math.max(66, maxRowLen + 2);
+
+  const padBoxLine = (raw, visibleLen) => {
+    const rightPad = Math.max(0, innerWidth - visibleLen);
+    return `${c.cyan}│${c.reset}${raw}${' '.repeat(rightPad)}${c.cyan}│${c.reset}`;
+  };
+
+  const titleLeftPad = Math.floor((innerWidth - titlePlain.length) / 2);
+  const titleRightPad = Math.max(0, innerWidth - titlePlain.length - titleLeftPad);
+  const titleLine = `${c.cyan}│${c.reset}${' '.repeat(titleLeftPad)}${c.bold}${c.white}${titlePlain}${c.reset}${' '.repeat(titleRightPad)}${c.cyan}│${c.reset}`;
+
+  const topBorder = `${c.cyan}┌${'─'.repeat(innerWidth)}┐${c.reset}`;
+  const midBorder = `${c.cyan}├${'─'.repeat(innerWidth)}┤${c.reset}`;
+  const subDivider = `${c.cyan}│${c.dim}${'─'.repeat(innerWidth)}${c.cyan}│${c.reset}`;
+  const bottomBorder = `${c.cyan}└${'─'.repeat(innerWidth)}┘${c.reset}`;
+
+  const lines = ['', topBorder, titleLine, midBorder];
+  formattedRows.forEach((group, idx) => {
+    if (idx > 0) lines.push(subDivider);
+    group.forEach(row => lines.push(padBoxLine(row.rawLine, row.visibleLen)));
+  });
+  lines.push(bottomBorder, '');
+  console.log(lines.join('\n'));
+}
+
 async function bootstrap() {
   await db.init();
   const sslData = ENABLE_LOCAL_HTTPS ? await getOrCreateSslCert() : null;
@@ -2434,27 +3065,16 @@ async function bootstrap() {
       await new Promise(r => setTimeout(r, 2500));
       tunnel = await getTunnelUrl();
     }
-    console.log('\n==========================================================');
-    console.log('       СИСТЕМА БЕЗПЕЧНОГО ТЕСТУВАННЯ ЗАПУЩЕНА');
-    console.log('==========================================================');
-    console.log(`[+] Адмін-панель (HTTP):    http://localhost:${PORT}/admin.html`);
-    if (httpsServer) {
-      console.log(`[+] Адмін-панель (HTTPS):   https://localhost:${HTTPS_PORT}/admin.html (Камера/SSL)`);
-    }
-    console.log(`[+] База даних:             ${db.isPostgres() ? 'PostgreSQL (постійна)' : 'JSON (локальний файл)'}`);
-    if (generatedOneTimePassword) {
-      console.log(`[+] Початковий пароль:      ${generatedOneTimePassword}`);
-    } else {
-      console.log('[+] Пароль викладача захищено (хеш збережено у server/admin_secret.json).');
-    }
-    console.log(`[+] Локальна мережа (Wi-Fi): http://${localIp}:${PORT}`);
-    if (httpsServer) {
-      console.log(`[+] Wi-Fi HTTPS:            https://${localIp}:${HTTPS_PORT}`);
-    }
-    if (tunnel) {
-      console.log(`[+] Інтернет (Ngrok тунель): ${tunnel}`);
-    }
-    console.log('==========================================================\n');
+    printStartupBanner({
+      port: PORT,
+      httpsPort: HTTPS_PORT,
+      hasHttps: Boolean(httpsServer),
+      localIp,
+      tunnel,
+      isPostgres: db.isPostgres(),
+      oneTimePassword: generatedOneTimePassword,
+      aiEnabled: Boolean(getGeminiApiKey())
+    });
   });
 }
 

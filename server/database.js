@@ -200,6 +200,8 @@ export function normalizeQuestionData(questionData, fallbackId) {
     hotspotPrompt: questionData.hotspotPrompt || '',
     correct: questionData.correct !== undefined ? questionData.correct : 0,
     correctKeywords: Array.isArray(questionData.correctKeywords) ? questionData.correctKeywords : [],
+    points: Math.max(1, parseInt(questionData.points, 10) || 1),
+    explanation: questionData.explanation ? String(questionData.explanation).trim() : '',
     timeLimitSeconds: parseInt(questionData.timeLimitSeconds, 10) || 60
   };
   if (type === 'numeric') {
@@ -897,6 +899,8 @@ export class JsonFileDatabaseAdapter extends DatabaseAdapter {
       hotspotTarget: questionData.hotspotTarget !== undefined ? questionData.hotspotTarget : (current.hotspotTarget || null),
       correct: questionData.correct !== undefined ? questionData.correct : current.correct,
       correctKeywords: questionData.correctKeywords !== undefined ? questionData.correctKeywords : (current.correctKeywords || []),
+      points: questionData.points !== undefined ? Math.max(1, parseInt(questionData.points, 10) || 1) : (current.points || 1),
+      explanation: questionData.explanation !== undefined ? String(questionData.explanation || '').trim() : (current.explanation || ''),
       timeLimitSeconds: questionData.timeLimitSeconds !== undefined ? parseInt(questionData.timeLimitSeconds, 10) : current.timeLimitSeconds
     };
     if (type === 'numeric') {
